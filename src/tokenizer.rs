@@ -79,8 +79,7 @@ impl<'a> Tokenizer<'a> {
             }
             self.advance();
         }
-
-        // Here starts the mentioned second phase
+        //let mut tokens_1 = Vec::new();
         let mut glued_tokens = Vec::new();
         let mut iter_token = raw_tokens.iter();
         let mut num_to_skip = 0;
@@ -118,7 +117,7 @@ impl<'a> Tokenizer<'a> {
         glued_tokens
     }
     fn scan_token(&mut self, c: char) -> Token {
-        let token_kind = self.determine_token_type(c);
+        let token_kind = self.determine_token_type_(c);
         use SpecialKeywordKind::*;
         use TokenKind::*;
         // If it's an new line, the position goes to the next line and starts at column 1 again.
@@ -133,104 +132,37 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn create_token_from_type(&mut self, kind: TokenKind) -> Token {
-        Token { kind }
+        match kind {
+            _ => Token { kind },
+        }
     }
 
-    fn determine_token_type(&mut self, c: char) -> TokenKind {
+    fn determine_token_type_(&mut self, c: char) -> TokenKind {
+        use LiteralKind::*;
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
 
-        match c {
-            '+' => {
-                if self.peek(1) == Some('=') {
-                    self.advance();
-                    Punctuator(PlusEqual)
-                } else {
-                    Punctuator(Plus)
-                }
-            }
-            '-' => {
-                if self.peek(1) == Some('=') {
-                    self.advance();
-                    Punctuator(MinusEqual)
-                } else if self.peek(1) == Some('>') {
-                    self.advance();
-                    Punctuator(MinusGreater)
-                } else {
-                    Punctuator(Minus)
-                }
-            }
-            '*' => {
-                if self.peek(1) == Some('=') {
-                    self.advance();
-                    Punctuator(StarEqual)
-                } else {
-                    Punctuator(Star)
-                }
-            }
+        let token_kind = match c {
+            '+' => Punctuator(Plus),
+            '-' => Punctuator(Minus),
+            '*' => Punctuator(Star),
             '/' => {
-                let peeked = self.peek(1).unwrap();
-                if peeked == '=' {
-                    self.advance();
-                    Punctuator(SlashEqual)
-                } else if peeked == '/' {
+                let next_char = self.peek(1).unwrap();
+                if next_char == '/' {
                     self.lex_comment_line()
-                } else if peeked == '*' {
+                } else if next_char == '*' {
                     self.lex_comment_block()
                 } else {
                     Punctuator(Slash)
                 }
             }
-            '=' => {
-                if self.peek(1) == Some('=') {
-                    self.advance();
-                    Punctuator(EqualEqual)
-                } else {
-                    Punctuator(Equal)
-                }
-            }
-            '!' => {
-                if self.peek(1) == Some('=') {
-                    self.advance();
-                    Punctuator(BangEqual)
-                } else {
-                    Punctuator(Bang)
-                }
-            }
-            '>' => {
-                if self.peek(1) == Some('=') {
-                    self.advance();
-                    Punctuator(GreaterEqual)
-                } else {
-                    Punctuator(Greater)
-                }
-            }
-            '<' => {
-                if self.peek(1) == Some('=') {
-                    self.advance();
-                    Punctuator(LessEqual)
-                } else {
-                    Punctuator(Less)
-                }
-            }
-            '&' => {
-                if self.peek(1) == Some('&') {
-                    self.advance();
-                    Punctuator(AmpersandAmpersand)
-                } else {
-                    Punctuator(Ampersand)
-                }
-            }
-            '|' => {
-                if self.peek(1) == Some('|') {
-                    self.advance();
-                    Punctuator(PipePipe)
-                } else {
-                    Punctuator(Pipe)
-                }
-            }
-
+            '=' => Punctuator(Equal),
+            '!' => Punctuator(Bang),
+            '>' => Punctuator(Greater),
+            '<' => Punctuator(Less),
+            '&' => Punctuator(Ampersand),
+            '|' => Punctuator(Pipe),
             '%' => Punctuator(Percent),
             '$' => Punctuator(Dollar),
             '?' => Punctuator(Question),
@@ -255,7 +187,27 @@ impl<'a> Tokenizer<'a> {
             cc if is_digit(cc) => self.lex_number(),
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => panic!("This is an unknown character {:?}.", cc),
+        };
+        match &token_kind {
+            SpecialKeyword(Newline) => {
+                self.position.line += 1;
+                self.position.column = 1;
+            }
+            Literal(String(string)) => {
+                let str_len = string.len();
+                let token_len = str_len + 2;
+                self.position.column += token_len as u32;
+            }
+            Literal(Integer(number)) => {
+                let token_len = number.to_string().len();
+                self.position.column += token_len as u32;
+            }
+
+            _ => {
+                self.position.column += 1;
+            }
         }
+        token_kind
     }
     fn lex_string(&mut self) -> TokenKind {
         let mut string_content = String::new();
