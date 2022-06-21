@@ -221,7 +221,9 @@ impl Evaluator {
                 let res = match right {
                     IceObject::Literal(lit) => match lit {
                         Integer(ref ls) => match t.kind {
-                            Punctuator(Minus) => LiteralKind::Integer(-*ls),
+                            // TODO: Fix this operation. Either remove unary minus entirely or make it overflow.
+                            // Right now I created a bug, because it simply does a noop.
+                            Punctuator(Minus) => LiteralKind::Integer(*ls),
                             _ => panic!("Integers support only Minus as a unary operation"),
                         },
                         Boolean(ref ls) => match t.kind {

@@ -1,3 +1,4 @@
+use crate::token;
 use crate::token::*;
 use std::str::Chars;
 
@@ -15,6 +16,9 @@ fn is_alpha(c: char) -> bool {
 fn is_alpha_numeric(c: char) -> bool {
     is_digit(c) || is_alpha(c)
 }
+fn is_whitespace(c: char) -> bool {
+    c == ' ' || c == '\t' || c == '\n' || c == '\r'
+}
 fn is_skip_token(token: &Token) -> bool {
     use SpecialKeywordKind::*;
     use TokenKind::*;
@@ -23,6 +27,7 @@ fn is_skip_token(token: &Token) -> bool {
         _ => false,
     }
 }
+
 #[allow(dead_code)]
 struct Cursor<'a> {
     chars: Chars<'a>,
@@ -45,16 +50,6 @@ impl<'a> Cursor<'a> {
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
     Tokenizer::new().scan_tokens(source)
 }
-// #[derive(Debug, Clone, Copy)]
-// struct Position {
-//     line: u32,
-//     column: u32,
-// }
-// #[derive(Debug)]
-// struct Span {
-//     start: Position,
-//     end: Position,
-// }
 struct Tokenizer<'a> {
     chars: Chars<'a>,
     position: Position,
@@ -70,85 +65,98 @@ impl<'a> Tokenizer<'a> {
     fn scan_tokens(&mut self, source: &'a str) -> Vec<Token> {
         self.chars = source.chars();
 
-        // The idea is to have two passes. The first pass basically gets the raw tokens.
+        // The idea is to have several passes. The first pass basically gets the raw tokens.
         // Meaning there are no composite tokens (e.g. ==), whitespaces and comments are included, etc.
         // The second pass glues together the tokens into composite tokens and handles comments etc.
+        // The third pass handles whitespaces and comments.
         // Of course, one can do the same thing in only one pass, which would be more effificient,
         // but this way the structure is easier to modify. This might help in implementing custom operators.
 
-        let mut raw_tokens = Vec::new();
-        while let Some(ch) = self.peek(0) {
-            let token = self.scan_token(ch);
+        let mut tokens_pass_0 = Vec::new();
+        {
+            while let Some(ch) = self.peek(0) {
+                let token = self.scan_token(ch);
 
-            if token.kind == TokenKind::SpecialKeyword(Newline) {
-                self.position.line += 1;
-                self.position.column = 1;
-            } else {
-                self.position.column += 1;
-            }
-
-            if !is_skip_token(&token) {
-                raw_tokens.push(token);
-            }
-            self.advance();
-        }
-
-        let mut end_tokens = Vec::new();
-        let mut iter_token = raw_tokens.iter();
-        let mut num_to_skip = 0;
-        while let Some(token_0) = iter_token.nth(num_to_skip) {
-            let token_1 = iter_token.clone().nth(0);
-            //let token_2 = iter_token.clone().nth(1);
-
-            let max_possible_tokens;
-            match token_1 {
-                None => max_possible_tokens = 1,
-                Some(..) => max_possible_tokens = 2,
-            };
-
-            let glued_token = if max_possible_tokens == 2 {
-                let token_1 = token_1.unwrap();
-                if is_gluable(&[token_0, token_1]) {
-                    num_to_skip = 1;
-                    glue(&[token_0, token_1])
+                if token.kind == TokenKind::SpecialKeyword(Newline) {
+                    self.position.line += 1;
+                    self.position.column = 1;
                 } else {
-                    num_to_skip = 0;
-                    token_0.clone()
+                    self.position.column += 1;
                 }
-            } else if max_possible_tokens == 1 {
-                num_to_skip = 0;
-                token_0.clone()
-            } else {
-                panic!("This should never happen");
-            };
-            end_tokens.push(glued_token);
+
+                tokens_pass_0.push(token);
+                self.advance();
+            }
+        }
+        let tokens_pass_0 = tokens_pass_0;
+
+        // Second pass: We glue together raw tokens into composite tokens.
+        let mut tokens_pass_1 = Vec::new();
+        {
+            let mut iter_token = tokens_pass_0.iter();
+            let mut num_to_skip = 0;
+            while let Some(token_0) = iter_token.nth(num_to_skip) {
+                // Here we get the maximum amount we have to do forward lookup.
+                let token_superset = token_0.kind.list_superset();
+                let mut max_look_ahead = 0;
+                for constituents in token_superset {
+                    max_look_ahead = constituents.len().max(max_look_ahead);
+                }
+                num_to_skip = max_look_ahead - 1;
+
+                // Here we gather the potential tokens which could result in a composite token.
+                let mut tokens: Vec<&Token> = Vec::new();
+                for n in 0..max_look_ahead {
+                    if n == 0 {
+                        tokens.push(token_0);
+                    } else {
+                        let token_n = iter_token.clone().nth(n - 1).unwrap();
+                        tokens.push(token_n);
+                    }
+                }
+
+                while is_gluable(&tokens) == false {
+                    if let Some(_) = tokens.pop() {
+                    } else {
+                        break;
+                    }
+                }
+                let glued_token = if is_gluable(&tokens) {
+                    glue(&tokens)
+                } else {
+                    token_0.clone()
+                };
+
+                tokens_pass_1.push(glued_token);
+            }
+        }
+        let tokens_pass_1 = tokens_pass_1;
+
+        // Third pass. We handle whitespaces and comments.
+        let mut tokens_pass_2: Vec<Token> = Vec::new();
+        {
+            let mut iter_token = tokens_pass_1.iter();
+            while let Some(token) = iter_token.nth(0) {
+                if !is_skip_token(&token) {
+                    tokens_pass_2.push(token.clone());
+                }
+            }
         }
 
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        end_tokens.push(Token {
+        tokens_pass_2.push(Token {
             kind: SpecialKeyword(Eof),
             span: Span {
                 start: Position { line: 0, column: 0 },
                 end: Position { line: 0, column: 0 },
             },
+            whitespace: token::Whitespace::Undefined,
         });
-        end_tokens
+        tokens_pass_2
     }
+
     fn scan_token(&mut self, c: char) -> Token {
-        self.get_token(c)
-        // let token_kind = self.determine_token_type(c);
-
-        // self.create_token_from_type(token_kind)
-    }
-
-    // fn create_token_from_type(&mut self, kind: TokenKind) -> Token {
-    //     match kind {
-    //         _ => Token { kind },
-    //     }
-    // }
-
-    fn get_token(&mut self, c: char) -> Token {
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -205,6 +213,7 @@ impl<'a> Tokenizer<'a> {
                 start: start_pos,
                 end: self.position,
             },
+            whitespace: token::Whitespace::Undefined,
         }
     }
     fn lex_escape_char(&mut self) -> String {
@@ -229,7 +238,7 @@ impl<'a> Tokenizer<'a> {
         string_content
     }
     fn lex_string(&mut self) -> TokenKind {
-        // TODO: Are the delimiter of a string, part of its span? Right now they are. Think about it.
+        // TODO: Are the delimiter of a string, part of its span? Right now they are. Think about it!
         let mut string_content = String::new();
         while let Some(c) = self.peek(1) {
             if c == '"' {
@@ -306,7 +315,7 @@ impl<'a> Tokenizer<'a> {
             }
         }
 
-        let number = string_content.parse::<i64>().unwrap();
+        let number = string_content.parse::<u128>().unwrap();
         Literal(Integer(number))
     }
     fn lex_identifier(&mut self) -> TokenKind {
@@ -350,14 +359,6 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn peek(&mut self, n: usize) -> Option<char> {
-        // if let Some(ch) = &self.chars.clone().nth(n) {
-        //     Some(*ch)
-        // } else {
-        //     None
-        // }
-
-        // self.chars.clone().nth(n).as_ref().map(|ch| *ch)
-
         self.chars.clone().nth(n).as_ref().copied()
     }
     fn advance(&mut self) {

@@ -7,6 +7,67 @@ pub enum TokenKind {
     SpecialKeyword(SpecialKeywordKind),
 }
 
+impl TokenKind {
+    /// splits token kind into its components. Makes only sense with composite punctuators.
+    pub fn list_subset(&self) -> Vec<TokenKind> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+        match self.clone() {
+            Punctuator(PlusEqual) => vec![Punctuator(Plus), Punctuator(Equal)],
+            Punctuator(MinusEqual) => vec![Punctuator(Minus), Punctuator(Equal)],
+            Punctuator(StarEqual) => vec![Punctuator(Star), Punctuator(Equal)],
+            Punctuator(SlashEqual) => vec![Punctuator(Slash), Punctuator(Equal)],
+
+            Punctuator(EqualEqual) => vec![Punctuator(Equal), Punctuator(Equal)],
+            Punctuator(BangEqual) => vec![Punctuator(Bang), Punctuator(Equal)],
+
+            Punctuator(AmpersandAmpersand) => vec![Punctuator(Ampersand), Punctuator(Ampersand)],
+            Punctuator(PipePipe) => vec![Punctuator(Pipe), Punctuator(Pipe)],
+
+            Punctuator(GreaterEqual) => vec![Punctuator(Greater), Punctuator(Equal)],
+            Punctuator(LessEqual) => vec![Punctuator(Less), Punctuator(Equal)],
+
+            Punctuator(MinusGreater) => vec![Punctuator(Minus), Punctuator(Greater)],
+
+            Punctuator(p) => vec![Punctuator(p)],
+            Literal(l) => vec![Literal(l)],
+            Identifier(s) => vec![Identifier(s)],
+            Keyword(k) => vec![Keyword(k)],
+            SpecialKeyword(sk) => vec![SpecialKeyword(sk)],
+        }
+    }
+    /// This function returns all the token kinds this token kind can be part of. This also includes itself.
+    pub fn list_superset(&self) -> Vec<Vec<TokenKind>> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+        let result = match self.clone() {
+            Punctuator(Plus) => vec![Punctuator(Plus), Punctuator(PlusEqual)],
+            Punctuator(Minus) => vec![
+                Punctuator(Minus),
+                Punctuator(MinusEqual),
+                Punctuator(MinusGreater),
+            ],
+            Punctuator(Star) => vec![Punctuator(Star), Punctuator(StarEqual)],
+            Punctuator(Slash) => vec![Punctuator(Slash), Punctuator(SlashEqual)],
+            Punctuator(Equal) => vec![Punctuator(Equal), Punctuator(EqualEqual)],
+            Punctuator(Bang) => vec![Punctuator(Bang), Punctuator(BangEqual)],
+            Punctuator(Ampersand) => {
+                vec![Punctuator(Ampersand), Punctuator(AmpersandAmpersand)]
+            }
+            Punctuator(Pipe) => vec![Punctuator(Pipe), Punctuator(PipePipe)],
+            Punctuator(Greater) => vec![Punctuator(Greater), Punctuator(GreaterEqual)],
+            Punctuator(Less) => vec![Punctuator(Less), Punctuator(LessEqual)],
+
+            Punctuator(p) => vec![Punctuator(p)],
+            Literal(l) => vec![Literal(l)],
+            Identifier(i) => vec![Identifier(i)],
+            Keyword(k) => vec![Keyword(k)],
+            SpecialKeyword(sk) => vec![SpecialKeyword(sk)],
+        };
+        result.into_iter().map(|v| v.list_subset()).collect()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PunctuatorKind {
     // Punctuator
@@ -102,7 +163,7 @@ pub enum SpecialKeywordKind {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LiteralKind {
-    Integer(i64),
+    Integer(u128),
     //Float(f64),
     Boolean(bool),
     //Char(char)
@@ -111,26 +172,7 @@ pub enum LiteralKind {
 }
 
 fn is_composite_token_kind(token_kind: &TokenKind) -> bool {
-    use PunctuatorKind::*;
-    use TokenKind::*;
-    match token_kind {
-        Punctuator(PlusEqual)
-        | Punctuator(MinusEqual)
-        | Punctuator(StarEqual)
-        | Punctuator(SlashEqual)
-        | Punctuator(EqualEqual)
-        | Punctuator(BangEqual)
-        | Punctuator(AmpersandAmpersand)
-        | Punctuator(PipePipe)
-        | Punctuator(GreaterEqual)
-        | Punctuator(LessEqual)
-        | Punctuator(MinusGreater) => true,
-
-        _ => false,
-    }
-}
-fn unglue(t: &Token) -> Vec<Token> {
-    unimplemented!()
+    token_kind.list_subset().len() > 1
 }
 fn unite_to_composite(tk: &[&TokenKind]) -> TokenKind {
     use PunctuatorKind::*;
@@ -153,6 +195,8 @@ fn unite_to_composite(tk: &[&TokenKind]) -> TokenKind {
 /// Glues together simple tokens into composite tokens.
 pub fn glue(t: &[&Token]) -> Token {
     match t {
+        // If only one token is provided then simply an identical copy is returned.
+        [t_0] => t_0.clone().clone(),
         [t_0, t_1] => {
             if is_gluable(t) {
                 let kinds = &[&t_0.kind, &t_1.kind];
@@ -162,18 +206,23 @@ pub fn glue(t: &[&Token]) -> Token {
                         start: t_0.span.start,
                         end: t_1.span.end,
                     },
+                    whitespace: t_0.whitespace.clone(),
                 }
             } else {
                 panic!("unexpected token kind")
             }
         }
-        _ => unimplemented!(),
+        _ => unimplemented!(
+            "The logic for tokens consisting of more than 2 tokens is not yet implemented"
+        ),
     }
 }
-pub fn is_gluable(t: &[&Token]) -> bool {
+pub fn is_gluable(tokens: &[&Token]) -> bool {
     use PunctuatorKind::*;
     use TokenKind::*;
-    match t {
+    match tokens {
+        [] => false,
+        [_] => false,
         [t_0, t_1] => {
             let kinds = (&t_0.kind, &t_1.kind);
             match kinds {
@@ -183,14 +232,22 @@ pub fn is_gluable(t: &[&Token]) -> bool {
                 cc => false,
             }
         }
+
         cc => {
-            panic!("is_gluable: {:?}", cc);
-            false
+            panic!("is_gluable: {:?}", cc)
         }
     }
-}
-fn is_composite_token(token: &Token) -> bool {
-    is_composite_token_kind(&token.kind)
+
+    // TODO: Implement this function proberly
+    // let len = tokens.len();
+    // if len <= 1 {
+    //     false;
+    // } else {
+    //     let first_token = &tokens[0];
+    //     let superset = first_token.kind.list_superset();
+    //     assert!(superset.len() == tokens.len())
+    // }
+    // false
 }
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Position {
@@ -203,13 +260,46 @@ pub struct Span {
     pub end: Position,
 }
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-struct Whitespace {
-    left: bool,
-    right: bool,
+pub enum Whitespace {
+    None,
+    Left,
+    Right,
+    Both,
+    Undefined,
+}
+impl Whitespace {
+    fn to_bools(&self) -> (bool, bool) {
+        match self {
+            Self::None => (false, false),
+            Self::Left => (true, false),
+            Self::Right => (false, true),
+            Self::Both => (true, true),
+            Self::Undefined => panic!(
+                "{}",
+                "'Undefined' should never be read, it is only a temporary value"
+            ),
+        }
+    }
+    fn from(bools: (bool, bool)) -> Self {
+        match bools {
+            (false, false) => Self::None,
+            (true, false) => Self::Left,
+            (false, true) => Self::Right,
+            (true, true) => Self::Both,
+        }
+    }
+    fn from_bools(&mut self, bools: (bool, bool)) {
+        match bools {
+            (true, true) => *self = Self::Both,
+            (true, false) => *self = Self::Left,
+            (false, true) => *self = Self::Right,
+            (false, false) => *self = Self::None,
+        }
+    }
 }
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
-    //pub whitespace: Whitespace,
+    pub whitespace: Whitespace,
 }
