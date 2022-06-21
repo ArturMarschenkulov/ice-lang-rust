@@ -80,7 +80,7 @@ impl<'a> Tokenizer<'a> {
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
 
-            if &token.kind == &TokenKind::SpecialKeyword(Newline) {
+            if token.kind == TokenKind::SpecialKeyword(Newline) {
                 self.position.line += 1;
                 self.position.column = 1;
             } else {
@@ -136,8 +136,7 @@ impl<'a> Tokenizer<'a> {
         end_tokens
     }
     fn scan_token(&mut self, c: char) -> Token {
-        let token = self.get_token(c);
-        token
+        self.get_token(c)
         // let token_kind = self.determine_token_type(c);
 
         // self.create_token_from_type(token_kind)

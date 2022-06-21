@@ -152,7 +152,7 @@ fn unite_to_composite(tk: &[&TokenKind]) -> TokenKind {
 }
 /// Glues together simple tokens into composite tokens.
 pub fn glue(t: &[&Token]) -> Token {
-    let token = match t {
+    match t {
         [t_0, t_1] => {
             if is_gluable(t) {
                 let kinds = &[&t_0.kind, &t_1.kind];
@@ -168,8 +168,7 @@ pub fn glue(t: &[&Token]) -> Token {
             }
         }
         _ => unimplemented!(),
-    };
-    token
+    }
 }
 pub fn is_gluable(t: &[&Token]) -> bool {
     use PunctuatorKind::*;

@@ -503,8 +503,7 @@ impl Parser {
         let token_kind = token.kind.clone();
         if let TokenKind::Identifier(_) = token_kind {
             self.advance();
-            let t = token.clone();
-            Ok(t)
+            Ok(token.clone())
         } else {
             let f = format!("{:?}; {:?}", &self.peek(0), message);
             println!("{}", &f);
