@@ -45,16 +45,16 @@ impl<'a> Cursor<'a> {
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
     Tokenizer::new().scan_tokens(source)
 }
-#[derive(Debug, Clone, Copy)]
-struct Position {
-    line: u32,
-    column: u32,
-}
-#[derive(Debug)]
-struct Span {
-    start: Position,
-    end: Position,
-}
+// #[derive(Debug, Clone, Copy)]
+// struct Position {
+//     line: u32,
+//     column: u32,
+// }
+// #[derive(Debug)]
+// struct Span {
+//     start: Position,
+//     end: Position,
+// }
 struct Tokenizer<'a> {
     chars: Chars<'a>,
     position: Position,
@@ -128,6 +128,10 @@ impl<'a> Tokenizer<'a> {
         use TokenKind::*;
         end_tokens.push(Token {
             kind: SpecialKeyword(Eof),
+            span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 0 },
+            },
         });
         end_tokens
     }
@@ -139,14 +143,13 @@ impl<'a> Tokenizer<'a> {
         // self.create_token_from_type(token_kind)
     }
 
-    fn create_token_from_type(&mut self, kind: TokenKind) -> Token {
-        match kind {
-            _ => Token { kind },
-        }
-    }
+    // fn create_token_from_type(&mut self, kind: TokenKind) -> Token {
+    //     match kind {
+    //         _ => Token { kind },
+    //     }
+    // }
 
     fn get_token(&mut self, c: char) -> Token {
-        use LiteralKind::*;
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -197,31 +200,13 @@ impl<'a> Tokenizer<'a> {
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => panic!("This is an unknown character {:?}.", cc),
         };
-
-        // Since the position logic for strings, numbers and identifiers is implemented in their respective functions,
-        // we have here only the newline token and everything else.
-        match &token_kind {
-            Literal(String(..)) => (),
-            Literal(Integer(..)) => (),
-            Identifier(..) => (),
-            _ => {
-                self.position.column += 0;
-            }
+        Token {
+            kind: token_kind,
+            span: Span {
+                start: start_pos,
+                end: self.position,
+            },
         }
-        let span = Span {
-            start: start_pos,
-            end: self.position,
-        };
-
-        println!(
-            "span: {start_line}:{start_col}-{end_line}:{end_col}. token: {:?}",
-            token_kind,
-            start_line = span.start.line,
-            start_col = span.start.column,
-            end_line = span.end.line,
-            end_col = span.end.column,
-        );
-        Token { kind: token_kind }
     }
     fn lex_escape_char(&mut self) -> String {
         let mut string_content = String::new();
@@ -293,7 +278,7 @@ impl<'a> Tokenizer<'a> {
         while self.peek(1) != Some('*') && self.peek(2) != Some('/') {
             self.advance();
 
-            if (self.peek(1) == Some('\n')) {
+            if self.peek(1) == Some('\n') {
                 self.position.line += 1;
                 self.position.column = 1;
             } else {

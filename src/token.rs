@@ -158,6 +158,10 @@ pub fn glue(t: &[&Token]) -> Token {
                 let kinds = &[&t_0.kind, &t_1.kind];
                 Token {
                     kind: unite_to_composite(kinds),
+                    span: Span {
+                        start: t_0.span.start,
+                        end: t_1.span.end,
+                    },
                 }
             } else {
                 panic!("unexpected token kind")
@@ -189,15 +193,17 @@ pub fn is_gluable(t: &[&Token]) -> bool {
 fn is_composite_token(token: &Token) -> bool {
     is_composite_token_kind(&token.kind)
 }
-
-//struct Position {
-//    line: u32,
-//    column: u32,
-//}
-//struct Span {
-//    start: Position,
-//    end: Position,
-//}
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct Position {
+    pub line: u32,
+    pub column: u32,
+}
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct Span {
+    pub start: Position,
+    pub end: Position,
+}
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct Whitespace {
     left: bool,
     right: bool,
@@ -205,6 +211,6 @@ struct Whitespace {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Token {
     pub kind: TokenKind,
+    pub span: Span,
     //pub whitespace: Whitespace,
-    //span: Span,
 }

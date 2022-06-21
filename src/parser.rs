@@ -498,16 +498,29 @@ impl Parser {
         }
     }
     fn consume_identifier(&mut self, message: &str) -> Result<Token, String> {
-        if let TokenKind::Identifier(name) = self.peek(0).kind.clone() {
+        // TODO: This looks messy. Fix it!
+        let token = self.peek(0).clone();
+        let token_kind = token.kind.clone();
+        if let TokenKind::Identifier(_) = token_kind {
             self.advance();
-            Ok(Token {
-                kind: TokenKind::Identifier(name),
-            })
+            let t = token.clone();
+            Ok(t)
         } else {
             let f = format!("{:?}; {:?}", &self.peek(0), message);
             println!("{}", &f);
             Err(f)
         }
+
+        // if let TokenKind::Identifier(name) = self.peek(0).kind.clone() {
+        //     self.advance();
+        //     Ok(Token {
+        //         kind: TokenKind::Identifier(name),
+        //     })
+        // } else {
+        //     let f = format!("{:?}; {:?}", &self.peek(0), message);
+        //     println!("{}", &f);
+        //     Err(f)
+        // }
     }
     fn advance(&mut self) {
         if !self.is_at_end() {
