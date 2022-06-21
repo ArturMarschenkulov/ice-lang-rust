@@ -45,9 +45,15 @@ impl<'a> Cursor<'a> {
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
     Tokenizer::new().scan_tokens(source)
 }
+#[derive(Debug, Clone, Copy)]
 struct Position {
     line: u32,
     column: u32,
+}
+#[derive(Debug)]
+struct Span {
+    start: Position,
+    end: Position,
 }
 struct Tokenizer<'a> {
     chars: Chars<'a>,
@@ -67,24 +73,33 @@ impl<'a> Tokenizer<'a> {
         // The idea is to have two passes. The first pass basically gets the raw tokens.
         // Meaning there are no composite tokens (e.g. ==), whitespaces and comments are included, etc.
         // The second pass glues together the tokens into composite tokens and handles comments etc.
-        // This probably can be done in one pass more efficiently, but this way it looks nicer.
-        // This also allows for a more flexible tokenizer.
+        // Of course, one can do the same thing in only one pass, which would be more effificient,
+        // but this way the structure is easier to modify. This might help in implementing custom operators.
 
         let mut raw_tokens = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
+
+            if &token.kind == &TokenKind::SpecialKeyword(Newline) {
+                self.position.line += 1;
+                self.position.column = 1;
+            } else {
+                self.position.column += 1;
+            }
 
             if !is_skip_token(&token) {
                 raw_tokens.push(token);
             }
             self.advance();
         }
-        //let mut tokens_1 = Vec::new();
-        let mut glued_tokens = Vec::new();
+
+        let mut end_tokens = Vec::new();
         let mut iter_token = raw_tokens.iter();
         let mut num_to_skip = 0;
         while let Some(token_0) = iter_token.nth(num_to_skip) {
             let token_1 = iter_token.clone().nth(0);
+            //let token_2 = iter_token.clone().nth(1);
+
             let max_possible_tokens;
             match token_1 {
                 None => max_possible_tokens = 1,
@@ -106,29 +121,22 @@ impl<'a> Tokenizer<'a> {
             } else {
                 panic!("This should never happen");
             };
-            glued_tokens.push(glued_token);
+            end_tokens.push(glued_token);
         }
 
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        glued_tokens.push(Token {
+        end_tokens.push(Token {
             kind: SpecialKeyword(Eof),
         });
-        glued_tokens
+        end_tokens
     }
     fn scan_token(&mut self, c: char) -> Token {
-        let token_kind = self.determine_token_type_(c);
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
-        // If it's an new line, the position goes to the next line and starts at column 1 again.
-        // Anything else goes 1 column further.
-        if token_kind == SpecialKeyword(Newline) {
-            self.position.line += 1;
-            self.position.column = 1;
-        } else {
-            self.position.column += 1;
-        }
-        self.create_token_from_type(token_kind)
+        let token = self.get_token(c);
+        token
+        // let token_kind = self.determine_token_type(c);
+
+        // self.create_token_from_type(token_kind)
     }
 
     fn create_token_from_type(&mut self, kind: TokenKind) -> Token {
@@ -137,11 +145,12 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn determine_token_type_(&mut self, c: char) -> TokenKind {
+    fn get_token(&mut self, c: char) -> Token {
         use LiteralKind::*;
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
+        let start_pos = self.position;
 
         let token_kind = match c {
             '+' => Punctuator(Plus),
@@ -188,95 +197,113 @@ impl<'a> Tokenizer<'a> {
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => panic!("This is an unknown character {:?}.", cc),
         };
-        match &token_kind {
-            SpecialKeyword(Newline) => {
-                self.position.line += 1;
-                self.position.column = 1;
-            }
-            Literal(String(string)) => {
-                let str_len = string.len();
-                let token_len = str_len + 2;
-                self.position.column += token_len as u32;
-            }
-            Literal(Integer(number)) => {
-                let token_len = number.to_string().len();
-                self.position.column += token_len as u32;
-            }
 
+        // Since the position logic for strings, numbers and identifiers is implemented in their respective functions,
+        // we have here only the newline token and everything else.
+        match &token_kind {
+            Literal(String(..)) => (),
+            Literal(Integer(..)) => (),
+            Identifier(..) => (),
             _ => {
-                self.position.column += 1;
+                self.position.column += 0;
             }
         }
-        token_kind
+        let span = Span {
+            start: start_pos,
+            end: self.position,
+        };
+
+        println!(
+            "span: {start_line}:{start_col}-{end_line}:{end_col}. token: {:?}",
+            token_kind,
+            start_line = span.start.line,
+            start_col = span.start.column,
+            end_line = span.end.line,
+            end_col = span.end.column,
+        );
+        Token { kind: token_kind }
+    }
+    fn lex_escape_char(&mut self) -> String {
+        let mut string_content = String::new();
+        if self.peek(1) == Some('\\') {
+            let mut is_escape = true;
+            match self.peek(2) {
+                Some('n') => string_content.push('\n'),
+                Some('t') => string_content.push('\t'),
+                Some('0') => string_content.push('\0'),
+                Some('\\') => string_content.push('\\'),
+                Some('\"') => string_content.push('\"'),
+                Some('\'') => string_content.push('\''),
+                _ => is_escape = false,
+            }
+            if is_escape {
+                self.advance();
+                self.advance();
+                self.position.column += 2;
+            }
+        }
+        string_content
     }
     fn lex_string(&mut self) -> TokenKind {
+        // TODO: Are the delimiter of a string, part of its span? Right now they are. Think about it.
         let mut string_content = String::new();
         while let Some(c) = self.peek(1) {
-            if c != '"' {
-                // handle escape characters
-                if self.peek(1) == Some('\\') {
-                    let mut is_escape = false;
-                    match self.peek(2) {
-                        Some('n') => {
-                            is_escape = true;
-                            string_content.push('\n');
-                        }
-                        Some('t') => {
-                            is_escape = true;
-                            string_content.push('\t');
-                        }
-                        Some('0') => {
-                            is_escape = true;
-                            string_content.push('\0');
-                        }
-                        Some('\\') => {
-                            is_escape = true;
-                            string_content.push('\\');
-                        }
-                        Some('\"') => {
-                            is_escape = true;
-                            string_content.push('\"');
-                        }
-                        Some('\'') => {
-                            is_escape = true;
-                            string_content.push('\'');
-                        }
-                        _ => {}
-                    }
-                    if is_escape {
-                        self.advance();
-                        self.advance();
-                    }
-                } else if self.peek(1) == Some('\n') || self.peek(1) == Some('\t') {
-                    self.advance();
-                } else {
-                    string_content.push(c);
-                    self.advance();
-                }
-            } else {
+            if c == '"' {
                 break;
             }
+            // handle escape characters
+            if self.peek(1) == Some('\\') {
+                let escape_char = self.lex_escape_char();
+                string_content.push_str(&escape_char);
+            } else if self.peek(1) == Some('\n') {
+                self.position.column = 1;
+                self.position.line += 1;
+                self.advance();
+            } else if self.peek(1) == Some('\t') {
+                // TODO: Figure out how to correctly handle a tab, because they can be variable length.
+                self.position.column += 1;
+                self.advance();
+            } else {
+                string_content.push(c);
+                self.position.column += 1;
+                self.advance();
+            }
         }
-        self.advance();
+        self.advance(); // this is for the '"'
+
         if self.peek(0) == None {
             panic!("Unterminated string.");
         }
         TokenKind::Literal(LiteralKind::String(string_content))
     }
     fn lex_comment_line(&mut self) -> TokenKind {
-        self.advance();
+        self.advance(); // for '//'
         while self.peek(1) != Some('\n') && self.peek(1) != Some('\0') {
             self.advance();
+            self.position.column += 1;
         }
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_comment_block(&mut self) -> TokenKind {
-        self.advance();
+        // TODO: Implement nested block comments
+        self.advance(); // for '/'
+        self.advance(); // for '*'
+        self.position.column += 2;
+
         while self.peek(1) != Some('*') && self.peek(2) != Some('/') {
             self.advance();
+
+            if (self.peek(1) == Some('\n')) {
+                self.position.line += 1;
+                self.position.column = 1;
+            } else {
+                self.position.column += 1;
+            }
+            self.position.column += 1;
         }
-        self.advance();
-        self.advance();
+        self.advance(); // for '*'
+        self.advance(); // for '/'
+        self.position.column += 2;
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_number(&mut self) -> TokenKind {
@@ -315,7 +342,7 @@ impl<'a> Tokenizer<'a> {
         //determine keywords
         use KeywordKind::*;
         use TokenKind::*;
-        match string_content.as_ref() {
+        let token = match string_content.as_ref() {
             "var" => Keyword(Var),
             "fn" => Keyword(Fn),
             "if" => Keyword(If),
@@ -329,7 +356,13 @@ impl<'a> Tokenizer<'a> {
             "print" => Keyword(Print),
             "println" => Keyword(Println),
             _ => Identifier(string_content),
-        }
+        };
+        match &token {
+            Keyword(kw) => self.position.column += (kw.get_length() - 1) as u32,
+            Identifier(id) => self.position.column += (id.len() - 1) as u32,
+            _ => panic!("Identifier not a keyword or identifier."),
+        };
+        token
     }
 
     fn peek(&mut self, n: usize) -> Option<char> {

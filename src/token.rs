@@ -70,6 +70,26 @@ pub enum KeywordKind {
     Print,
     Println,
 }
+impl KeywordKind {
+    pub fn get_length(&self) -> usize {
+        use KeywordKind::*;
+        match self {
+            Var => "var".len(),
+            Fn => "fn".len(),
+
+            If => "if".len(),
+            Else => "else".len(),
+            While => "while".len(),
+            For => "for".len(),
+
+            True => "true".len(),
+            False => "false".len(),
+
+            Print => "print".len(),
+            Println => "println".len(),
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpecialKeywordKind {
     Eof,
@@ -112,25 +132,35 @@ fn is_composite_token_kind(token_kind: &TokenKind) -> bool {
 fn unglue(t: &Token) -> Vec<Token> {
     unimplemented!()
 }
-
-/// Glues together simple tokens into composite tokens.
-pub fn glue(t: &[&Token]) -> Token {
+fn unite_to_composite(tk: &[&TokenKind]) -> TokenKind {
     use PunctuatorKind::*;
     use TokenKind::*;
+    match &tk {
+        [Punctuator(Plus), Punctuator(Equal)] => Punctuator(PlusEqual),
+        [Punctuator(Minus), Punctuator(Equal)] => Punctuator(MinusEqual),
+        [Punctuator(Star), Punctuator(Equal)] => Punctuator(StarEqual),
+        [Punctuator(Slash), Punctuator(Equal)] => Punctuator(SlashEqual),
+        [Punctuator(Equal), Punctuator(Equal)] => Punctuator(EqualEqual),
+        [Punctuator(Bang), Punctuator(Equal)] => Punctuator(BangEqual),
+        [Punctuator(Ampersand), Punctuator(Ampersand)] => Punctuator(AmpersandAmpersand),
+        [Punctuator(Pipe), Punctuator(Pipe)] => Punctuator(PipePipe),
+        [Punctuator(Greater), Punctuator(Equal)] => Punctuator(GreaterEqual),
+        [Punctuator(Less), Punctuator(Equal)] => Punctuator(LessEqual),
+        [Punctuator(Minus), Punctuator(Greater)] => Punctuator(MinusGreater),
+        _ => panic!("unexpected token kind"),
+    }
+}
+/// Glues together simple tokens into composite tokens.
+pub fn glue(t: &[&Token]) -> Token {
     let token = match t {
         [t_0, t_1] => {
-            let kinds = (&t_0.kind, &t_1.kind);
-            match kinds {
-                (Punctuator(Plus), Punctuator(Plus)) => Token {
-                    kind: Punctuator(PlusEqual),
-                },
-                (Punctuator(Minus), Punctuator(Minus)) => Token {
-                    kind: Punctuator(MinusEqual),
-                },
-                (Punctuator(Equal), Punctuator(Equal)) => Token {
-                    kind: Punctuator(EqualEqual),
-                },
-                pp => panic!("glue: {:?}", pp),
+            if is_gluable(t) {
+                let kinds = &[&t_0.kind, &t_1.kind];
+                Token {
+                    kind: unite_to_composite(kinds),
+                }
+            } else {
+                panic!("unexpected token kind")
             }
         }
         _ => unimplemented!(),
@@ -140,7 +170,6 @@ pub fn glue(t: &[&Token]) -> Token {
 pub fn is_gluable(t: &[&Token]) -> bool {
     use PunctuatorKind::*;
     use TokenKind::*;
-    println!("is_gluable                  param: {:?}", &t);
     match t {
         [t_0, t_1] => {
             let kinds = (&t_0.kind, &t_1.kind);
@@ -148,10 +177,7 @@ pub fn is_gluable(t: &[&Token]) -> bool {
                 (Punctuator(Plus), Punctuator(Plus)) => true,
                 (Punctuator(Minus), Punctuator(Minus)) => true,
                 (Punctuator(Equal), Punctuator(Equal)) => true,
-                cc => {
-                    //panic!("is_gluable: {:?}", cc);
-                    false
-                }
+                cc => false,
             }
         }
         cc => {
