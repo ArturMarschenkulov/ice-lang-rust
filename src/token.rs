@@ -8,63 +8,39 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    /// splits token kind into its components. Makes only sense with composite punctuators.
-    pub fn list_subset(&self) -> Vec<TokenKind> {
+    pub fn can_be_part_of_complex(&self) -> bool {
         use PunctuatorKind::*;
         use TokenKind::*;
-        match self.clone() {
-            Punctuator(PlusEqual) => vec![Punctuator(Plus), Punctuator(Equal)],
-            Punctuator(MinusEqual) => vec![Punctuator(Minus), Punctuator(Equal)],
-            Punctuator(StarEqual) => vec![Punctuator(Star), Punctuator(Equal)],
-            Punctuator(SlashEqual) => vec![Punctuator(Slash), Punctuator(Equal)],
-
-            Punctuator(EqualEqual) => vec![Punctuator(Equal), Punctuator(Equal)],
-            Punctuator(BangEqual) => vec![Punctuator(Bang), Punctuator(Equal)],
-
-            Punctuator(AmpersandAmpersand) => vec![Punctuator(Ampersand), Punctuator(Ampersand)],
-            Punctuator(PipePipe) => vec![Punctuator(Pipe), Punctuator(Pipe)],
-
-            Punctuator(GreaterEqual) => vec![Punctuator(Greater), Punctuator(Equal)],
-            Punctuator(LessEqual) => vec![Punctuator(Less), Punctuator(Equal)],
-
-            Punctuator(MinusGreater) => vec![Punctuator(Minus), Punctuator(Greater)],
-
-            Punctuator(p) => vec![Punctuator(p)],
-            Literal(l) => vec![Literal(l)],
-            Identifier(s) => vec![Identifier(s)],
-            Keyword(k) => vec![Keyword(k)],
-            SpecialKeyword(sk) => vec![SpecialKeyword(sk)],
+        match self {
+            Punctuator(p) => match p {
+                Semicolon | Comma => false,
+                _ => true,
+            },
+            _ => false,
         }
     }
-    /// This function returns all the token kinds this token kind can be part of. This also includes itself.
-    pub fn list_superset(&self) -> Vec<Vec<TokenKind>> {
+    pub fn simplify(self) -> TokenKind {
         use PunctuatorKind::*;
         use TokenKind::*;
-        let result = match self.clone() {
-            Punctuator(Plus) => vec![Punctuator(Plus), Punctuator(PlusEqual)],
-            Punctuator(Minus) => vec![
-                Punctuator(Minus),
-                Punctuator(MinusEqual),
-                Punctuator(MinusGreater),
-            ],
-            Punctuator(Star) => vec![Punctuator(Star), Punctuator(StarEqual)],
-            Punctuator(Slash) => vec![Punctuator(Slash), Punctuator(SlashEqual)],
-            Punctuator(Equal) => vec![Punctuator(Equal), Punctuator(EqualEqual)],
-            Punctuator(Bang) => vec![Punctuator(Bang), Punctuator(BangEqual)],
-            Punctuator(Ampersand) => {
-                vec![Punctuator(Ampersand), Punctuator(AmpersandAmpersand)]
-            }
-            Punctuator(Pipe) => vec![Punctuator(Pipe), Punctuator(PipePipe)],
-            Punctuator(Greater) => vec![Punctuator(Greater), Punctuator(GreaterEqual)],
-            Punctuator(Less) => vec![Punctuator(Less), Punctuator(LessEqual)],
+        match &self {
+            Punctuator(Complex(c)) => match c.as_slice() {
+                &[Equal, Equal] => Punctuator(EqualEqual),
+                &[Bang, Equal] => Punctuator(BangEqual),
+                &[Greater, Equal] => Punctuator(GreaterEqual),
+                &[Less, Equal] => Punctuator(LessEqual),
+                &[Ampersand, Ampersand] => Punctuator(AmpersandAmpersand),
+                &[Pipe, Pipe] => Punctuator(PipePipe),
 
-            Punctuator(p) => vec![Punctuator(p)],
-            Literal(l) => vec![Literal(l)],
-            Identifier(i) => vec![Identifier(i)],
-            Keyword(k) => vec![Keyword(k)],
-            SpecialKeyword(sk) => vec![SpecialKeyword(sk)],
-        };
-        result.into_iter().map(|v| v.list_subset()).collect()
+                &[Minus, Greater] => Punctuator(MinusGreater),
+
+                &[Plus, Equal] => Punctuator(PlusEqual),
+                &[Minus, Equal] => Punctuator(MinusEqual),
+                &[Star, Equal] => Punctuator(StarEqual),
+                &[Slash, Equal] => Punctuator(SlashEqual),
+                _ => self.clone(),
+            },
+            _ => self.clone(),
+        }
     }
 }
 
@@ -100,19 +76,20 @@ pub enum PunctuatorKind {
     RightBrace,   // }
 
     // Punctuators two
+    Complex(Vec<PunctuatorKind>),
+    EqualEqual,         // ==
+    BangEqual,          // !=
+    MinusGreater,       // ->
+    AmpersandAmpersand, // &&
+    PipePipe,           // ||
+
+    GreaterEqual, // >=
+    LessEqual,    // <=
+
     PlusEqual,  // +=
     MinusEqual, // -=
     StarEqual,  // *=
     SlashEqual, // /=
-
-    EqualEqual,         // ==
-    BangEqual,          // !=
-    AmpersandAmpersand, // &&
-    PipePipe,           // ||
-    GreaterEqual,       // >=
-    LessEqual,          // <=
-
-    MinusGreater, // ->
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -171,9 +148,6 @@ pub enum LiteralKind {
     Unit,
 }
 
-fn is_composite_token_kind(token_kind: &TokenKind) -> bool {
-    token_kind.list_subset().len() > 1
-}
 fn unite_to_composite(tk: &[&TokenKind]) -> TokenKind {
     use PunctuatorKind::*;
     use TokenKind::*;

@@ -1,7 +1,6 @@
 use crate::token;
 use crate::token::*;
 use std::str::Chars;
-
 fn is_digit(c: char) -> bool {
     // c >= '0' && c <= '9'
     ('0'..='9').contains(&c)
@@ -55,6 +54,32 @@ struct Tokenizer<'a> {
     position: Position,
 }
 
+fn conv_to_complex(tokens: &Vec<Token>) -> Token {
+    let first_tok = tokens.first().unwrap();
+    let last_tok = tokens.last().unwrap();
+    let tok_kinds = tokens
+        .iter()
+        .map(|t| {
+            let q = t.kind.clone();
+            if let TokenKind::Punctuator(k) = q {
+                k
+            } else {
+                unreachable!()
+            }
+        })
+        .collect::<Vec<_>>();
+    let complex = PunctuatorKind::Complex(tok_kinds);
+    let k = TokenKind::Punctuator(complex).simplify();
+    let token = Token {
+        kind: k,
+        span: Span {
+            start: first_tok.span.start,
+            end: last_tok.span.end,
+        },
+        whitespace: token::Whitespace::Undefined,
+    };
+    token
+}
 impl<'a> Tokenizer<'a> {
     fn new() -> Self {
         Self {
@@ -91,43 +116,43 @@ impl<'a> Tokenizer<'a> {
         let tokens_pass_0 = tokens_pass_0;
 
         // Second pass: We glue together raw tokens into composite tokens.
+
         let mut tokens_pass_1 = Vec::new();
+
         {
-            let mut iter_token = tokens_pass_0.iter();
-            let mut num_to_skip = 0;
-            while let Some(token_0) = iter_token.nth(num_to_skip) {
-                // Here we get the maximum amount we have to do forward lookup.
-                let token_superset = token_0.kind.list_superset();
-                let mut max_look_ahead = 0;
-                for constituents in token_superset {
-                    max_look_ahead = constituents.len().max(max_look_ahead);
-                }
-                num_to_skip = max_look_ahead - 1;
-
-                // Here we gather the potential tokens which could result in a composite token.
-                let mut tokens: Vec<&Token> = Vec::new();
-                for n in 0..max_look_ahead {
-                    if n == 0 {
-                        tokens.push(token_0);
+            let mut punc_vec = Vec::new();
+            let mut tok_iter = tokens_pass_0.iter();
+            while let Some(token) = tok_iter.nth(0) {
+                if let TokenKind::Punctuator(_) = &token.kind {
+                    let clone = token.clone();
+                    if token.kind.can_be_part_of_complex() {
+                        punc_vec.push(clone);
                     } else {
-                        let token_n = iter_token.clone().nth(n - 1).unwrap();
-                        tokens.push(token_n);
-                    }
-                }
+                        if punc_vec.len() > 0 {
+                            let complex = conv_to_complex(&punc_vec);
+                            tokens_pass_1.push(complex);
+                            punc_vec.clear();
+                        }
 
-                while is_gluable(&tokens) == false {
-                    if let Some(_) = tokens.pop() {
-                    } else {
-                        break;
+                        tokens_pass_1.push(clone);
                     }
-                }
-                let glued_token = if is_gluable(&tokens) {
-                    glue(&tokens)
                 } else {
-                    token_0.clone()
-                };
-
-                tokens_pass_1.push(glued_token);
+                    match punc_vec.len() {
+                        0 => {
+                            tokens_pass_1.push(token.clone());
+                        }
+                        1 => {
+                            let punc = punc_vec.pop().unwrap();
+                            punc_vec.clear();
+                            tokens_pass_1.push(punc);
+                        }
+                        _ => {
+                            let complex = conv_to_complex(&punc_vec);
+                            punc_vec.clear();
+                            tokens_pass_1.push(complex);
+                        }
+                    }
+                }
             }
         }
         let tokens_pass_1 = tokens_pass_1;
