@@ -97,36 +97,16 @@ impl<'a> Tokenizer<'a> {
             let mut punc_vec = Vec::new();
             let tok_iter = tokens_pass_0.iter();
             for token in tok_iter {
-                if let TokenKind::Punctuator(_) = &token.kind {
-                    let clone = token.clone();
-                    if token.kind.can_be_part_of_complex() {
-                        punc_vec.push(clone);
-                    } else {
-                        if !punc_vec.is_empty() {
-                            let complex = conv_to_complex(&punc_vec);
-                            punc_vec.clear();
-                            tokens_pass_1.push(complex);
-                        }
-
-                        tokens_pass_1.push(clone);
-                    }
+                if token.kind.can_be_part_of_complex() {
+                    punc_vec.push(token.clone());
                 } else {
-                    match punc_vec.len() {
-                        0 => {
-                            tokens_pass_1.push(token.clone());
-                        }
-                        1 => {
-                            let punc = punc_vec.pop().unwrap();
-                            punc_vec.clear();
-                            tokens_pass_1.push(punc);
-                            tokens_pass_1.push(token.clone());
-                        }
-                        _ => {
-                            let complex = conv_to_complex(&punc_vec);
-                            punc_vec.clear();
-                            tokens_pass_1.push(complex);
-                        }
+                    if !punc_vec.is_empty() {
+                        let punc_token = conv_to_complex(&punc_vec);
+                        punc_vec.clear();
+                        tokens_pass_1.push(punc_token);
                     }
+
+                    tokens_pass_1.push(token.clone());
                 }
             }
         }

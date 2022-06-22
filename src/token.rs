@@ -133,6 +133,9 @@ pub enum SpecialKeywordKind {
     Comment, //Unknown,
 }
 
+/// Tokens a slice of tokens and converts them into a complex token.
+/// Certain complex tokens are converted into a single token, which significes several tokens.
+/// If token slice has only one token, the singular token itself is returned.
 pub fn conv_to_complex(tokens: &[Token]) -> Token {
     use PunctuatorKind::*;
     use TokenKind::*;
@@ -146,17 +149,23 @@ pub fn conv_to_complex(tokens: &[Token]) -> Token {
             }
         })
         .collect::<Vec<_>>();
-    let kind = Punctuator(Complex(tok_kinds)).simplify();
+    if tokens.len() > 1 {
+        let kind = Punctuator(Complex(tok_kinds)).simplify();
 
-    let first_tok = tokens.first().unwrap();
-    let last_tok = tokens.last().unwrap();
-    Token {
-        kind: kind,
-        span: Span {
-            start: first_tok.span.start,
-            end: last_tok.span.end,
-        },
-        whitespace: Whitespace::Undefined,
+        let first_tok = tokens.first().unwrap();
+        let last_tok = tokens.last().unwrap();
+        Token {
+            kind: kind,
+            span: Span {
+                start: first_tok.span.start,
+                end: last_tok.span.end,
+            },
+            whitespace: Whitespace::Undefined,
+        }
+    } else if tokens.len() == 1 {
+        tokens.first().unwrap().clone()
+    } else {
+        unreachable!()
     }
 }
 //FnDeclaration(Token, Vec<Token>, Box<Expr>),
