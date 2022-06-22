@@ -12,10 +12,7 @@ impl TokenKind {
         use PunctuatorKind::*;
         use TokenKind::*;
         match self {
-            Punctuator(p) => match p {
-                Semicolon | Comma => false,
-                _ => true,
-            },
+            Punctuator(p) => !matches!(p, Semicolon | Comma),
             _ => false,
         }
     }
@@ -23,20 +20,20 @@ impl TokenKind {
         use PunctuatorKind::*;
         use TokenKind::*;
         match &self {
-            Punctuator(Complex(c)) => match c.as_slice() {
-                &[Equal, Equal] => Punctuator(EqualEqual),
-                &[Bang, Equal] => Punctuator(BangEqual),
-                &[Greater, Equal] => Punctuator(GreaterEqual),
-                &[Less, Equal] => Punctuator(LessEqual),
-                &[Ampersand, Ampersand] => Punctuator(AmpersandAmpersand),
-                &[Pipe, Pipe] => Punctuator(PipePipe),
+            Punctuator(Complex(c)) => match *c.as_slice() {
+                [Equal, Equal] => Punctuator(EqualEqual),
+                [Bang, Equal] => Punctuator(BangEqual),
+                [Greater, Equal] => Punctuator(GreaterEqual),
+                [Less, Equal] => Punctuator(LessEqual),
+                [Ampersand, Ampersand] => Punctuator(AmpersandAmpersand),
+                [Pipe, Pipe] => Punctuator(PipePipe),
 
-                &[Minus, Greater] => Punctuator(MinusGreater),
+                [Minus, Greater] => Punctuator(MinusGreater),
 
-                &[Plus, Equal] => Punctuator(PlusEqual),
-                &[Minus, Equal] => Punctuator(MinusEqual),
-                &[Star, Equal] => Punctuator(StarEqual),
-                &[Slash, Equal] => Punctuator(SlashEqual),
+                [Plus, Equal] => Punctuator(PlusEqual),
+                [Minus, Equal] => Punctuator(MinusEqual),
+                [Star, Equal] => Punctuator(StarEqual),
+                [Slash, Equal] => Punctuator(SlashEqual),
                 _ => self.clone(),
             },
             _ => self.clone(),
@@ -136,6 +133,32 @@ pub enum SpecialKeywordKind {
     Comment, //Unknown,
 }
 
+pub fn conv_to_complex(tokens: &[Token]) -> Token {
+    use PunctuatorKind::*;
+    use TokenKind::*;
+    let tok_kinds = tokens
+        .iter()
+        .map(|t| {
+            if let Punctuator(k) = t.kind.clone() {
+                k
+            } else {
+                unreachable!()
+            }
+        })
+        .collect::<Vec<_>>();
+    let kind = Punctuator(Complex(tok_kinds)).simplify();
+
+    let first_tok = tokens.first().unwrap();
+    let last_tok = tokens.last().unwrap();
+    Token {
+        kind: kind,
+        span: Span {
+            start: first_tok.span.start,
+            end: last_tok.span.end,
+        },
+        whitespace: Whitespace::Undefined,
+    }
+}
 //FnDeclaration(Token, Vec<Token>, Box<Expr>),
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -170,7 +193,7 @@ fn unite_to_composite(tk: &[&TokenKind]) -> TokenKind {
 pub fn glue(t: &[&Token]) -> Token {
     match t {
         // If only one token is provided then simply an identical copy is returned.
-        [t_0] => t_0.clone().clone(),
+        [t_0] => (*t_0).clone(),
         [t_0, t_1] => {
             if is_gluable(t) {
                 let kinds = &[&t_0.kind, &t_1.kind];
@@ -180,7 +203,7 @@ pub fn glue(t: &[&Token]) -> Token {
                         start: t_0.span.start,
                         end: t_1.span.end,
                     },
-                    whitespace: t_0.whitespace.clone(),
+                    whitespace: t_0.whitespace,
                 }
             } else {
                 panic!("unexpected token kind")
@@ -203,7 +226,7 @@ pub fn is_gluable(tokens: &[&Token]) -> bool {
                 (Punctuator(Plus), Punctuator(Plus)) => true,
                 (Punctuator(Minus), Punctuator(Minus)) => true,
                 (Punctuator(Equal), Punctuator(Equal)) => true,
-                cc => false,
+                _ => false,
             }
         }
 
@@ -240,36 +263,6 @@ pub enum Whitespace {
     Right,
     Both,
     Undefined,
-}
-impl Whitespace {
-    fn to_bools(&self) -> (bool, bool) {
-        match self {
-            Self::None => (false, false),
-            Self::Left => (true, false),
-            Self::Right => (false, true),
-            Self::Both => (true, true),
-            Self::Undefined => panic!(
-                "{}",
-                "'Undefined' should never be read, it is only a temporary value"
-            ),
-        }
-    }
-    fn from(bools: (bool, bool)) -> Self {
-        match bools {
-            (false, false) => Self::None,
-            (true, false) => Self::Left,
-            (false, true) => Self::Right,
-            (true, true) => Self::Both,
-        }
-    }
-    fn from_bools(&mut self, bools: (bool, bool)) {
-        match bools {
-            (true, true) => *self = Self::Both,
-            (true, false) => *self = Self::Left,
-            (false, true) => *self = Self::Right,
-            (false, false) => *self = Self::None,
-        }
-    }
 }
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Token {

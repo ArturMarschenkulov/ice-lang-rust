@@ -36,8 +36,7 @@ struct SymbolStack {
 impl SymbolStack {
     fn new() -> Self {
         let scope: HashMap<Token, Option<IceObject>> = HashMap::new();
-        let mut s = Vec::new();
-        s.push(scope);
+        let s = vec![scope];
         Self {
             scope_stack: s,
             current_scope_level: 0,
@@ -47,7 +46,7 @@ impl SymbolStack {
         self.scope_stack[self.current_scope_level].insert(token, value);
     }
     fn get(&self, token: &Token) -> Option<IceObject> {
-        let mut sc = self.current_scope_level.clone();
+        let mut sc = self.current_scope_level;
         let res;
         loop {
             if let Some(a) = self.scope_stack[sc].get(token) {
@@ -61,14 +60,18 @@ impl SymbolStack {
         }
     }
     fn assign(&mut self, token: &Token, value: IceObject) {
-        if self.scope_stack[self.current_scope_level].contains_key(&token.clone()) {
-            self.scope_stack[self.current_scope_level].insert(token.clone(), Some(value));
+        if let std::collections::hash_map::Entry::Occupied(mut e) =
+            self.scope_stack[self.current_scope_level].entry(token.clone())
+        {
+            e.insert(Some(value));
         } else {
-            let mut sc = self.current_scope_level.clone();
+            let mut sc = self.current_scope_level;
             while sc > 0 {
                 sc -= 1;
-                if self.scope_stack[sc].contains_key(&token.clone()) {
-                    self.scope_stack[sc].insert(token.clone(), Some(value));
+                if let std::collections::hash_map::Entry::Occupied(mut e) =
+                    self.scope_stack[sc].entry(token.clone())
+                {
+                    e.insert(Some(value));
                     break;
                 }
             }
@@ -85,7 +88,7 @@ impl SymbolStack {
     }
 }
 
-pub fn get_evaluation_from_ast(statements: &Vec<Box<Stmt>>) {
+pub fn get_evaluation_from_ast(statements: &Vec<Stmt>) {
     Evaluator::new().evaluate_stmts(statements);
 }
 
@@ -98,17 +101,17 @@ impl Evaluator {
             environment: SymbolStack::new(),
         }
     }
-    fn evaluate_stmts(&mut self, statements: &Vec<Box<Stmt>>) {
+    fn evaluate_stmts(&mut self, statements: &Vec<Stmt>) {
         for stmt in statements {
             self.evaluate_stmt(stmt);
         }
     }
-    fn evaluate_stmt(&mut self, statement: &Box<Stmt>) {
-        match **statement {
+    fn evaluate_stmt(&mut self, statement: &Stmt) {
+        match *statement {
             Stmt::VarDeclaration(ref name, ref init) => match init {
                 Some(expr) => {
                     let val = self.evaluate_expr(expr);
-                    self.environment.define(name.clone(), val.clone());
+                    self.environment.define(name.clone(), val);
                 }
                 None => {
                     self.environment.define(name.clone(), None);
@@ -170,8 +173,8 @@ impl Evaluator {
             Stmt::NoOperation => {}
         }
     }
-    fn evaluate_expr(&mut self, expression: &Box<Expr>) -> Option<IceObject> {
-        match **expression {
+    fn evaluate_expr(&mut self, expression: &Expr) -> Option<IceObject> {
+        match *expression {
             Expr::Binary(ref l, ref t, ref r) => {
                 let left = self.evaluate_expr(l).unwrap();
                 let right = self.evaluate_expr(r).unwrap();
@@ -230,12 +233,8 @@ impl Evaluator {
                             Punctuator(Bang) => LiteralKind::Boolean(!*ls),
                             _ => panic!("Booleans support only Bang as a unary operation"),
                         },
-                        String(_) => match t.kind {
-                            _ => panic!("String don't support any unary operations yet"),
-                        },
-                        Unit => match t.kind {
-                            _ => panic!("The unit type doesn't support operations"),
-                        },
+                        String(_) => panic!("String don't support any unary operations yet"),
+                        Unit => panic!("The unit type doesn't support operations"),
                     },
                     IceObject::Function(_) => unimplemented!(),
                 };
@@ -243,13 +242,7 @@ impl Evaluator {
             }
             Expr::Grouping(ref expr) => self.evaluate_expr(expr),
             Expr::Literal(ref expr) => Some(IceObject::Literal(expr.clone())),
-            Expr::Symbol(ref token) => {
-                if let Some(k) = self.environment.get(token) {
-                    Some(k)
-                } else {
-                    None
-                }
-            }
+            Expr::Symbol(ref token) => self.environment.get(token),
             Expr::Assign(ref l, _, ref r) => match (l.kind.clone(), *r.clone()) {
                 (TokenKind::Identifier(_), Expr::Assign(_, _, _)) => {
                     let right = self.evaluate_expr(r);
@@ -265,8 +258,9 @@ impl Evaluator {
                     panic!("Assignment not defined for {:?} and {:?}", &l, &r)
                 }
             },
-            Expr::Block(ref stmts, ref expr) => match stmts {
-                statements => {
+            Expr::Block(ref stmts, ref expr) => {
+                let statements = stmts;
+                {
                     self.environment.push();
                     for statement in statements {
                         self.evaluate_stmt(statement);
@@ -278,7 +272,7 @@ impl Evaluator {
                     self.environment.pop();
                     expression
                 }
-            },
+            }
             Expr::If(ref condition_expression, ref then_block, ref else_block) => {
                 if let Some(a) = self.evaluate_expr(condition_expression) {
                     match a {
@@ -303,7 +297,7 @@ impl Evaluator {
             }
             Expr::While(ref condition_expression, ref while_body) => {
                 self.environment.push();
-                while let Some(cond_res) = self.evaluate_expr(&condition_expression) {
+                while let Some(cond_res) = self.evaluate_expr(condition_expression) {
                     match cond_res {
                         IceObject::Literal(LiteralKind::Boolean(true)) => {
                             match *while_body.clone() {
@@ -337,7 +331,7 @@ impl Evaluator {
             ) => {
                 self.environment.push();
                 self.evaluate_stmt(init_statement);
-                while let Some(cond_res) = self.evaluate_expr(&condition_expression) {
+                while let Some(cond_res) = self.evaluate_expr(condition_expression) {
                     match cond_res {
                         IceObject::Literal(LiteralKind::Boolean(true)) => match *for_body.clone() {
                             Expr::Block(statements, expression) => {

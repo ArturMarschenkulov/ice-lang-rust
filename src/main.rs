@@ -15,8 +15,7 @@ use std::time::Instant;
 //use crate::compiler::get_asm_from_ast;
 
 static TEXT: &str = r#"
-var a = 0;
-a == a;
+a+a;
 "#;
 
 struct Ice {}

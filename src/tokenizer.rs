@@ -21,10 +21,10 @@ fn is_whitespace(c: char) -> bool {
 fn is_skip_token(token: &Token) -> bool {
     use SpecialKeywordKind::*;
     use TokenKind::*;
-    match token.kind {
-        SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment) => true,
-        _ => false,
-    }
+    matches!(
+        token.kind,
+        SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment)
+    )
 }
 
 #[allow(dead_code)]
@@ -54,32 +54,6 @@ struct Tokenizer<'a> {
     position: Position,
 }
 
-fn conv_to_complex(tokens: &Vec<Token>) -> Token {
-    let first_tok = tokens.first().unwrap();
-    let last_tok = tokens.last().unwrap();
-    let tok_kinds = tokens
-        .iter()
-        .map(|t| {
-            let q = t.kind.clone();
-            if let TokenKind::Punctuator(k) = q {
-                k
-            } else {
-                unreachable!()
-            }
-        })
-        .collect::<Vec<_>>();
-    let complex = PunctuatorKind::Complex(tok_kinds);
-    let k = TokenKind::Punctuator(complex).simplify();
-    let token = Token {
-        kind: k,
-        span: Span {
-            start: first_tok.span.start,
-            end: last_tok.span.end,
-        },
-        whitespace: token::Whitespace::Undefined,
-    };
-    token
-}
 impl<'a> Tokenizer<'a> {
     fn new() -> Self {
         Self {
@@ -121,17 +95,17 @@ impl<'a> Tokenizer<'a> {
 
         {
             let mut punc_vec = Vec::new();
-            let mut tok_iter = tokens_pass_0.iter();
-            while let Some(token) = tok_iter.nth(0) {
+            let tok_iter = tokens_pass_0.iter();
+            for token in tok_iter {
                 if let TokenKind::Punctuator(_) = &token.kind {
                     let clone = token.clone();
                     if token.kind.can_be_part_of_complex() {
                         punc_vec.push(clone);
                     } else {
-                        if punc_vec.len() > 0 {
+                        if !punc_vec.is_empty() {
                             let complex = conv_to_complex(&punc_vec);
-                            tokens_pass_1.push(complex);
                             punc_vec.clear();
+                            tokens_pass_1.push(complex);
                         }
 
                         tokens_pass_1.push(clone);
@@ -145,6 +119,7 @@ impl<'a> Tokenizer<'a> {
                             let punc = punc_vec.pop().unwrap();
                             punc_vec.clear();
                             tokens_pass_1.push(punc);
+                            tokens_pass_1.push(token.clone());
                         }
                         _ => {
                             let complex = conv_to_complex(&punc_vec);
@@ -160,9 +135,8 @@ impl<'a> Tokenizer<'a> {
         // Third pass. We handle whitespaces and comments.
         let mut tokens_pass_2: Vec<Token> = Vec::new();
         {
-            let mut iter_token = tokens_pass_1.iter();
-            while let Some(token) = iter_token.nth(0) {
-                if !is_skip_token(&token) {
+            for token in tokens_pass_1.iter() {
+                if !is_skip_token(token) {
                     tokens_pass_2.push(token.clone());
                 }
             }

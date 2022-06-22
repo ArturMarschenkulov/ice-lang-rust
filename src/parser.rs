@@ -65,7 +65,7 @@ expr_primary := ident | 'true' | 'false' | expr_group | string | number
 
 */
 
-pub fn get_ast_from_tokens(tokens: Vec<Token>) -> Vec<Box<Stmt>> {
+pub fn get_ast_from_tokens(tokens: Vec<Token>) -> Vec<Stmt> {
     Parser::new().parse(tokens)
 }
 
@@ -106,12 +106,12 @@ impl Parser {
             current: 0,
         }
     }
-    fn parse(&mut self, tokens: Vec<Token>) -> Vec<Box<Stmt>> {
+    fn parse(&mut self, tokens: Vec<Token>) -> Vec<Stmt> {
         self.tokens = tokens;
-        let mut statements: Vec<Box<Stmt>> = Vec::new();
+        let mut statements: Vec<Stmt> = Vec::new();
 
         while !self.is_at_end() {
-            statements.push(self.parse_stmt_declaration());
+            statements.push(*self.parse_stmt_declaration());
         }
         statements
     }
@@ -338,12 +338,12 @@ impl Parser {
             }
             false
         };
-        let mut statements: Vec<Box<Stmt>> = Vec::new();
+        let mut statements: Vec<Stmt> = Vec::new();
         while !self.is_at_end()
             && (self.peek(0).kind != TokenKind::Punctuator(PunctuatorKind::RightBrace))
         {
             if should_add(self) {
-                statements.push(self.parse_stmt_declaration());
+                statements.push(*self.parse_stmt_declaration());
             } else {
                 break;
             }
@@ -468,9 +468,9 @@ impl Parser {
             "Expect '(' after function name.",
         );
 
-        let mut arguments: Vec<Box<Expr>> = Vec::new();
+        let mut arguments: Vec<Expr> = Vec::new();
         while self.peek(0).kind != TokenKind::Punctuator(PunctuatorKind::RightParen) {
-            arguments.push(self.parse_expr());
+            arguments.push(*self.parse_expr());
             if self.peek(0).kind != TokenKind::Punctuator(PunctuatorKind::RightParen) {
                 self.consume(
                     &TokenKind::Punctuator(PunctuatorKind::Comma),
@@ -503,7 +503,7 @@ impl Parser {
         let token_kind = token.kind.clone();
         if let TokenKind::Identifier(_) = token_kind {
             self.advance();
-            Ok(token.clone())
+            Ok(token)
         } else {
             let f = format!("{:?}; {:?}", &self.peek(0), message);
             println!("{}", &f);
