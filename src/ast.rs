@@ -1,6 +1,6 @@
 use crate::token::{LiteralKind, Token};
 use debug_tree::*;
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub enum Expr {
     Literal(LiteralKind),
     Grouping(Box<Expr>),
@@ -16,7 +16,7 @@ pub enum Expr {
 
     FnCall(Box<Expr>, Vec<Expr>),
 }
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub enum Stmt {
     Expression(Box<Expr>),
     VarDeclaration(Token, Option<Box<Expr>>),

@@ -3,7 +3,7 @@ use crate::ast::{Expr, Stmt};
 use crate::token::*;
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct IceFunction {
     pub params: Vec<Token>,
     pub body: Box<Expr>,
@@ -22,7 +22,7 @@ impl IceFunction {
     //    let e = self.evaluate_expr(&self.body);
     //}
 }
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub enum IceObject {
     Literal(LiteralKind),
     Function(IceFunction),

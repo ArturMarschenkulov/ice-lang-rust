@@ -72,20 +72,10 @@ impl<'a> Tokenizer<'a> {
         // but this way the structure is easier to modify. This might help in implementing custom operators.
 
         let mut tokens_pass_0 = Vec::new();
-        {
-            while let Some(ch) = self.peek(0) {
-                let token = self.scan_token(ch);
-
-                if token.kind == TokenKind::SpecialKeyword(Newline) {
-                    self.position.line += 1;
-                    self.position.column = 1;
-                } else {
-                    self.position.column += 1;
-                }
-
-                tokens_pass_0.push(token);
-                self.advance();
-            }
+        while let Some(ch) = self.peek(0) {
+            let token = self.scan_token(ch);
+            tokens_pass_0.push(token);
+            self.advance();
         }
         let tokens_pass_0 = tokens_pass_0;
 
@@ -95,10 +85,11 @@ impl<'a> Tokenizer<'a> {
 
         {
             let mut punc_vec = Vec::new();
-            let tok_iter = tokens_pass_0.iter();
-            for token in tok_iter {
+            for token in tokens_pass_0.iter() {
+                let token = token.clone();
+
                 if token.kind.can_be_part_of_complex() {
-                    punc_vec.push(token.clone());
+                    punc_vec.push(token);
                 } else {
                     if !punc_vec.is_empty() {
                         let punc_token = conv_to_complex(&punc_vec);
@@ -106,7 +97,7 @@ impl<'a> Tokenizer<'a> {
                         tokens_pass_1.push(punc_token);
                     }
 
-                    tokens_pass_1.push(token.clone());
+                    tokens_pass_1.push(token);
                 }
             }
         }
@@ -186,6 +177,12 @@ impl<'a> Tokenizer<'a> {
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => panic!("This is an unknown character {:?}.", cc),
         };
+        if token_kind == TokenKind::SpecialKeyword(Newline) {
+            self.position.line += 1;
+            self.position.column = 1;
+        } else {
+            self.position.column += 1;
+        }
         Token {
             kind: token_kind,
             span: Span {
@@ -196,16 +193,16 @@ impl<'a> Tokenizer<'a> {
         }
     }
     fn lex_escape_char(&mut self) -> String {
-        let mut string_content = String::new();
+        let mut ch = String::new();
         if self.peek(1) == Some('\\') {
             let mut is_escape = true;
             match self.peek(2) {
-                Some('n') => string_content.push('\n'),
-                Some('t') => string_content.push('\t'),
-                Some('0') => string_content.push('\0'),
-                Some('\\') => string_content.push('\\'),
-                Some('\"') => string_content.push('\"'),
-                Some('\'') => string_content.push('\''),
+                Some('n') => ch.push('\n'),
+                Some('t') => ch.push('\t'),
+                Some('0') => ch.push('\0'),
+                Some('\\') => ch.push('\\'),
+                Some('\"') => ch.push('\"'),
+                Some('\'') => ch.push('\''),
                 _ => is_escape = false,
             }
             if is_escape {
@@ -214,7 +211,7 @@ impl<'a> Tokenizer<'a> {
                 self.position.column += 2;
             }
         }
-        string_content
+        ch
     }
     fn lex_string(&mut self) -> TokenKind {
         // TODO: Are the delimiter of a string, part of its span? Right now they are. Think about it!
@@ -337,7 +334,7 @@ impl<'a> Tokenizer<'a> {
         token
     }
 
-    fn peek(&mut self, n: usize) -> Option<char> {
+    fn peek(&self, n: usize) -> Option<char> {
         self.chars.clone().nth(n).as_ref().copied()
     }
     fn advance(&mut self) {
