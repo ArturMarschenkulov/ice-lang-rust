@@ -18,14 +18,6 @@ fn is_alpha_numeric(c: char) -> bool {
 fn is_whitespace(c: char) -> bool {
     c == ' ' || c == '\t' || c == '\n' || c == '\r'
 }
-fn is_skip_token(token: &Token) -> bool {
-    use SpecialKeywordKind::*;
-    use TokenKind::*;
-    matches!(
-        token.kind,
-        SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment)
-    )
-}
 
 #[allow(dead_code)]
 struct Cursor<'a> {
@@ -85,8 +77,24 @@ impl<'a> Tokenizer<'a> {
 
         {
             let mut punc_vec = Vec::new();
+
+            let mut prev_token: Option<Token> = None;
+            let mut next_token: Option<Token> = None;
             for token in tokens_pass_0.iter() {
-                let token = token.clone();
+                let mut token = token.clone();
+
+                let next_tok = tokens_pass_0.iter().clone().next().unwrap().clone();
+
+                next_token = Some(next_tok.clone());
+
+                let is_prev_whitespace = prev_token.map(|tok| tok.is_skip_token()).unwrap_or(false);
+                let is_next_whitespace = next_token.map(|tok| tok.is_skip_token()).unwrap_or(false);
+                token.whitespace =
+                    token::Whitespace::from((is_prev_whitespace, is_next_whitespace));
+                // token.whitespace =
+                //     token::Whitespace::from_tokens(prev_token.as_ref(), next_token.as_ref());
+
+                prev_token = Some(token.clone());
 
                 if token.kind.can_be_part_of_complex() {
                     punc_vec.push(token);
@@ -97,7 +105,7 @@ impl<'a> Tokenizer<'a> {
                         tokens_pass_1.push(punc_token);
                     }
 
-                    tokens_pass_1.push(token);
+                    tokens_pass_1.push(token.clone());
                 }
             }
         }
@@ -107,7 +115,7 @@ impl<'a> Tokenizer<'a> {
         let mut tokens_pass_2: Vec<Token> = Vec::new();
         {
             for token in tokens_pass_1.iter() {
-                if !is_skip_token(token) {
+                if !token.is_skip_token() {
                     tokens_pass_2.push(token.clone());
                 }
             }
@@ -291,7 +299,9 @@ impl<'a> Tokenizer<'a> {
             }
         }
 
-        let number = string_content.parse::<u128>().unwrap();
+        let number = string_content
+            .parse::<u128>()
+            .expect("Could not parse number");
         Literal(Integer(number))
     }
     fn lex_identifier(&mut self) -> TokenKind {

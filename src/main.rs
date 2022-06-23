@@ -14,9 +14,7 @@ use std::io::Read;
 use std::time::Instant;
 //use crate::compiler::get_asm_from_ast;
 
-static TEXT: &str = r#"
-a+a;
-"#;
+static TEXT: &str = r#"a + a;"#;
 
 struct Ice {}
 impl Ice {
@@ -66,7 +64,7 @@ impl Ice {
         }
         if show_token_stream {
             for token in &tokens {
-                println!("{:?}", token.kind)
+                println!("{:?} {:?} {:?}", token.kind, token.whitespace, token.span);
             }
         }
 

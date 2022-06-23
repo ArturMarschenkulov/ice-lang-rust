@@ -12,7 +12,18 @@ impl TokenKind {
         use PunctuatorKind::*;
         use TokenKind::*;
         match self {
-            Punctuator(p) => !matches!(p, Semicolon | Comma),
+            Punctuator(p) => !matches!(
+                p,
+                Semicolon
+                    | Comma
+                    | Colon
+                    | LeftBrace
+                    | RightBrace
+                    | LeftBracket
+                    | RightBracket
+                    | LeftParen
+                    | RightParen
+            ),
             _ => false,
         }
     }
@@ -200,9 +211,52 @@ pub enum Whitespace {
     Both,
     Undefined,
 }
+impl Whitespace {
+    pub fn from(bools: (bool, bool)) -> Self {
+        use Whitespace::*;
+        match bools {
+            (true, true) => Both,
+            (true, false) => Right,
+            (false, true) => Left,
+            (false, false) => None,
+        }
+    }
+    pub fn as_bools(self) -> (bool, bool) {
+        use Whitespace::*;
+        match self {
+            None => (false, false),
+            Left => (true, false),
+            Right => (false, true),
+            Both => (true, true),
+            Undefined => unreachable!(),
+        }
+    }
+    /// Creates the whitespace from given tokens. Those tokens are wrapped in an `Option`, to make handling first
+    /// and last tokens easier for the caller
+    pub fn from_tokens(left_token: Option<&Token>, right_token: Option<&Token>) -> Self {
+        unimplemented!()
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
     pub whitespace: Whitespace,
+}
+
+impl Token {
+    pub fn is_skip_token(&self) -> bool {
+        use SpecialKeywordKind::*;
+        use TokenKind::*;
+        matches!(
+            self.kind,
+            SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment)
+        )
+    }
+    /// Whether an operator is a prefix, postfix or infix operator, depends heavily on the whitespace it is surrounded by.
+    ///
+    fn is_token_operator_whitespace(&self) -> bool {
+        use TokenKind::*;
+        unimplemented!()
+    }
 }
