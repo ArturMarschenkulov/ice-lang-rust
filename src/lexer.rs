@@ -64,10 +64,8 @@ impl<'a> Lexer<'a> {
         let mut tokens_pass_0 = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
-
             println!("{:?}", token);
             tokens_pass_0.push(token);
-            self.advance();
         }
         let tokens_pass_0 = tokens_pass_0;
 
@@ -133,13 +131,11 @@ impl<'a> Lexer<'a> {
         tokens_pass_2
     }
 
-    fn scan_token(&mut self, c: char) -> Token {
+    fn scan_token_kind(&mut self, c: char) -> TokenKind {
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        let start_pos = self.position;
-
-        let token_kind = match c {
+        let kind = match c {
             '+' => Punctuator(Plus),
             '-' => Punctuator(Minus),
             '*' => Punctuator(Star),
@@ -163,7 +159,10 @@ impl<'a> Lexer<'a> {
             '$' => Punctuator(Dollar),
             '?' => Punctuator(Question),
             ',' => Punctuator(Comma),
-            '.' => Punctuator(Dot),
+            '.' => match self.peek(1) {
+                Some(s) if is_digit(s) => self.lex_number(),
+                _ => Punctuator(Dot),
+            },
             '#' => Punctuator(Hash),
             '\\' => Punctuator(Backslash),
             '@' => Punctuator(At),
@@ -184,6 +183,23 @@ impl<'a> Lexer<'a> {
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => panic!("This is an unknown character {:?}.", cc),
         };
+        // NOTE: If the token is simple we advance here, because the match statements look prettier that way.
+        // With more complex tokens, basically everything except single punctuators,
+        // handle the advance in their own functions
+        if kind.is_simple() {
+            self.advance();
+        } else {
+        }
+        kind
+    }
+
+    /// Scans a token
+    /// Returns the token which was lexed. It also moves the 'cursor' to the next character, so that one can lex the next token.
+    fn scan_token(&mut self, c: char) -> Token {
+        use SpecialKeywordKind::*;
+        let start_pos = self.position;
+
+        let token_kind = self.scan_token_kind(c);
 
         let end_pos = self.position;
         if token_kind == TokenKind::SpecialKeyword(Newline) {
@@ -224,8 +240,11 @@ impl<'a> Lexer<'a> {
     }
     fn lex_string(&mut self) -> TokenKind {
         // TODO: Are the delimiter of a string, part of its span? Right now they are. Think about it!
+        assert!(self.peek(0) == Some('\"'));
+        self.advance();
+
         let mut string_content = String::new();
-        while let Some(c) = self.peek(1) {
+        while let Some(c) = self.peek(0) {
             if c == '"' {
                 break;
             }
@@ -247,6 +266,7 @@ impl<'a> Lexer<'a> {
                 self.advance();
             }
         }
+        assert!(self.peek(0) == Some('\"'));
         self.advance(); // this is for the '"'
         self.position.column += (2 - 1) as u32;
 
@@ -256,8 +276,12 @@ impl<'a> Lexer<'a> {
         TokenKind::Literal(LiteralKind::String(string_content))
     }
     fn lex_comment_line(&mut self) -> TokenKind {
-        self.advance(); // for '//'
-        while self.peek(1) != Some('\n') && self.peek(1) != Some('\0') {
+        assert!(self.peek(0) == Some('/'));
+        self.advance();
+        assert!(self.peek(0) == Some('/'));
+        self.advance();
+
+        while self.peek(0) != Some('\n') && self.peek(0) != Some('\0') {
             self.advance();
             self.position.column += 1;
         }
@@ -265,11 +289,13 @@ impl<'a> Lexer<'a> {
     }
     fn lex_comment_block(&mut self) -> TokenKind {
         // TODO: Implement nested block comments
+        assert!(self.peek(0) == Some('/'));
         self.advance(); // for '/'
+        assert!(self.peek(0) == Some('*'));
         self.advance(); // for '*'
         self.position.column += 2;
 
-        while self.peek(1) != Some('*') && self.peek(2) != Some('/') {
+        while self.peek(0) != Some('*') && self.peek(1) != Some('/') {
             self.advance();
 
             if self.peek(1) == Some('\n') {
@@ -280,8 +306,12 @@ impl<'a> Lexer<'a> {
             }
             self.position.column += 1;
         }
+
+        assert!(self.peek(0) == Some('*'));
         self.advance(); // for '*'
+        assert!(self.peek(0) == Some('/'));
         self.advance(); // for '/'
+
         self.position.column += 2;
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
@@ -292,9 +322,7 @@ impl<'a> Lexer<'a> {
         let mut is_after_dot = false;
 
         let mut string = String::new();
-
-        string.push(self.peek(0).unwrap());
-        while let Some(c) = self.peek(1) {
+        while let Some(c) = self.peek(0) {
             if is_digit(c) {
                 string.push(c);
                 self.advance();
@@ -314,32 +342,32 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let starts_with_dot = string.chars().nth(0) == Some('.');
-        let ends_with_dot = string.chars().rev().nth(0) == Some('.');
-        if starts_with_dot && ends_with_dot {
-            panic!("Number cannot start and end with a dot.");
-        }
+        let _starts_with_dot = string.chars().nth(0) == Some('.');
+        let _ends_with_dot = string.chars().rev().nth(0) == Some('.');
+        // if starts_with_dot && ends_with_dot {
+        //     panic!("Number cannot start and end with a dot.");
+        // }
 
         self.position.column += (string.len() - 1) as u32;
 
         if is_floating {
+            let error_msg = format!("Could not parse floating point number: {}", string);
             TokenKind::Literal(LiteralKind::Floating(
-                string.parse::<f64>().expect("Could not parse number"),
+                string.parse::<f64>().expect(&error_msg),
             ))
         } else {
+            let error_msg = format!("Could not parse integer number: {}", string);
             TokenKind::Literal(LiteralKind::Integer(
-                string.parse::<u128>().expect("Could not parse number"),
+                string.parse::<u128>().expect(&error_msg),
             ))
         }
     }
     fn lex_identifier(&mut self) -> TokenKind {
         let mut string_content = String::new();
-        let peeked_char = self.peek(0).unwrap();
-        string_content.push(peeked_char);
 
-        while let Some(c) = self.peek(1) {
-            if is_alpha_numeric(c) {
-                string_content.push(c);
+        while let Some(ch) = self.peek(0) {
+            if is_alpha_numeric(ch) {
+                string_content.push(ch);
                 self.advance();
             } else {
                 break;

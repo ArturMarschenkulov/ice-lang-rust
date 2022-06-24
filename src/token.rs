@@ -16,6 +16,7 @@ impl TokenKind {
                 p,
                 Semicolon
                     | Comma
+                    | Dot
                     | Colon
                     | LeftBrace
                     | RightBrace
@@ -24,6 +25,43 @@ impl TokenKind {
                     | LeftParen
                     | RightParen
             ),
+            _ => false,
+        }
+    }
+    pub fn is_simple(&self) -> bool {
+        use PunctuatorKind::*;
+        use SpecialKeywordKind::*;
+        use TokenKind::*;
+        match self {
+            Punctuator(p) => matches!(
+                p,
+                Plus | Minus
+                    | Star
+                    | Slash
+                    | Equal
+                    | Bang
+                    | Greater
+                    | Less
+                    | Ampersand
+                    | Pipe
+                    | Colon
+                    | Semicolon
+                    | Percent
+                    | Dollar
+                    | Question
+                    | Hash
+                    | Dot
+                    | Comma
+                    | Backslash
+                    | At
+                    | LeftParen
+                    | RightParen
+                    | LeftBracket
+                    | RightBracket
+                    | LeftBrace
+                    | RightBrace
+            ),
+            SpecialKeyword(Eof) | SpecialKeyword(Newline) | SpecialKeyword(Whitespace) => true,
             _ => false,
         }
     }
@@ -247,12 +285,7 @@ impl Whitespace {
         let is_next_whitespace = right_token_kind
             .map(|tok| tok.is_to_skip())
             .unwrap_or(false);
-        println!(
-            "from_tokens: {:?}, {:?} ==> {:?}",
-            left_token_kind.cloned(),
-            right_token_kind.cloned(),
-            Whitespace::from((is_prev_whitespace, is_next_whitespace))
-        );
+
         Whitespace::from((is_prev_whitespace, is_next_whitespace))
     }
     pub fn as_bools(self) -> (bool, bool) {
