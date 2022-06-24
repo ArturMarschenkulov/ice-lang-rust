@@ -1,20 +1,20 @@
 mod ast;
 mod compiler;
 mod evaluator;
+mod lexer;
 mod parser;
 mod token;
-mod tokenizer;
 
 use crate::ast::print_ast;
 //use crate::evaluator::get_evaluation_from_ast;
+use crate::lexer::get_tokens_from_source;
 use crate::parser::get_ast_from_tokens;
-use crate::tokenizer::get_tokens_from_source;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
 //use crate::compiler::get_asm_from_ast;
 
-static TEXT: &str = r#"a+"5555";"#;
+static TEXT: &str = r#"a+5.0;"#;
 
 struct Ice {}
 impl Ice {

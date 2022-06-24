@@ -37,14 +37,14 @@ impl<'a> Cursor<'a> {
     }
 }
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
-    Tokenizer::new().scan_tokens(source)
+    Lexer::new().scan_tokens(source)
 }
-struct Tokenizer<'a> {
+struct Lexer<'a> {
     chars: Chars<'a>,
     position: Position,
 }
 
-impl<'a> Tokenizer<'a> {
+impl<'a> Lexer<'a> {
     fn new() -> Self {
         Self {
             chars: "".chars(),
@@ -381,14 +381,14 @@ impl<'a> Tokenizer<'a> {
 }
 #[cfg(test)]
 mod test {
+    use crate::lexer::Lexer;
     use crate::token::{KeywordKind, LiteralKind, PunctuatorKind, TokenKind};
-    use crate::tokenizer::Tokenizer;
 
     #[test]
     fn test_0() {
         let source = "var a = 2222;";
 
-        let mut lexer = Tokenizer::new();
+        let mut lexer = Lexer::new();
         let tokens = lexer.scan_tokens(source);
 
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Var));
