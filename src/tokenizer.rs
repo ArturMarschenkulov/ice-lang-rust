@@ -286,39 +286,51 @@ impl<'a> Tokenizer<'a> {
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_number(&mut self) -> TokenKind {
-        use LiteralKind::*;
-        use TokenKind::*;
+        // use LiteralKind::*;
 
         let mut is_floating = false;
-        // Because LiteralKind has `String` as a field, we have to fully qualify this `String`.
-        let mut string = std::string::String::new();
+        let mut is_after_dot = false;
+
+        let mut string = String::new();
+
         string.push(self.peek(0).unwrap());
         while let Some(c) = self.peek(1) {
             if is_digit(c) {
                 string.push(c);
                 self.advance();
-            } else if c == '.' {
+                if is_after_dot {
+                    is_after_dot = false;
+                }
+            } else if c == '.' && !is_floating {
                 string.push(c);
                 self.advance();
                 is_floating = true;
+                is_after_dot = true;
+            } else if c == '_' && !is_after_dot {
+                string.push(c);
+                self.advance();
             } else {
                 break;
             }
         }
 
+        let starts_with_dot = string.chars().nth(0) == Some('.');
+        let ends_with_dot = string.chars().rev().nth(0) == Some('.');
+        if starts_with_dot && ends_with_dot {
+            panic!("Number cannot start and end with a dot.");
+        }
+
         self.position.column += (string.len() - 1) as u32;
 
-        let num = if is_floating {
-            TokenKind::Literal(Floating(
+        if is_floating {
+            TokenKind::Literal(LiteralKind::Floating(
                 string.parse::<f64>().expect("Could not parse number"),
             ))
         } else {
-            TokenKind::Literal(Integer(
+            TokenKind::Literal(LiteralKind::Integer(
                 string.parse::<u128>().expect("Could not parse number"),
             ))
-        };
-        // let number = string.parse::<u128>().expect("Could not parse number");
-        num
+        }
     }
     fn lex_identifier(&mut self) -> TokenKind {
         let mut string_content = String::new();

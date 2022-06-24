@@ -419,6 +419,10 @@ impl Parser {
                 self.advance();
                 Expr::Literal(LiteralKind::Integer(num))
             }
+            TokenKind::Literal(LiteralKind::Floating(num)) => {
+                self.advance();
+                Expr::Literal(LiteralKind::Floating(num))
+            }
             TokenKind::Identifier(_) => {
                 if self.peek(1).clone().kind == TokenKind::Punctuator(PunctuatorKind::LeftParen) {
                     //self.advance();
