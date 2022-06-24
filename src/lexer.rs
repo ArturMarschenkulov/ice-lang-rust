@@ -343,9 +343,6 @@ impl<'a> Lexer<'a> {
 
         let _starts_with_dot = string.starts_with('.');
         let _ends_with_dot = string.ends_with('.');
-        // if starts_with_dot && ends_with_dot {
-        //     panic!("Number cannot start and end with a dot.");
-        // }
 
         self.position.column += (string.len() - 1) as u32;
 
