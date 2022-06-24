@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
     Punctuator(PunctuatorKind),
     Literal(LiteralKind),
@@ -50,9 +50,17 @@ impl TokenKind {
             _ => self.clone(),
         }
     }
+    pub fn is_to_skip(&self) -> bool {
+        use SpecialKeywordKind::*;
+        use TokenKind::*;
+        matches!(
+            self,
+            SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment)
+        )
+    }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PunctuatorKind {
     // Punctuator
     Plus,      // +
@@ -100,7 +108,7 @@ pub enum PunctuatorKind {
     SlashEqual, // /=
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum KeywordKind {
     Var,
     Fn,
@@ -136,7 +144,7 @@ impl KeywordKind {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SpecialKeywordKind {
     Eof,
     Newline,
@@ -180,30 +188,38 @@ pub fn conv_to_complex(tokens: &[Token]) -> Token {
         }
     }
 }
-//FnDeclaration(Token, Vec<Token>, Box<Expr>),
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum LiteralKind {
     Integer(u128),
-    //Float(f64),
+    Floating(f64),
     Boolean(bool),
     //Char(char)
     String(String),
     Unit,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
     pub line: u32,
     pub column: u32,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
 }
+impl std::fmt::Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Span {{{}:{}-{}:{}}}",
+            self.start.line, self.start.column, self.end.line, self.end.column
+        )
+    }
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Whitespace {
     None,
     Left,
@@ -221,6 +237,24 @@ impl Whitespace {
             (false, false) => None,
         }
     }
+    /// Creates the whitespace from given tokens. Those tokens are wrapped in an `Option`, to make handling first
+    /// and last tokens easier for the caller
+    pub fn from_token_kinds(
+        left_token_kind: Option<&TokenKind>,
+        right_token_kind: Option<&TokenKind>,
+    ) -> Self {
+        let is_prev_whitespace = left_token_kind.map(|tok| tok.is_to_skip()).unwrap_or(false);
+        let is_next_whitespace = right_token_kind
+            .map(|tok| tok.is_to_skip())
+            .unwrap_or(false);
+        println!(
+            "from_tokens: {:?}, {:?} ==> {:?}",
+            left_token_kind.cloned(),
+            right_token_kind.cloned(),
+            Whitespace::from((is_prev_whitespace, is_next_whitespace))
+        );
+        Whitespace::from((is_prev_whitespace, is_next_whitespace))
+    }
     pub fn as_bools(self) -> (bool, bool) {
         use Whitespace::*;
         match self {
@@ -231,13 +265,8 @@ impl Whitespace {
             Undefined => unreachable!(),
         }
     }
-    /// Creates the whitespace from given tokens. Those tokens are wrapped in an `Option`, to make handling first
-    /// and last tokens easier for the caller
-    pub fn from_tokens(left_token: Option<&Token>, right_token: Option<&Token>) -> Self {
-        unimplemented!()
-    }
 }
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
@@ -245,14 +274,6 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn is_skip_token(&self) -> bool {
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
-        matches!(
-            self.kind,
-            SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment)
-        )
-    }
     /// Whether an operator is a prefix, postfix or infix operator, depends heavily on the whitespace it is surrounded by.
     ///
     fn is_token_operator_whitespace(&self) -> bool {

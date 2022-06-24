@@ -6,7 +6,7 @@ mod token;
 mod tokenizer;
 
 use crate::ast::print_ast;
-use crate::evaluator::get_evaluation_from_ast;
+//use crate::evaluator::get_evaluation_from_ast;
 use crate::parser::get_ast_from_tokens;
 use crate::tokenizer::get_tokens_from_source;
 use std::fs::File;
@@ -14,7 +14,7 @@ use std::io::Read;
 use std::time::Instant;
 //use crate::compiler::get_asm_from_ast;
 
-static TEXT: &str = r#"a + a;"#;
+static TEXT: &str = r#"a+"5555";"#;
 
 struct Ice {}
 impl Ice {
@@ -48,7 +48,7 @@ impl Ice {
     fn run(&mut self, text: &str) {
         let show_stages = true;
         let show_token_stream = true;
-        let show_ast_tree = true;
+        let show_ast_tree = false;
 
         println!("{}", text.to_owned());
         if show_stages {
@@ -64,7 +64,12 @@ impl Ice {
         }
         if show_token_stream {
             for token in &tokens {
-                println!("{:?} {:?} {:?}", token.kind, token.whitespace, token.span);
+                let start_x = token.span.start.line;
+                let start_y = token.span.start.column;
+                let end_x = token.span.end.line;
+                let end_y = token.span.end.column;
+                let span_str = format!("{}:{}-{}:{}", start_x, start_y, end_x, end_y);
+                println!("{:?} {:?} {}", token.kind, token.whitespace, span_str);
             }
         }
 
@@ -79,19 +84,19 @@ impl Ice {
         if show_ast_tree {
             print_ast(&ast);
         }
-        if false {
-            if show_stages {
-                println!("    Evaluator Stage:");
-            }
-            let now = Instant::now();
-            get_evaluation_from_ast(&ast);
-            if show_stages {
-                println!(
-                    "      Evaluator took {} nanoseconds",
-                    now.elapsed().as_nanos()
-                );
-            }
-        }
+        // if false {
+        //     if show_stages {
+        //         println!("    Evaluator Stage:");
+        //     }
+        //     let now = Instant::now();
+        //     get_evaluation_from_ast(&ast);
+        //     if show_stages {
+        //         println!(
+        //             "      Evaluator took {} nanoseconds",
+        //             now.elapsed().as_nanos()
+        //         );
+        //     }
+        // }
 
         //get_asm_from_ast(&ast);
 

@@ -2,11 +2,9 @@ use crate::token;
 use crate::token::*;
 use std::str::Chars;
 fn is_digit(c: char) -> bool {
-    // c >= '0' && c <= '9'
     ('0'..='9').contains(&c)
 }
 fn is_alpha(c: char) -> bool {
-    // (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
     let minor_case = ('a'..='z').contains(&c);
     let major_case = ('A'..='Z').contains(&c);
     let underscore = c == '_';
@@ -15,9 +13,9 @@ fn is_alpha(c: char) -> bool {
 fn is_alpha_numeric(c: char) -> bool {
     is_digit(c) || is_alpha(c)
 }
-fn is_whitespace(c: char) -> bool {
-    c == ' ' || c == '\t' || c == '\n' || c == '\r'
-}
+// fn is_whitespace(c: char) -> bool {
+//     c == ' ' || c == '\t' || c == '\n' || c == '\r'
+// }
 
 #[allow(dead_code)]
 struct Cursor<'a> {
@@ -66,6 +64,8 @@ impl<'a> Tokenizer<'a> {
         let mut tokens_pass_0 = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
+
+            println!("{:?}", token);
             tokens_pass_0.push(token);
             self.advance();
         }
@@ -78,23 +78,22 @@ impl<'a> Tokenizer<'a> {
         {
             let mut punc_vec = Vec::new();
 
-            let mut prev_token: Option<Token> = None;
-            let mut next_token: Option<Token> = None;
-            for token in tokens_pass_0.iter() {
+            let mut prev_token_kind: Option<TokenKind> = None;
+            let mut tok_iter = tokens_pass_0.iter();
+            while let Some(token) = tok_iter.next() {
                 let mut token = token.clone();
 
-                let next_tok = tokens_pass_0.iter().clone().next().unwrap().clone();
+                let next_token_kind = match tok_iter.clone().next() {
+                    Some(tok) => Some(tok.kind.clone()),
+                    None => None,
+                };
 
-                next_token = Some(next_tok.clone());
+                token.whitespace = token::Whitespace::from_token_kinds(
+                    prev_token_kind.as_ref(),
+                    next_token_kind.as_ref(),
+                );
 
-                let is_prev_whitespace = prev_token.map(|tok| tok.is_skip_token()).unwrap_or(false);
-                let is_next_whitespace = next_token.map(|tok| tok.is_skip_token()).unwrap_or(false);
-                token.whitespace =
-                    token::Whitespace::from((is_prev_whitespace, is_next_whitespace));
-                // token.whitespace =
-                //     token::Whitespace::from_tokens(prev_token.as_ref(), next_token.as_ref());
-
-                prev_token = Some(token.clone());
+                prev_token_kind = Some(token.kind.clone());
 
                 if token.kind.can_be_part_of_complex() {
                     punc_vec.push(token);
@@ -115,7 +114,7 @@ impl<'a> Tokenizer<'a> {
         let mut tokens_pass_2: Vec<Token> = Vec::new();
         {
             for token in tokens_pass_1.iter() {
-                if !token.is_skip_token() {
+                if !token.kind.is_to_skip() {
                     tokens_pass_2.push(token.clone());
                 }
             }
@@ -185,6 +184,8 @@ impl<'a> Tokenizer<'a> {
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => panic!("This is an unknown character {:?}.", cc),
         };
+
+        let end_pos = self.position;
         if token_kind == TokenKind::SpecialKeyword(Newline) {
             self.position.line += 1;
             self.position.column = 1;
@@ -195,7 +196,7 @@ impl<'a> Tokenizer<'a> {
             kind: token_kind,
             span: Span {
                 start: start_pos,
-                end: self.position,
+                end: end_pos,
             },
             whitespace: token::Whitespace::Undefined,
         }
@@ -247,6 +248,7 @@ impl<'a> Tokenizer<'a> {
             }
         }
         self.advance(); // this is for the '"'
+        self.position.column += (2 - 1) as u32;
 
         if self.peek(0) == None {
             panic!("Unterminated string.");
@@ -287,22 +289,36 @@ impl<'a> Tokenizer<'a> {
         use LiteralKind::*;
         use TokenKind::*;
 
+        let mut is_floating = false;
         // Because LiteralKind has `String` as a field, we have to fully qualify this `String`.
-        let mut string_content = std::string::String::new();
-        string_content.push(self.peek(0).unwrap());
+        let mut string = std::string::String::new();
+        string.push(self.peek(0).unwrap());
         while let Some(c) = self.peek(1) {
             if is_digit(c) {
-                string_content.push(c);
+                string.push(c);
                 self.advance();
+            } else if c == '.' {
+                string.push(c);
+                self.advance();
+                is_floating = true;
             } else {
                 break;
             }
         }
 
-        let number = string_content
-            .parse::<u128>()
-            .expect("Could not parse number");
-        Literal(Integer(number))
+        self.position.column += (string.len() - 1) as u32;
+
+        let num = if is_floating {
+            TokenKind::Literal(Floating(
+                string.parse::<f64>().expect("Could not parse number"),
+            ))
+        } else {
+            TokenKind::Literal(Integer(
+                string.parse::<u128>().expect("Could not parse number"),
+            ))
+        };
+        // let number = string.parse::<u128>().expect("Could not parse number");
+        num
     }
     fn lex_identifier(&mut self) -> TokenKind {
         let mut string_content = String::new();
