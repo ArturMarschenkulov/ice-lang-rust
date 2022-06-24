@@ -81,10 +81,7 @@ impl<'a> Lexer<'a> {
             while let Some(token) = tok_iter.next() {
                 let mut token = token.clone();
 
-                let next_token_kind = match tok_iter.clone().next() {
-                    Some(tok) => Some(tok.kind.clone()),
-                    None => None,
-                };
+                let next_token_kind = tok_iter.clone().next().map(|tok| tok.kind.clone());
 
                 token.whitespace = token::Whitespace::from_token_kinds(
                     prev_token_kind.as_ref(),
@@ -221,13 +218,13 @@ impl<'a> Lexer<'a> {
         let mut ch = String::new();
         if self.peek(1) == Some('\\') {
             let mut is_escape = true;
-            match self.peek(2) {
-                Some('n') => ch.push('\n'),
-                Some('t') => ch.push('\t'),
-                Some('0') => ch.push('\0'),
-                Some('\\') => ch.push('\\'),
-                Some('\"') => ch.push('\"'),
-                Some('\'') => ch.push('\''),
+            match self.peek(2).unwrap() {
+                'n' => ch.push('\n'),
+                't' => ch.push('\t'),
+                '0' => ch.push('\0'),
+                '\\' => ch.push('\\'),
+                '\"' => ch.push('\"'),
+                '\'' => ch.push('\''),
                 _ => is_escape = false,
             }
             if is_escape {
@@ -344,8 +341,8 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let _starts_with_dot = string.chars().nth(0) == Some('.');
-        let _ends_with_dot = string.chars().rev().nth(0) == Some('.');
+        let _starts_with_dot = string.starts_with('.');
+        let _ends_with_dot = string.ends_with('.');
         // if starts_with_dot && ends_with_dot {
         //     panic!("Number cannot start and end with a dot.");
         // }

@@ -174,9 +174,11 @@ impl KeywordKind {
             While => "while".len(),
             For => "for".len(),
 
+            // Those are actually literals, so they will get special treatement
             True => "true".len(),
             False => "false".len(),
 
+            // They will be removed
             Print => "print".len(),
             Println => "println".len(),
         }
@@ -211,12 +213,12 @@ pub fn conv_to_complex(tokens: &[Token]) -> Token {
         0 => unreachable!(),
         1 => tokens.first().unwrap().clone(),
         _ => {
-            let kind = Punctuator(Complex(tok_kinds)).simplify();
+            let token_kind = Punctuator(Complex(tok_kinds)).simplify();
 
             let first_tok = tokens.first().unwrap();
             let last_tok = tokens.last().unwrap();
             Token {
-                kind: kind,
+                kind: token_kind,
                 span: Span {
                     start: first_tok.span.start,
                     end: last_tok.span.end,
@@ -234,7 +236,7 @@ pub enum LiteralKind {
     Boolean(bool),
     //Char(char)
     String(String),
-    Unit,
+    //Unit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -288,29 +290,20 @@ impl Whitespace {
 
         Whitespace::from((is_prev_whitespace, is_next_whitespace))
     }
-    pub fn as_bools(self) -> (bool, bool) {
-        use Whitespace::*;
-        match self {
-            None => (false, false),
-            Left => (true, false),
-            Right => (false, true),
-            Both => (true, true),
-            Undefined => unreachable!(),
-        }
-    }
+    // pub fn as_bools(self) -> (bool, bool) {
+    //     use Whitespace::*;
+    //     match self {
+    //         None => (false, false),
+    //         Left => (true, false),
+    //         Right => (false, true),
+    //         Both => (true, true),
+    //         Undefined => unreachable!(),
+    //     }
+    // }
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
     pub whitespace: Whitespace,
-}
-
-impl Token {
-    /// Whether an operator is a prefix, postfix or infix operator, depends heavily on the whitespace it is surrounded by.
-    ///
-    fn is_token_operator_whitespace(&self) -> bool {
-        use TokenKind::*;
-        unimplemented!()
-    }
 }
