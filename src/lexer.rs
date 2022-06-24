@@ -276,6 +276,7 @@ impl<'a> Lexer<'a> {
         TokenKind::Literal(LiteralKind::String(string_content))
     }
     fn lex_comment_line(&mut self) -> TokenKind {
+        // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
         assert!(self.peek(0) == Some('/'));
         self.advance();
         assert!(self.peek(0) == Some('/'));
@@ -285,6 +286,7 @@ impl<'a> Lexer<'a> {
             self.advance();
             self.position.column += 1;
         }
+        assert!(self.peek(0) == Some('\n'));
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_comment_block(&mut self) -> TokenKind {
