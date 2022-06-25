@@ -206,12 +206,30 @@ impl Parser {
         }
     }
     fn parse_stmt_decl_var(&mut self) -> Box<Stmt> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
         let name = self.consume_identifier("Expected variable name.").unwrap();
         let token = self.peek(0);
-        let init = match token.kind {
-            TokenKind::Punctuator(PunctuatorKind::Equal) => {
+        let mut ty: Option<String> = None;
+        let init = match &token.kind {
+            Punctuator(Colon) => {
                 self.advance();
-                Some(self.parse_expr())
+
+                let token = self.peek(0);
+                if let Identifier(t) = &token.kind {
+                    ty = Some(t.clone());
+                    self.advance();
+                }
+
+                let token = self.peek(0);
+                match &token.kind {
+                    Punctuator(Equal) => {
+                        self.advance();
+                        Some(self.parse_expr())
+                    }
+                    _ => None,
+                }
             }
             _ => None,
         };
@@ -219,7 +237,7 @@ impl Parser {
             &TokenKind::Punctuator(PunctuatorKind::Semicolon),
             "Expected ';' after variable declaration.",
         );
-        Box::from(Stmt::VarDeclaration(name, init))
+        Box::from(Stmt::VarDeclaration(name, ty, init))
     }
     fn parse_stmt_decl_fn(&mut self) -> Box<Stmt> {
         let name = self.consume_identifier("Expected function name.").unwrap();

@@ -19,7 +19,7 @@ pub enum Expr {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     Expression(Box<Expr>),
-    VarDeclaration(Token, Option<Box<Expr>>),
+    VarDeclaration(Token, Option<String>, Option<Box<Expr>>),
     FnDeclaration(Token, Vec<Token>, Box<Expr>),
     NoOperation,
 
@@ -114,9 +114,10 @@ impl Stmt {
                 add_branch!("SExpression: ");
                 _be.print();
             }
-            Stmt::VarDeclaration(_t, _obe) => {
+            Stmt::VarDeclaration(_t, _type, _obe) => {
                 add_branch!("SVarDeclaration: ");
                 add_leaf!("T: {:?}", _t.kind);
+                add_leaf!("T: {:?}", _type);
                 _obe.as_ref().unwrap().print();
             }
             Stmt::FnDeclaration(_t, _vt, _be) => {
