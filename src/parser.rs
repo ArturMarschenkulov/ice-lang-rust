@@ -94,6 +94,78 @@ fn get_binary_operator_precedence(token: &Token) -> i32 {
         _ => 0,
     }
 }
+enum Associativity {
+    Left,
+    Right,
+    None,
+}
+#[derive(Clone)]
+struct BindingPower {
+    left: f32,
+    right: f32,
+}
+impl BindingPower {
+    fn new(precedence: u32, associativity: Associativity) -> Self {
+        let prec = precedence as f32;
+        match associativity {
+            Associativity::Left => BindingPower {
+                left: prec + 0.1,
+                right: prec - 0.1,
+            },
+            Associativity::Right => BindingPower {
+                left: prec - 0.1,
+                right: prec + 0.1,
+            },
+            Associativity::None => BindingPower {
+                left: prec,
+                right: prec,
+            },
+        }
+    }
+    fn is_zero(&self) -> bool {
+        self.left == 0.0 && self.right == 0.0
+    }
+}
+fn get_infix_binding_power(token: &Token) -> BindingPower {
+    use std::collections::HashMap;
+    use Associativity::*;
+    use PunctuatorKind::*;
+    use TokenKind::*;
+
+    // Right now this is inefficeint. But the point is to slowly extract that logic to a more global scope
+    // This location for this logic is temporary anyway, since custom operators will be supported,
+    // meaning that the one has to collect the map for that in the typechecker anyway.
+
+    let arr = [
+        //
+        (Punctuator(Star), BindingPower::new(7, Left)),
+        (Punctuator(Slash), BindingPower::new(7, Left)),
+        (Punctuator(Percent), BindingPower::new(7, Left)),
+        //
+        (Punctuator(Plus), BindingPower::new(6, Left)),
+        (Punctuator(Minus), BindingPower::new(6, Left)),
+        //
+        (Punctuator(Less), BindingPower::new(4, None)),
+        (Punctuator(LessEqual), BindingPower::new(4, None)),
+        (Punctuator(Greater), BindingPower::new(3, None)),
+        (Punctuator(GreaterEqual), BindingPower::new(4, None)),
+        (Punctuator(EqualEqual), BindingPower::new(4, None)),
+        (Punctuator(BangEqual), BindingPower::new(4, None)),
+        //
+        (Punctuator(Ampersand), BindingPower::new(3, None)),
+        (Punctuator(Pipe), BindingPower::new(2, None)),
+        //
+        (Punctuator(Equal), BindingPower::new(1, None)),
+    ];
+
+    let s = |tk: &TokenKind| format!("{:?}", tk);
+    arr.iter()
+        .map(|(tk, bp)| (s(&tk), bp.clone()))
+        .collect::<HashMap<String, BindingPower>>()
+        .get(&s(&token.kind))
+        .unwrap_or(&BindingPower::new(0, None))
+        .clone()
+}
 struct Parser {
     tokens: Vec<Token>,
     current: usize,
@@ -111,20 +183,20 @@ impl Parser {
         let mut statements: Vec<Stmt> = Vec::new();
 
         while !self.is_at_end() {
-            statements.push(*self.parse_stmt_declaration());
+            statements.push(*self.parse_stmt_decl());
         }
         statements
     }
-    fn parse_stmt_declaration(&mut self) -> Box<Stmt> {
+    fn parse_stmt_decl(&mut self) -> Box<Stmt> {
         let token = self.peek(0);
         match &token.kind {
             TokenKind::Keyword(KeywordKind::Var) => {
                 self.advance();
-                self.parse_stmt_declaration_var()
+                self.parse_stmt_decl_var()
             }
             TokenKind::Keyword(KeywordKind::Fn) => {
                 self.advance();
-                self.parse_stmt_declaration_fn()
+                self.parse_stmt_decl_fn()
             }
             TokenKind::Punctuator(PunctuatorKind::Semicolon) => {
                 self.advance();
@@ -133,7 +205,7 @@ impl Parser {
             _ => self.parse_stmt(),
         }
     }
-    fn parse_stmt_declaration_var(&mut self) -> Box<Stmt> {
+    fn parse_stmt_decl_var(&mut self) -> Box<Stmt> {
         let name = self.consume_identifier("Expected variable name.").unwrap();
         let token = self.peek(0);
         let init = match token.kind {
@@ -149,7 +221,7 @@ impl Parser {
         );
         Box::from(Stmt::VarDeclaration(name, init))
     }
-    fn parse_stmt_declaration_fn(&mut self) -> Box<Stmt> {
+    fn parse_stmt_decl_fn(&mut self) -> Box<Stmt> {
         let name = self.consume_identifier("Expected function name.").unwrap();
         self.consume(
             &TokenKind::Punctuator(PunctuatorKind::LeftParen),
@@ -229,7 +301,7 @@ impl Parser {
         Box::from(Stmt::Println(expr))
     }
     fn parse_expr(&mut self) -> Box<Expr> {
-        self.parse_expr_assignment()
+        self.parse_expr_binary(0.0)
     }
     fn parse_expr_if(&mut self) -> Box<Expr> {
         self.advance(); //skip the if
@@ -291,7 +363,7 @@ impl Parser {
         let initilizer = match self.peek(0).kind {
             TokenKind::Keyword(KeywordKind::Var) => {
                 self.advance();
-                Some(self.parse_stmt_declaration_var())
+                Some(self.parse_stmt_decl_var())
             }
             TokenKind::Punctuator(PunctuatorKind::Semicolon) => {
                 self.advance();
@@ -343,7 +415,7 @@ impl Parser {
             && (self.peek(0).kind != TokenKind::Punctuator(PunctuatorKind::RightBrace))
         {
             if should_add(self) {
-                statements.push(*self.parse_stmt_declaration());
+                statements.push(*self.parse_stmt_decl());
             } else {
                 break;
             }
@@ -377,28 +449,32 @@ impl Parser {
                 _ => {}
             }
         };
-        self.parse_expr_binary(0)
+        self.parse_expr_binary(0.0)
     }
-    fn parse_expr_binary(&mut self, parent_precedence: i32) -> Box<Expr> {
-        let unary_operator_precedence = get_unary_operator_precedence(self.peek(0));
-        let mut left =
-            if unary_operator_precedence != 0 && unary_operator_precedence >= parent_precedence {
-                let operator = self.peek(0).clone();
-                self.advance();
-                let right = self.parse_expr_binary(unary_operator_precedence);
-                Box::from(Expr::Unary(operator, right))
-            } else {
-                self.parse_expr_primary()
-            };
+    fn parse_expr_binary(&mut self, prev_bp: f32) -> Box<Expr> {
+        let un_op_prec = get_unary_operator_precedence(self.peek(0));
+        let mut left = if un_op_prec != 0 && un_op_prec >= prev_bp as i32 {
+            let op = self.peek(0).clone();
+            self.advance();
+            let right = self.parse_expr_binary(un_op_prec as f32);
+            Box::from(Expr::Unary(op, right))
+        } else {
+            self.parse_expr_primary()
+        };
 
         loop {
-            let precedence = get_binary_operator_precedence(self.peek(0));
-            if precedence == 0 || precedence <= parent_precedence {
+            let binding_power = get_infix_binding_power(self.peek(0));
+            if binding_power.is_zero() || binding_power.left < prev_bp {
                 break;
+            } else if binding_power.left == prev_bp {
+                // TODO: This is an error. The operators have the same precedence and are non-associative.
+                //       We should probably handle this.
+                println!("klnlgnlsk {:?}", self.peek(0));
             }
+
             let operator = self.peek(0).clone();
             self.advance();
-            let right = self.parse_expr_binary(precedence);
+            let right = self.parse_expr_binary(binding_power.right);
             left = Box::from(Expr::Binary(left, operator.clone(), right));
         }
         left
