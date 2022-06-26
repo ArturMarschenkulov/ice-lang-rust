@@ -7,7 +7,7 @@ pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Unary(Token, Box<Expr>),
     Symbol(Token),
-    Assign(Token, Token, Box<Expr>),
+    // Assign(Token, Token, Box<Expr>),
     Block(Vec<Stmt>, Option<Box<Expr>>),
 
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
@@ -20,7 +20,7 @@ pub enum Expr {
 pub enum Stmt {
     Expression(Box<Expr>),
     VarDeclaration(Token, Option<String>, Option<Box<Expr>>),
-    FnDeclaration(Token, Vec<Token>, Box<Expr>),
+    FnDeclaration(Token, Vec<(Token, String)>, Box<Expr>),
     NoOperation,
 
     Print(Box<Expr>),
@@ -58,10 +58,10 @@ impl Expr {
             Expr::Symbol(_t) => {
                 add_branch!("Symbol: {:?}", _t.kind);
             }
-            Expr::Assign(_t0, _t1, _be) => {
-                add_branch!("Assign: {:?}", _t0.kind);
-                _be.print();
-            }
+            // Expr::Assign(_t0, _t1, _be) => {
+            //     add_branch!("Assign: {:?}", _t0.kind);
+            //     _be.print();
+            // }
             Expr::Block(_vbs, _obe) => {
                 add_branch!("Block: ");
                 //print_ast(_vbs);
@@ -126,7 +126,7 @@ impl Stmt {
                 {
                     add_branch!("parameters: ");
                     for _t in _vt {
-                        add_leaf!("T: {:?}", _t.kind);
+                        add_leaf!("T: {:?}", _t.0.kind);
                         //_t.print();
                     }
                 }
