@@ -88,6 +88,33 @@ impl TokenKind {
             _ => self.clone(),
         }
     }
+    // pub fn complexify(self) -> TokenKind {
+    //     use PunctuatorKind::*;
+    //     use TokenKind::*;
+    //     match &self {
+    //         Punctuator(EqualEqual) => Punctuator(Complex(vec![Equal, Equal])),
+    //         Punctuator(BangEqual) => Punctuator(Complex(vec![Bang, Equal])),
+    //         Punctuator(GreaterEqual) => Punctuator(Complex(vec![Greater, Equal])),
+    //         Punctuator(LessEqual) => Punctuator(Complex(vec![Less, Equal])),
+    //         Punctuator(AmpersandAmpersand) => Punctuator(Complex(vec![Ampersand, Ampersand])),
+    //         Punctuator(PipePipe) => Punctuator(Complex(vec![Pipe, Pipe])),
+    //         Punctuator(MinusGreater) => Punctuator(Complex(vec![Minus, Greater])),
+    //         Punctuator(PlusEqual) => Punctuator(Complex(vec![Plus, Equal])),
+    //         Punctuator(MinusEqual) => Punctuator(Complex(vec![Minus, Equal])),
+    //         Punctuator(StarEqual) => Punctuator(Complex(vec![Star, Equal])),
+    //         Punctuator(SlashEqual) => Punctuator(Complex(vec![Slash, Equal])),
+    //         _ => self.clone(),
+    //     }
+    // }
+    // pub fn is_complex(&self) -> bool {
+    //     use PunctuatorKind::*;
+    //     use TokenKind::*;
+    //     if let Punctuator(Complex(_)) = self.clone().complexify() {
+    //         true
+    //     } else {
+    //         false
+    //     }
+    // }
     pub fn is_to_skip(&self) -> bool {
         use SpecialKeywordKind::*;
         use TokenKind::*;
