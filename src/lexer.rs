@@ -37,22 +37,30 @@ impl<'a> Cursor<'a> {
     }
 }
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
-    Lexer::new().scan_tokens(source)
+    Lexer::new().scan_tokens(&source.to_string())
 }
-struct Lexer<'a> {
-    chars: Chars<'a>,
+struct Lexer {
+    // chars_: Chars<'a>,
+    chars: Vec<char>,
+    index: usize,
     position: Position,
 }
 
-impl<'a> Lexer<'a> {
+impl Lexer {
     fn new() -> Self {
         Self {
-            chars: "".chars(),
+            chars: "".chars().collect(),
+            index: 0,
             position: Position { line: 1, column: 1 },
         }
     }
-    fn scan_tokens(&mut self, source: &'a str) -> Vec<Token> {
-        self.chars = source.chars();
+    fn from_string(string: String) -> Self {
+        let s = string.chars();
+        let z = string.chars().collect::<Vec<char>>();
+        todo!()
+    }
+    fn scan_tokens(&mut self, source: &String) -> Vec<Token> {
+        self.chars = source.chars().collect();
 
         // The idea is to have several passes. The first pass basically gets the raw tokens.
         // Meaning there are no composite tokens (e.g. ==), whitespaces and comments are included, etc.
@@ -115,6 +123,11 @@ impl<'a> Lexer<'a> {
             }
         }
 
+        for tp in &tokens_pass_2 {
+            if tp.whitespace == token::Whitespace::Undefined {
+                panic!("Token has no whitespace: {:?}", tp);
+            }
+        }
         use SpecialKeywordKind::*;
         use TokenKind::*;
         tokens_pass_2.push(Token {
@@ -395,12 +408,13 @@ impl<'a> Lexer<'a> {
         };
         token
     }
-
+}
+impl Lexer {
     fn peek(&self, n: usize) -> Option<char> {
-        self.chars.clone().nth(n).as_ref().copied()
+        self.chars.get(self.index + n).copied()
     }
     fn advance(&mut self) {
-        self.chars.next();
+        self.index += 1;
     }
 }
 #[cfg(test)]
