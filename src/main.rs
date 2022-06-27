@@ -14,7 +14,12 @@ use std::io::Read;
 use std::time::Instant;
 //use crate::compiler::get_asm_from_ast;
 
-static TEXT: &str = r#"a+5.0;"#;
+static TEXT: &str = r#"
+
+// THis is a comment at the end
+var stur := "This\n is a string\n";
+// THis is a comment at the end
+"#;
 
 struct Ice {}
 impl Ice {
@@ -25,9 +30,15 @@ impl Ice {
             let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
             self.run_file(text_from_file)
         } else {
-            println!("from memory");
-            let text_from_memoroy = TEXT;
-            self.run(text_from_memoroy);
+            let run_test_file = true;
+            if run_test_file {
+                let file = "tests\\test.ice";
+                self.run_file(&mut file.to_owned());
+            } else {
+                println!("from memory");
+                let text_from_memoroy = TEXT;
+                self.run(text_from_memoroy);
+            }
         }
     }
 
@@ -48,7 +59,7 @@ impl Ice {
     fn run(&mut self, text: &str) {
         let show_stages = true;
         let show_token_stream = true;
-        let show_ast_tree = false;
+        let show_ast_tree = true;
 
         println!("{}", text.to_owned());
         if show_stages {
