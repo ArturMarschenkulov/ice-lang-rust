@@ -161,7 +161,7 @@ fn get_infix_binding_power(token: &Token) -> BindingPower {
 
     let s = |tk: &TokenKind| format!("{:?}", tk);
     arr.iter()
-        .map(|(tk, prec, asso)| (s(&tk), BindingPower::new(*prec, *asso)))
+        .map(|(tk, prec, asso)| (s(tk), BindingPower::new(*prec, *asso)))
         .collect::<HashMap<String, BindingPower>>()
         .get(&s(&token.kind))
         .unwrap_or(&BindingPower::new(0, None))
@@ -209,10 +209,7 @@ impl Parser {
         self.advance();
 
         //if let Literal(lit_name) = self.peek(0).kind {}
-        let name = self
-            .consume_identifier("Expected variable name.")
-            .unwrap()
-            .clone();
+        let name = self.consume_identifier("Expected variable name.").unwrap();
 
         let token = self.peek(0);
         let mut ty: Option<String> = None;
@@ -250,10 +247,7 @@ impl Parser {
         assert!(self.peek(0).kind == Keyword(Fn));
         self.advance();
         //let s = self.consume_ident().
-        let name = self
-            .consume_identifier("Expected function name.")
-            .unwrap()
-            .clone();
+        let name = self.consume_identifier("Expected function name.").unwrap();
         self.consume(&Punctuator(LeftParen), "Expected '(' after function name')");
 
         let mut _token = self.peek(0).clone();
@@ -279,7 +273,7 @@ impl Parser {
         self.consume(&Punctuator(LeftBrace), "Expected '{' after function part");
         let block = self.parse_expr_block();
         self.consume(&Punctuator(RightBrace), "Expect '}' after function body.");
-        Box::from(Stmt::FnDeclaration(name.clone(), parameters, block))
+        Box::from(Stmt::FnDeclaration(name, parameters, block))
     }
     fn parse_stmt(&mut self) -> Box<Stmt> {
         let token = self.peek(0);
