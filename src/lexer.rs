@@ -1,6 +1,5 @@
 use crate::token;
 use crate::token::*;
-use std::str::Chars;
 fn is_digit(c: char) -> bool {
     ('0'..='9').contains(&c)
 }
@@ -18,32 +17,15 @@ fn is_alpha_numeric(c: char) -> bool {
 // }
 
 #[allow(dead_code)]
-struct Cursor<'a> {
-    chars: Chars<'a>,
-}
-#[allow(dead_code)]
-impl<'a> Cursor<'a> {
-    fn new(_string: String) -> Self {
-        unimplemented!()
-    }
-    fn chars(&self) -> Chars<'a> {
-        self.chars.clone()
-    }
-    fn advance(&mut self) {
-        self.chars.next();
-    }
-    fn peek(&self, n: usize) -> char {
-        self.chars().clone().nth(n).unwrap()
-    }
-}
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
-    Lexer::new().scan_tokens(&source.to_string())
+    Lexer::new().scan_tokens(source)
 }
+
 struct Lexer {
     // chars_: Chars<'a>,
     chars: Vec<char>,
     index: usize,
-    position: Position,
+    cursor: Position,
 }
 
 impl Lexer {
@@ -51,15 +33,13 @@ impl Lexer {
         Self {
             chars: "".chars().collect(),
             index: 0,
-            position: Position { line: 1, column: 1 },
+            cursor: Position { line: 1, column: 1 },
         }
     }
     fn from_string(string: String) -> Self {
-        let s = string.chars();
-        let z = string.chars().collect::<Vec<char>>();
         todo!()
     }
-    fn scan_tokens(&mut self, source: &String) -> Vec<Token> {
+    fn scan_tokens(&mut self, source: &str) -> Vec<Token> {
         self.chars = source.chars().collect();
 
         // The idea is to have several passes. The first pass basically gets the raw tokens.
@@ -207,16 +187,16 @@ impl Lexer {
     /// Returns the token which was lexed. It also moves the 'cursor' to the next character, so that one can lex the next token.
     fn scan_token(&mut self, c: char) -> Token {
         use SpecialKeywordKind::*;
-        let start_pos = self.position;
+        let start_pos = self.cursor;
 
         let token_kind = self.scan_token_kind(c);
 
-        let end_pos = self.position;
+        let end_pos = self.cursor;
         if token_kind == TokenKind::SpecialKeyword(Newline) {
-            self.position.line += 1;
-            self.position.column = 1;
+            self.cursor.line += 1;
+            self.cursor.column = 1;
         } else {
-            self.position.column += 1;
+            self.cursor.column += 1;
         }
         Token {
             kind: token_kind,
@@ -228,57 +208,65 @@ impl Lexer {
         }
     }
     fn lex_escape_char(&mut self) -> String {
+        self.match_char('\\').unwrap();
+        self.cursor.column += 1;
+
         let mut ch = String::new();
-        if self.peek(1) == Some('\\') {
-            let mut is_escape = true;
-            match self.peek(2).unwrap() {
-                'n' => ch.push('\n'),
-                't' => ch.push('\t'),
-                '0' => ch.push('\0'),
-                '\\' => ch.push('\\'),
-                '\"' => ch.push('\"'),
-                '\'' => ch.push('\''),
-                _ => is_escape = false,
-            }
-            if is_escape {
-                self.advance();
-                self.advance();
-                self.position.column += 2;
-            }
-        }
+        let escaped_char = match self.peek(0).unwrap() {
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            '\\' => '\\',
+            '\'' => '\'',
+            '"' => '"',
+            '0' => '\0',
+            _ => panic!("Unknown escape sequence"),
+        };
+        self.advance();
+        self.cursor.column += 1;
+
+        ch.push(escaped_char);
         ch
     }
     fn lex_string(&mut self) -> TokenKind {
-        // TODO: Are the delimiter of a string, part of its span? Right now they are. Think about it!
-        assert!(self.peek(0) == Some('\"'));
-        self.advance();
+        self.match_char('\"').unwrap();
 
         let mut string_content = String::new();
         while let Some(c) = self.peek(0) {
             if c == '"' {
                 break;
             }
+            // self.advance();
             // handle escape characters
-            if self.peek(1) == Some('\\') {
-                let escape_char = self.lex_escape_char();
-                string_content.push_str(&escape_char);
-            } else if self.peek(1) == Some('\n') {
-                self.position.column = 1;
-                self.position.line += 1;
-                self.advance();
-            } else if self.peek(1) == Some('\t') {
-                // TODO: Figure out how to correctly handle a tab, because they can be variable length.
-                self.position.column += 1;
-                self.advance();
-            } else {
-                string_content.push(c);
-                self.position.column += 1;
-                self.advance();
+
+            match c {
+                '\\' => {
+                    let escape_char = self.lex_escape_char();
+                    string_content.push_str(&escape_char);
+                }
+                '\n' => {
+                    self.advance();
+                    self.cursor.line += 1;
+                    self.cursor.column = 1;
+                }
+                '\t' => {
+                    // TODO: Figure out how to correctly handle a tab, because they can be variable length.
+                    self.advance();
+                    self.cursor.column += 1;
+                }
+                '\r' => {
+                    self.advance();
+                    self.cursor.column = 1;
+                }
+                _ => {
+                    string_content.push(c);
+                    self.advance();
+                    self.cursor.column += 1;
+                }
             }
         }
-        assert!(self.peek(0) == Some('\"'));
-        self.advance(); // this is for the '"'
-        self.position.column += (2 - 1) as u32;
+        self.match_char('\"').unwrap();
+        self.cursor.column += (2 - 1) as u32;
 
         if self.peek(0) == None {
             panic!("Unterminated string.");
@@ -287,44 +275,39 @@ impl Lexer {
     }
     fn lex_comment_line(&mut self) -> TokenKind {
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
-        assert!(self.peek(0) == Some('/'));
-        self.advance();
-        assert!(self.peek(0) == Some('/'));
-        self.advance();
+        self.match_char('/').unwrap();
+        self.match_char('/').unwrap();
 
-        while self.peek(0) != Some('\n') && self.peek(0) != Some('\0') {
+        while self.peek(0) != Some('\n') && self.peek(0) != None {
             self.advance();
-            self.position.column += 1;
+            self.cursor.column += 1;
         }
-        assert!(self.peek(0) == Some('\n'));
+        //assert!(self.peek(0) == Some('\n'));
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_comment_block(&mut self) -> TokenKind {
         // TODO: Implement nested block comments
-        assert!(self.peek(0) == Some('/'));
-        self.advance(); // for '/'
-        assert!(self.peek(0) == Some('*'));
-        self.advance(); // for '*'
-        self.position.column += 2;
+        self.match_char('/').unwrap();
+        self.cursor.column += 1;
+        self.match_char('*').unwrap();
+        self.cursor.column += 1;
 
         while self.peek(0) != Some('*') && self.peek(1) != Some('/') {
             self.advance();
 
-            if self.peek(1) == Some('\n') {
-                self.position.line += 1;
-                self.position.column = 1;
+            if self.peek(0) == Some('\n') {
+                self.cursor.line += 1;
+                self.cursor.column = 1;
             } else {
-                self.position.column += 1;
+                self.cursor.column += 1;
             }
-            self.position.column += 1;
+            self.cursor.column += 1;
         }
 
-        assert!(self.peek(0) == Some('*'));
-        self.advance(); // for '*'
-        assert!(self.peek(0) == Some('/'));
-        self.advance(); // for '/'
-
-        self.position.column += 2;
+        self.match_char('*').unwrap();
+        self.cursor.column += 1;
+        self.match_char('/').unwrap();
+        self.cursor.column += 1;
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_number(&mut self) -> TokenKind {
@@ -357,7 +340,7 @@ impl Lexer {
         let _starts_with_dot = string.starts_with('.');
         let _ends_with_dot = string.ends_with('.');
 
-        self.position.column += (string.len() - 1) as u32;
+        self.cursor.column += (string.len() - 1) as u32;
 
         if is_floating {
             let error_msg = format!("Could not parse floating point number: {}", string);
@@ -373,7 +356,6 @@ impl Lexer {
     }
     fn lex_identifier(&mut self) -> TokenKind {
         let mut string_content = String::new();
-
         while let Some(ch) = self.peek(0) {
             if is_alpha_numeric(ch) {
                 string_content.push(ch);
@@ -402,19 +384,50 @@ impl Lexer {
             _ => Identifier(string_content),
         };
         match &token {
-            Keyword(kw) => self.position.column += (kw.get_length() - 1) as u32,
-            Identifier(id) => self.position.column += (id.len() - 1) as u32,
+            Keyword(kw) => self.cursor.column += (kw.get_length() - 1) as u32,
+            Identifier(id) => self.cursor.column += (id.len() - 1) as u32,
             _ => panic!("Identifier not a keyword or identifier."),
         };
         token
     }
 }
 impl Lexer {
-    fn peek(&self, n: usize) -> Option<char> {
-        self.chars.get(self.index + n).copied()
+    fn is_inbounds(&self, offset: usize) -> bool {
+        self.index + offset <= self.chars.len()
     }
+    fn peek(&self, n: usize) -> Option<char> {
+        if self.is_inbounds(n) {
+            self.chars.get(self.index + n).copied()
+        } else {
+            None
+        }
+    }
+    // fn eat_char(&mut self) -> Option<char> {
+    //     let c = self.chars[self.index];
+    //     self.index += 1;
+    //     c
+    // }
     fn advance(&mut self) {
         self.index += 1;
+    }
+
+    /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
+    fn match_char(&mut self, ch: char) -> Option<char> {
+        if self.peek(0) == Some(ch) {
+            self.advance();
+            Some(ch)
+        } else {
+            None
+        }
+    }
+    fn match_chars(&mut self, chars: &[char]) -> Option<char> {
+        for ch in chars {
+            if self.peek(0) == Some(*ch) {
+                self.advance();
+                return Some(*ch);
+            }
+        }
+        None
     }
 }
 #[cfg(test)]
@@ -427,7 +440,7 @@ mod test {
         let source = "var a = 2222;";
 
         let mut lexer = Lexer::new();
-        let tokens = lexer.scan_tokens(source);
+        let tokens = lexer.scan_tokens(&source.to_owned());
 
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Var));
         assert_eq!(tokens[1].kind, TokenKind::Identifier(String::from("a")));
