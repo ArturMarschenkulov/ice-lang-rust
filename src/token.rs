@@ -257,9 +257,16 @@ pub fn conv_to_complex(tokens: &[Token]) -> Token {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum NumberBase {
+    Binary,      // 0b
+    Octal,       // 0o
+    Decimal,     // 0d
+    Hexadecimal, // 0x
+}
+#[derive(Clone, Debug, PartialEq)]
 pub enum LiteralKind {
-    Integer(u128),
-    Floating(f64),
+    Integer { content: String, base: NumberBase },
+    Floating { content: String },
     Boolean(bool),
     //Char(char)
     String(String),

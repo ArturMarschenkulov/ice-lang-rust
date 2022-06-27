@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 debug_tree = { git = "https://github.com/martypapa/debug-tree", branch = "master" }
+unicode-xid = "0.2.0"
 #llvm-sys = "100"
 
 

@@ -1,7 +1,21 @@
 use crate::token;
 use crate::token::*;
+use unicode_xid::UnicodeXID;
+
 fn is_digit(c: char) -> bool {
     ('0'..='9').contains(&c)
+}
+fn is_hexadecimal(c: char) -> bool {
+    let num = ('0'..='9').contains(&c);
+    let upper = ('A'..='F').contains(&c);
+    let lower = ('a'..='f').contains(&c);
+    num || upper || lower
+}
+fn is_octal(c: char) -> bool {
+    ('0'..='7').contains(&c)
+}
+fn is_binary(c: char) -> bool {
+    ('0'..='1').contains(&c)
 }
 fn is_alpha(c: char) -> bool {
     let minor_case = ('a'..='z').contains(&c);
@@ -171,7 +185,16 @@ impl Lexer {
             '"' => self.lex_string(),
             cc if is_digit(cc) => self.lex_number(),
             cc if is_alpha(cc) => self.lex_identifier(),
-            cc => panic!("This is an unknown character {:?}.", cc),
+            cc => match cc {
+                // cc => {
+                //     UnicodeXID::is_xid_start(cc);
+                //     todo!()
+                // }
+                _ => panic!(
+                    "Character '{}' is unknown. At '{}:{}'.",
+                    cc, self.cursor.line, self.cursor.column
+                ),
+            },
         };
         // NOTE: If the token is simple we advance here, because the match statements look prettier that way.
         // With more complex tokens, basically everything except single punctuators,
@@ -311,20 +334,42 @@ impl Lexer {
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_number(&mut self) -> TokenKind {
-        // use LiteralKind::*;
+        use LiteralKind::*;
+        use TokenKind::*;
 
-        let mut is_floating = false;
+        let mut has_base_prefix = true;
+        let mut number_base = NumberBase::Decimal;
+        match self.peek_str(2).unwrap().as_str() {
+            "0b" => number_base = NumberBase::Binary,
+            "0o" => number_base = NumberBase::Octal,
+            "0d" => number_base = NumberBase::Decimal,
+            "0x" => number_base = NumberBase::Hexadecimal,
+            _ => has_base_prefix = false,
+        }
+
+        let is_in_number_base = match number_base {
+            NumberBase::Binary => is_binary,
+            NumberBase::Octal => is_octal,
+            NumberBase::Decimal => is_digit,
+            NumberBase::Hexadecimal => is_hexadecimal,
+        };
+        if has_base_prefix {
+            self.advance();
+            self.cursor.column += 1;
+            self.advance();
+            self.cursor.column += 1;
+        }
         let mut is_after_dot = false;
-
-        let mut string = String::new();
+        let mut is_floating = false;
+        let mut string = std::string::String::new();
         while let Some(c) = self.peek(0) {
-            if is_digit(c) {
+            if is_in_number_base(c) {
                 string.push(c);
                 self.advance();
                 if is_after_dot {
                     is_after_dot = false;
                 }
-            } else if c == '.' && !is_floating {
+            } else if c == '.' && !is_floating && !has_base_prefix {
                 string.push(c);
                 self.advance();
                 is_floating = true;
@@ -339,19 +384,21 @@ impl Lexer {
 
         let _starts_with_dot = string.starts_with('.');
         let _ends_with_dot = string.ends_with('.');
-
+        println!("{}", string.len());
         self.cursor.column += (string.len() - 1) as u32;
 
         if is_floating {
-            let error_msg = format!("Could not parse floating point number: {}", string);
-            TokenKind::Literal(LiteralKind::Floating(
-                string.parse::<f64>().expect(&error_msg),
-            ))
+            //let error_msg = format!("Could not parse floating point number: {}", string);
+            //string.parse::<f64>().expect(&error_msg);
+
+            Literal(Floating { content: string })
         } else {
-            let error_msg = format!("Could not parse integer number: {}", string);
-            TokenKind::Literal(LiteralKind::Integer(
-                string.parse::<u128>().expect(&error_msg),
-            ))
+            //let error_msg = format!("Could not parse integer number: {}", string);
+            //string.parse::<u128>().expect(&error_msg);
+            Literal(Integer {
+                content: string,
+                base: number_base,
+            })
         }
     }
     fn lex_identifier(&mut self) -> TokenKind {
@@ -402,6 +449,20 @@ impl Lexer {
             None
         }
     }
+    /// peeks next `n` consecutive chars and returns them as a string.
+    fn peek_str(&self, n: usize) -> Option<String> {
+        if self.is_inbounds(n) {
+            let mut str = String::new();
+            for i in 0..n {
+                let c = self.chars.get(self.index + i).copied().unwrap();
+                str.push(c);
+            }
+            return Some(str);
+        } else {
+            None
+        }
+    }
+
     // fn eat_char(&mut self) -> Option<char> {
     //     let c = self.chars[self.index];
     //     self.index += 1;
@@ -433,7 +494,7 @@ impl Lexer {
 #[cfg(test)]
 mod test {
     use crate::lexer::Lexer;
-    use crate::token::{KeywordKind, LiteralKind, PunctuatorKind, TokenKind};
+    use crate::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
 
     #[test]
     fn test_0() {
@@ -447,7 +508,10 @@ mod test {
         assert_eq!(tokens[2].kind, TokenKind::Punctuator(PunctuatorKind::Equal));
         assert_eq!(
             tokens[3].kind,
-            TokenKind::Literal(LiteralKind::Integer(2222))
+            TokenKind::Literal(LiteralKind::Integer {
+                content: "2222".to_owned(),
+                base: NumberBase::Decimal,
+            })
         );
         assert_eq!(
             tokens[4].kind,

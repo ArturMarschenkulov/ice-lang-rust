@@ -492,6 +492,8 @@ impl Parser {
         left
     }
     fn parse_expr_primary(&mut self) -> Box<Expr> {
+        use LiteralKind::*;
+        use TokenKind::*;
         let token = self.peek(0).clone();
 
         let expr = match token.kind {
@@ -503,13 +505,13 @@ impl Parser {
                 self.advance();
                 Expr::Literal(LiteralKind::Boolean(true))
             }
-            TokenKind::Literal(LiteralKind::Integer(num)) => {
+            Literal(Integer { content, base }) => {
                 self.advance();
-                Expr::Literal(LiteralKind::Integer(num))
+                Expr::Literal(Integer { content, base })
             }
-            TokenKind::Literal(LiteralKind::Floating(num)) => {
+            Literal(Floating { content }) => {
                 self.advance();
-                Expr::Literal(LiteralKind::Floating(num))
+                Expr::Literal(Floating { content })
             }
             TokenKind::Identifier(_) => {
                 if self.peek(1).clone().kind == TokenKind::Punctuator(PunctuatorKind::LeftParen) {
