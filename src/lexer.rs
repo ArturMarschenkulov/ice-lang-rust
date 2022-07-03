@@ -217,19 +217,19 @@ impl Lexer {
         }
         Token::new_undefind_whitespace(token_kind, Span::new(start_pos, end_pos))
     }
-    fn lex_escape_char(&mut self) -> char {
+    fn lex_escape_char(&mut self) -> Result<char, LexerError> {
         self.match_char('\\').unwrap();
         self.cursor.column += 1;
 
         let escaped_char = match self.peek(0).unwrap() {
-            'n' => '\n',
-            'r' => '\r',
-            't' => '\t',
-            '\\' => '\\',
-            '\'' => '\'',
-            '"' => '"',
-            '0' => '\0',
-            _ => panic!("Unknown escape sequence"),
+            'n' => Ok('\n'),
+            'r' => Ok('\r'),
+            't' => Ok('\t'),
+            '\\' => Ok('\\'),
+            '\'' => Ok('\''),
+            '"' => Ok('"'),
+            '0' => Ok('\0'),
+            _ => Err(LexerError::new(format!("Unknown escape sequence"))),
         };
         self.advance();
         self.cursor.column += 1;
@@ -245,7 +245,7 @@ impl Lexer {
             let ch = if c == '\'' {
                 return Err(LexerError::new(format!("empty character literal")));
             } else if c == '\\' {
-                self.lex_escape_char()
+                self.lex_escape_char()?
             } else if c == '\n' || c == '\r' {
                 return Err(LexerError::new(format!("newline in character literal")));
             } else {
@@ -281,7 +281,7 @@ impl Lexer {
 
             match c {
                 '\\' => {
-                    let escape_char = self.lex_escape_char();
+                    let escape_char = self.lex_escape_char().unwrap();
                     string_content.push(escape_char);
                 }
                 '\n' => {
