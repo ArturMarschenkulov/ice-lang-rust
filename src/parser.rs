@@ -189,11 +189,15 @@ impl Parser {
         statements
     }
     fn parse_stmt_decl(&mut self) -> Box<Stmt> {
+        use KeywordKind::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
         let token = self.peek(0);
         match &token.kind {
-            TokenKind::Keyword(KeywordKind::Var) => self.parse_stmt_decl_var(),
-            TokenKind::Keyword(KeywordKind::Fn) => self.parse_stmt_decl_fn(),
-            TokenKind::Punctuator(PunctuatorKind::Semicolon) => {
+            Keyword(Var) => self.parse_stmt_decl_var(),
+            Keyword(Fn) => self.parse_stmt_decl_fn(),
+            Punctuator(Semicolon) => {
                 self.advance();
                 Box::from(Stmt::NoOperation)
             }
@@ -235,7 +239,7 @@ impl Parser {
             _ => None,
         };
         self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::Semicolon),
+            &Punctuator(Semicolon),
             "Expected ';' after variable declaration.",
         );
         Box::from(Stmt::VarDeclaration(name, ty, init))
@@ -244,6 +248,7 @@ impl Parser {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
+
         assert!(self.peek(0).kind == Keyword(Fn));
         self.advance();
         //let s = self.consume_ident().
@@ -276,13 +281,15 @@ impl Parser {
         Box::from(Stmt::FnDeclaration(name, parameters, block))
     }
     fn parse_stmt(&mut self) -> Box<Stmt> {
+        use KeywordKind::*;
+        use TokenKind::*;
         let token = self.peek(0);
         match &token.kind {
-            TokenKind::Keyword(KeywordKind::Print) => {
+            Keyword(Print) => {
                 self.advance();
                 self.parse_stmt_print()
             }
-            TokenKind::Keyword(KeywordKind::Println) => {
+            Keyword(Println) => {
                 self.advance();
                 self.parse_stmt_println()
             }
@@ -319,19 +326,17 @@ impl Parser {
         self.parse_expr_binary(0.0)
     }
     fn parse_expr_if(&mut self) -> Box<Expr> {
+        use KeywordKind::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
         self.advance(); //skip the if
         let condition = self.parse_expr();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::LeftBrace),
-            "Expect '{' after if condition.",
-        );
+        self.consume(&Punctuator(LeftBrace), "Expect '{' after if condition.");
         let then_branch = self.parse_expr_block();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::RightBrace),
-            "Expect '}' after then branch.",
-        );
+        self.consume(&Punctuator(RightBrace), "Expect '}' after then branch.");
         let else_branch = match self.peek(0).kind {
-            TokenKind::Keyword(KeywordKind::Else) => {
+            Keyword(Else) => {
                 self.advance();
                 Some(self.parse_expr_else())
             }
@@ -340,44 +345,40 @@ impl Parser {
         Box::from(Expr::If(condition, then_branch, else_branch))
     }
     fn parse_expr_else(&mut self) -> Box<Expr> {
+        use KeywordKind::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
         match self.peek(0).kind {
-            TokenKind::Keyword(KeywordKind::If) => {
+            Keyword(If) => {
                 //self.advance();
                 self.parse_expr_if()
             }
             _ => {
-                self.consume(
-                    &TokenKind::Punctuator(PunctuatorKind::LeftBrace),
-                    "Expect '{' after else condition.",
-                );
+                self.consume(&Punctuator(LeftBrace), "Expect '{' after else condition.");
                 let e = self.parse_expr_block();
-                self.consume(
-                    &TokenKind::Punctuator(PunctuatorKind::RightBrace),
-                    "Expect '}' after else branch.",
-                );
+                self.consume(&Punctuator(RightBrace), "Expect '}' after else branch.");
                 e
             }
         }
     }
     fn parse_expr_while(&mut self) -> Box<Expr> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
         self.advance(); //skip the while
         let condition = self.parse_expr();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::LeftBrace),
-            "Expect '{' after while condition.",
-        );
+        self.consume(&Punctuator(LeftBrace), "Expect '{' after while condition.");
         let while_body = self.parse_expr_block();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::RightBrace),
-            "Expect '}' after while body.",
-        );
+        self.consume(&Punctuator(RightBrace), "Expect '}' after while body.");
         Box::from(Expr::While(condition, while_body))
     }
     fn parse_expr_for(&mut self) -> Box<Expr> {
+        use KeywordKind::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
         self.advance(); //skip the for
         let initilizer = match self.peek(0).kind {
-            TokenKind::Keyword(KeywordKind::Var) => Some(self.parse_stmt_decl_var()),
-            TokenKind::Punctuator(PunctuatorKind::Semicolon) => {
+            Keyword(Var) => Some(self.parse_stmt_decl_var()),
+            Punctuator(Semicolon) => {
                 self.advance();
                 None
             }
@@ -385,22 +386,16 @@ impl Parser {
         };
 
         let condition = self.parse_expr();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::Semicolon),
-            "Expect ';' after for condition.",
-        );
+        self.consume(&Punctuator(Semicolon), "Expect ';' after for condition.");
 
         let itr_expr = self.parse_expr();
         self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::LeftBrace),
+            &Punctuator(LeftBrace),
             "Expect '{' after for interation expression.",
         );
 
         let while_body = self.parse_expr_block();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::RightBrace),
-            "Expect '}' after while body.",
-        );
+        self.consume(&Punctuator(RightBrace), "Expect '}' after while body.");
         Box::from(Expr::For(
             initilizer.unwrap(),
             condition,
@@ -409,10 +404,10 @@ impl Parser {
         ))
     }
     fn parse_expr_block(&mut self) -> Box<Expr> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
         // Helper function (or rather closure).
         let should_add = |sel: &mut Self| -> bool {
-            use PunctuatorKind::*;
-            use TokenKind::*;
             let mut pointer = sel.current;
             while sel.tokens[pointer].kind != Punctuator(RightBrace) {
                 if sel.tokens[pointer].kind == Punctuator(Semicolon) {
@@ -423,9 +418,7 @@ impl Parser {
             false
         };
         let mut statements: Vec<Stmt> = Vec::new();
-        while !self.is_at_end()
-            && (self.peek(0).kind != TokenKind::Punctuator(PunctuatorKind::RightBrace))
-        {
+        while !self.is_at_end() && (self.peek(0).kind != Punctuator(RightBrace)) {
             if should_add(self) {
                 statements.push(*self.parse_stmt_decl());
             } else {
@@ -433,9 +426,7 @@ impl Parser {
             }
         }
 
-        let expr = if self.tokens[self.current].kind
-            == TokenKind::Punctuator(PunctuatorKind::RightBrace)
-        {
+        let expr = if self.tokens[self.current].kind == Punctuator(RightBrace) {
             None
         } else {
             Some(self.parse_expr())
@@ -443,26 +434,6 @@ impl Parser {
 
         Box::from(Expr::Block(statements, expr))
     }
-    // fn parse_expr_assignment(&mut self) -> Box<Expr> {
-    //     if let TokenKind::Identifier(_) = self.peek(0).kind {
-    //         match self.peek(1).kind {
-    //             TokenKind::Punctuator(PunctuatorKind::Equal)
-    //             | TokenKind::Punctuator(PunctuatorKind::PlusEqual)
-    //             | TokenKind::Punctuator(PunctuatorKind::MinusEqual)
-    //             | TokenKind::Punctuator(PunctuatorKind::StarEqual)
-    //             | TokenKind::Punctuator(PunctuatorKind::SlashEqual) => {
-    //                 let identifier_token = self.peek(0).clone();
-    //                 self.advance();
-    //                 let operator_token = self.peek(0).clone();
-    //                 self.advance();
-    //                 let right = self.parse_expr_assignment();
-    //                 return Box::from(Expr::Assign(identifier_token, operator_token, right));
-    //             }
-    //             _ => {}
-    //         }
-    //     };
-    //     self.parse_expr_binary(0.0)
-    // }
     fn parse_expr_binary(&mut self, prev_bp: f32) -> Box<Expr> {
         let un_op_prec = get_unary_operator_precedence(self.peek(0));
         let mut left = if un_op_prec != 0 && un_op_prec >= prev_bp as i32 {
@@ -481,7 +452,10 @@ impl Parser {
             } else if binding_power.left == prev_bp {
                 // TODO: This is an error. The operators have the same precedence and are non-associative.
                 //       We should probably handle this.
-                println!("klnlgnlsk {:?}", self.peek(0));
+                panic!(
+                    "Operators have the same precedence and are non-associative. This is not {:?}",
+                    self.peek(0)
+                );
             }
 
             let operator = self.peek(0).clone();
@@ -492,18 +466,20 @@ impl Parser {
         left
     }
     fn parse_expr_primary(&mut self) -> Box<Expr> {
+        use KeywordKind::*;
         use LiteralKind::*;
+        use PunctuatorKind::*;
         use TokenKind::*;
         let token = self.peek(0).clone();
 
         let expr = match token.kind {
-            TokenKind::Keyword(KeywordKind::False) => {
+            Keyword(False) => {
                 self.advance();
-                Expr::Literal(LiteralKind::Boolean(false))
+                Expr::Literal(Boolean(false))
             }
-            TokenKind::Keyword(KeywordKind::True) => {
+            Keyword(True) => {
                 self.advance();
-                Expr::Literal(LiteralKind::Boolean(true))
+                Expr::Literal(Boolean(true))
             }
             Literal(Integer { content, base }) => {
                 self.advance();
@@ -513,8 +489,8 @@ impl Parser {
                 self.advance();
                 Expr::Literal(Floating { content })
             }
-            TokenKind::Identifier(_) => {
-                if self.peek(1).clone().kind == TokenKind::Punctuator(PunctuatorKind::LeftParen) {
+            Identifier(_) => {
+                if self.peek(1).clone().kind == Punctuator(PunctuatorKind::LeftParen) {
                     //self.advance();
                     *self.parse_expr_fn_call()
                     //*self._call()
@@ -523,27 +499,28 @@ impl Parser {
                     Expr::Symbol(self.peek(-1).clone())
                 }
             }
-            TokenKind::Literal(LiteralKind::String(s)) => {
+            Literal(String(s)) => {
                 self.advance();
-                Expr::Literal(LiteralKind::String(s))
+                Expr::Literal(String(s))
             }
-            TokenKind::Keyword(KeywordKind::If) => *self.parse_expr_if(),
-            TokenKind::Keyword(KeywordKind::While) => *self.parse_expr_while(),
-            TokenKind::Keyword(KeywordKind::For) => *self.parse_expr_for(),
-            TokenKind::Punctuator(PunctuatorKind::LeftParen) => {
+            Literal(Char(c)) => {
+                self.advance();
+                Expr::Literal(Char(c))
+            }
+            Keyword(If) => *self.parse_expr_if(),
+            Keyword(While) => *self.parse_expr_while(),
+            Keyword(For) => *self.parse_expr_for(),
+            Punctuator(LeftParen) => {
                 self.advance(); //skip the (
                 let left = self.parse_expr();
-                self.consume(
-                    &TokenKind::Punctuator(PunctuatorKind::RightParen),
-                    "Expect ')' after expression4",
-                );
+                self.consume(&Punctuator(RightParen), "Expect ')' after expression4");
                 Expr::Grouping(left)
             }
-            TokenKind::Punctuator(PunctuatorKind::LeftBrace) => {
+            Punctuator(LeftBrace) => {
                 self.advance(); //skip the {
                 let stmts = self.parse_expr_block();
                 self.consume(
-                    &TokenKind::Punctuator(PunctuatorKind::RightBrace),
+                    &Punctuator(PunctuatorKind::RightBrace),
                     "Expect '}' after block",
                 );
                 *stmts
@@ -555,26 +532,26 @@ impl Parser {
         Box::from(expr)
     }
     fn parse_expr_fn_call(&mut self) -> Box<Expr> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
         let callee = Box::from(Expr::Symbol(self.peek(0).clone()));
         self.advance();
         self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::LeftParen),
+            &Punctuator(PunctuatorKind::LeftParen),
             "Expect '(' after function name.",
         );
 
         let mut arguments: Vec<Expr> = Vec::new();
-        while self.peek(0).kind != TokenKind::Punctuator(PunctuatorKind::RightParen) {
+        while self.peek(0).kind != Punctuator(RightParen) {
             arguments.push(*self.parse_expr());
-            if self.peek(0).kind != TokenKind::Punctuator(PunctuatorKind::RightParen) {
-                self.consume(
-                    &TokenKind::Punctuator(PunctuatorKind::Comma),
-                    "Expect ',' after argument.",
-                );
+            if self.peek(0).kind != Punctuator(RightParen) {
+                self.consume(&Punctuator(Comma), "Expect ',' after argument.");
             }
         }
 
         self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::RightParen),
+            &Punctuator(RightParen),
             "Expect ')' after function arguments.",
         );
 
@@ -595,10 +572,11 @@ impl Parser {
         todo!()
     }
     fn consume_identifier(&mut self, message: &str) -> Result<Token, String> {
+        use TokenKind::*;
         // TODO: This looks messy. Fix it!
         let token = self.peek(0).clone();
         let token_kind = &token.kind;
-        if let TokenKind::Identifier(_) = token_kind {
+        if let Identifier(_) = token_kind {
             self.advance();
             Ok(token)
         } else {
@@ -624,7 +602,9 @@ impl Parser {
         }
     }
     fn is_at_end(&self) -> bool {
-        self.peek(0).kind == TokenKind::SpecialKeyword(SpecialKeywordKind::Eof)
+        use SpecialKeywordKind::*;
+        use TokenKind::*;
+        self.peek(0).kind == SpecialKeyword(Eof)
     }
     fn peek(&self, offset: i32) -> &Token {
         let index = self.current as i32 + offset;

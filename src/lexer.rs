@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::token;
 use crate::token::*;
 use unicode_xid::UnicodeXID;
@@ -32,29 +33,25 @@ fn is_alpha_numeric(c: char) -> bool {
 
 #[allow(dead_code)]
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
-    Lexer::new().scan_tokens(source)
+    Lexer::new_from_str(source).scan_tokens()
 }
 
 struct Lexer {
-    // chars_: Chars<'a>,
     chars: Vec<char>,
     index: usize,
     cursor: Position,
 }
 
 impl Lexer {
-    fn new() -> Self {
+    fn new_from_str(source: &str) -> Self {
         Self {
-            chars: "".chars().collect(),
+            chars: source.chars().collect(),
             index: 0,
-            cursor: Position { line: 1, column: 1 },
+            cursor: Position::new(1, 1),
         }
     }
-    fn from_string(string: String) -> Self {
-        todo!()
-    }
-    fn scan_tokens(&mut self, source: &str) -> Vec<Token> {
-        self.chars = source.chars().collect();
+    fn scan_tokens(&mut self) -> Vec<Token> {
+        // self.chars = source.chars().collect();
 
         // The idea is to have several passes. The first pass basically gets the raw tokens.
         // Meaning there are no composite tokens (e.g. ==), whitespaces and comments are included, etc.
@@ -124,18 +121,15 @@ impl Lexer {
         }
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        tokens_pass_2.push(Token {
-            kind: SpecialKeyword(Eof),
-            span: Span {
-                start: Position { line: 0, column: 0 },
-                end: Position { line: 0, column: 0 },
-            },
-            whitespace: token::Whitespace::Undefined,
-        });
+        let token_eof = Token::new_undefind_whitespace(
+            SpecialKeyword(Eof),
+            Span::new(Position::new(1, 1), Position::new(1, 1)),
+        );
+        tokens_pass_2.push(token_eof);
         tokens_pass_2
     }
 
-    fn scan_token_kind(&mut self, c: char) -> TokenKind {
+    fn scan_token_kind(&mut self, c: char) -> Result<TokenKind, LexerError> {
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -143,16 +137,11 @@ impl Lexer {
             '+' => Punctuator(Plus),
             '-' => Punctuator(Minus),
             '*' => Punctuator(Star),
-            '/' => {
-                let next_char = self.peek(1).unwrap();
-                if next_char == '/' {
-                    self.lex_comment_line()
-                } else if next_char == '*' {
-                    self.lex_comment_block()
-                } else {
-                    Punctuator(Slash)
-                }
-            }
+            '/' => match self.peek_into_str(1).unwrap().as_str() {
+                "//" => self.lex_comment_line(),
+                "/*" => self.lex_comment_block(),
+                _ => Punctuator(Slash),
+            },
             '=' => Punctuator(Equal),
             '!' => Punctuator(Bang),
             '>' => Punctuator(Greater),
@@ -164,7 +153,7 @@ impl Lexer {
             '?' => Punctuator(Question),
             ',' => Punctuator(Comma),
             '.' => match self.peek(1) {
-                Some(s) if is_digit(s) => self.lex_number(),
+                Some(s) if is_digit(s) => self.lex_number().unwrap(),
                 _ => Punctuator(Dot),
             },
             '#' => Punctuator(Hash),
@@ -183,17 +172,22 @@ impl Lexer {
             ' ' | '\r' | '\t' => SpecialKeyword(Whitespace),
             '\n' => SpecialKeyword(Newline),
             '"' => self.lex_string(),
-            cc if is_digit(cc) => self.lex_number(),
+            '\'' => self.lex_char().unwrap(),
+            cc if is_digit(cc) => self.lex_number().unwrap(),
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => match cc {
                 // cc => {
                 //     UnicodeXID::is_xid_start(cc);
                 //     todo!()
                 // }
-                _ => panic!(
-                    "Character '{}' is unknown. At '{}:{}'.",
-                    cc, self.cursor.line, self.cursor.column
-                ),
+                _ => {
+                    return Err(LexerError {
+                        msg: format!(
+                            "Character '{}' is unknown. At '{}:{}'.",
+                            cc, self.cursor.line, self.cursor.column
+                        ),
+                    })
+                }
             },
         };
         // NOTE: If the token is simple we advance here, because the match statements look prettier that way.
@@ -203,7 +197,7 @@ impl Lexer {
             self.advance();
         } else {
         }
-        kind
+        Ok(kind)
     }
 
     /// Scans a token
@@ -212,7 +206,7 @@ impl Lexer {
         use SpecialKeywordKind::*;
         let start_pos = self.cursor;
 
-        let token_kind = self.scan_token_kind(c);
+        let token_kind = self.scan_token_kind(c).unwrap();
 
         let end_pos = self.cursor;
         if token_kind == TokenKind::SpecialKeyword(Newline) {
@@ -221,20 +215,12 @@ impl Lexer {
         } else {
             self.cursor.column += 1;
         }
-        Token {
-            kind: token_kind,
-            span: Span {
-                start: start_pos,
-                end: end_pos,
-            },
-            whitespace: token::Whitespace::Undefined,
-        }
+        Token::new_undefind_whitespace(token_kind, Span::new(start_pos, end_pos))
     }
-    fn lex_escape_char(&mut self) -> String {
+    fn lex_escape_char(&mut self) -> char {
         self.match_char('\\').unwrap();
         self.cursor.column += 1;
 
-        let mut ch = String::new();
         let escaped_char = match self.peek(0).unwrap() {
             'n' => '\n',
             'r' => '\r',
@@ -248,24 +234,55 @@ impl Lexer {
         self.advance();
         self.cursor.column += 1;
 
-        ch.push(escaped_char);
-        ch
+        escaped_char
+    }
+    fn lex_char(&mut self) -> Result<TokenKind, LexerError> {
+        use LiteralKind::*;
+        use TokenKind::*;
+        self.match_char('\'').unwrap();
+
+        let ch = if let Some(c) = self.peek(0) {
+            let ch = if c == '\'' {
+                return Err(LexerError::new(format!("empty character literal")));
+            } else if c == '\\' {
+                self.lex_escape_char()
+            } else if c == '\n' || c == '\r' {
+                return Err(LexerError::new(format!("newline in character literal")));
+            } else {
+                self.advance();
+                self.cursor.column += 1;
+                c
+            };
+            Some(ch)
+        } else {
+            None
+        };
+
+        match self.match_char('\'') {
+            Some(_) => {}
+            None => {
+                return Err(LexerError::new(format!(
+                    "character literal may only contain one codepoint"
+                )))
+            }
+        };
+        Ok(Literal(Char(ch.unwrap())))
     }
     fn lex_string(&mut self) -> TokenKind {
+        use LiteralKind::*;
+        use TokenKind::*;
         self.match_char('\"').unwrap();
 
-        let mut string_content = String::new();
+        let mut string_content = std::string::String::new();
         while let Some(c) = self.peek(0) {
             if c == '"' {
                 break;
             }
-            // self.advance();
-            // handle escape characters
 
             match c {
                 '\\' => {
                     let escape_char = self.lex_escape_char();
-                    string_content.push_str(&escape_char);
+                    string_content.push(escape_char);
                 }
                 '\n' => {
                     self.advance();
@@ -294,7 +311,7 @@ impl Lexer {
         if self.peek(0) == None {
             panic!("Unterminated string.");
         }
-        TokenKind::Literal(LiteralKind::String(string_content))
+        Literal(String(string_content))
     }
     fn lex_comment_line(&mut self) -> TokenKind {
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
@@ -333,13 +350,13 @@ impl Lexer {
         self.cursor.column += 1;
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
-    fn lex_number(&mut self) -> TokenKind {
+    fn lex_number(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
 
         let mut has_base_prefix = true;
         let mut number_base = NumberBase::Decimal;
-        match self.peek_str(2).unwrap().as_str() {
+        match self.peek_into_str(1).unwrap().as_str() {
             "0b" => number_base = NumberBase::Binary,
             "0o" => number_base = NumberBase::Octal,
             "0d" => number_base = NumberBase::Decimal,
@@ -363,31 +380,47 @@ impl Lexer {
         let mut is_floating = false;
         let mut string = std::string::String::new();
         while let Some(c) = self.peek(0) {
-            if is_in_number_base(c) {
-                string.push(c);
-                self.advance();
-                if is_after_dot {
-                    is_after_dot = false;
+            match c {
+                c if c == '.' && !is_floating && !has_base_prefix => {
+                    string.push(c);
+                    self.advance();
+                    is_floating = true;
+                    is_after_dot = true;
                 }
-            } else if c == '.' && !is_floating && !has_base_prefix {
-                string.push(c);
-                self.advance();
-                is_floating = true;
-                is_after_dot = true;
-            } else if c == '_' && !is_after_dot {
-                string.push(c);
-                self.advance();
-            } else {
-                break;
-            }
+                c if c == '_' && !is_after_dot => {
+                    //string.push(c);
+                    self.advance();
+                }
+                // checks whether it is a possible digit at all.
+                c if is_hexadecimal(c) => {
+                    if is_in_number_base(c) {
+                        string.push(c);
+                        self.advance();
+                        if is_after_dot {
+                            is_after_dot = false;
+                        }
+                    } else {
+                        let base_str = match number_base {
+                            NumberBase::Binary => "2",
+                            NumberBase::Octal => "8",
+                            NumberBase::Decimal => "10",
+                            NumberBase::Hexadecimal => "16",
+                        };
+                        return Err(LexerError::new(format!(
+                            "invalid digit for base {} literal",
+                            base_str
+                        )));
+                    }
+                }
+                _ => break,
+            };
         }
 
         let _starts_with_dot = string.starts_with('.');
         let _ends_with_dot = string.ends_with('.');
-        println!("{}", string.len());
         self.cursor.column += (string.len() - 1) as u32;
 
-        if is_floating {
+        let lit = if is_floating {
             //let error_msg = format!("Could not parse floating point number: {}", string);
             //string.parse::<f64>().expect(&error_msg);
 
@@ -399,7 +432,8 @@ impl Lexer {
                 content: string,
                 base: number_base,
             })
-        }
+        };
+        Ok(lit)
     }
     fn lex_identifier(&mut self) -> TokenKind {
         let mut string_content = String::new();
@@ -438,26 +472,33 @@ impl Lexer {
         token
     }
 }
+
+/// This impl is the cursor part for the lexer.
 impl Lexer {
+    fn advance(&mut self) {
+        self.index += 1;
+    }
     fn is_inbounds(&self, offset: usize) -> bool {
         self.index + offset <= self.chars.len()
     }
     fn peek(&self, n: usize) -> Option<char> {
-        if self.is_inbounds(n) {
-            self.chars.get(self.index + n).copied()
-        } else {
-            None
-        }
+        // if self.is_inbounds(n) {
+        //     self.chars.get(self.index + n).copied()
+        // } else {
+        //     None
+        // }
+        // bound checking happens automatically in the get function.
+        self.chars.get(self.index + n).copied()
     }
-    /// peeks next `n` consecutive chars and returns them as a string.
-    fn peek_str(&self, n: usize) -> Option<String> {
+    /// peeks up to `n` consecutive chars and returns them as a string. If 'n == 0', refers to the current
+    fn peek_into_str(&self, n: usize) -> Option<String> {
         if self.is_inbounds(n) {
             let mut str = String::new();
-            for i in 0..n {
-                let c = self.chars.get(self.index + i).copied().unwrap();
+            for i in 0..=n {
+                let c = self.peek(i).unwrap();
                 str.push(c);
             }
-            return Some(str);
+            Some(str)
         } else {
             None
         }
@@ -468,9 +509,6 @@ impl Lexer {
     //     self.index += 1;
     //     c
     // }
-    fn advance(&mut self) {
-        self.index += 1;
-    }
 
     /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
     fn match_char(&mut self, ch: char) -> Option<char> {
@@ -481,11 +519,10 @@ impl Lexer {
             None
         }
     }
-    fn match_chars(&mut self, chars: &[char]) -> Option<char> {
+    fn match_char_any(&mut self, chars: &[char]) -> Option<char> {
         for ch in chars {
-            if self.peek(0) == Some(*ch) {
-                self.advance();
-                return Some(*ch);
+            if let Some(c) = self.match_char(*ch) {
+                return Some(c);
             }
         }
         None
@@ -500,8 +537,8 @@ mod test {
     fn test_0() {
         let source = "var a = 2222;";
 
-        let mut lexer = Lexer::new();
-        let tokens = lexer.scan_tokens(&source.to_owned());
+        let mut lexer = Lexer::new_from_str(source);
+        let tokens = lexer.scan_tokens();
 
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Var));
         assert_eq!(tokens[1].kind, TokenKind::Identifier(String::from("a")));

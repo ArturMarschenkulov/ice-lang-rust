@@ -1,5 +1,6 @@
 mod ast;
 mod compiler;
+mod error;
 mod evaluator;
 mod lexer;
 mod parser;
@@ -25,6 +26,24 @@ struct Ice {}
 impl Ice {
     fn main(&mut self) {
         let num_arg = std::env::args().count() == 2;
+        match num_arg {
+            true => {
+                println!("from file");
+                let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
+                self.run_file(text_from_file)
+            }
+            false => {
+                let run_test_file = true;
+                if run_test_file {
+                    let file = "tests\\test.ice";
+                    self.run_file(&mut file.to_owned());
+                } else {
+                    println!("from memory");
+                    let text_from_memoroy = TEXT;
+                    self.run(text_from_memoroy);
+                }
+            }
+        }
         if num_arg {
             println!("from file");
             let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
@@ -114,7 +133,6 @@ impl Ice {
         println!("{:?} milliseconds have passed", now.elapsed().as_millis());
     }
 }
-
 fn main() {
     let mut ice = Ice {};
     ice.main();

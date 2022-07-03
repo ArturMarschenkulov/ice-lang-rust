@@ -88,33 +88,31 @@ impl TokenKind {
             _ => self.clone(),
         }
     }
-    // pub fn complexify(self) -> TokenKind {
-    //     use PunctuatorKind::*;
-    //     use TokenKind::*;
-    //     match &self {
-    //         Punctuator(EqualEqual) => Punctuator(Complex(vec![Equal, Equal])),
-    //         Punctuator(BangEqual) => Punctuator(Complex(vec![Bang, Equal])),
-    //         Punctuator(GreaterEqual) => Punctuator(Complex(vec![Greater, Equal])),
-    //         Punctuator(LessEqual) => Punctuator(Complex(vec![Less, Equal])),
-    //         Punctuator(AmpersandAmpersand) => Punctuator(Complex(vec![Ampersand, Ampersand])),
-    //         Punctuator(PipePipe) => Punctuator(Complex(vec![Pipe, Pipe])),
-    //         Punctuator(MinusGreater) => Punctuator(Complex(vec![Minus, Greater])),
-    //         Punctuator(PlusEqual) => Punctuator(Complex(vec![Plus, Equal])),
-    //         Punctuator(MinusEqual) => Punctuator(Complex(vec![Minus, Equal])),
-    //         Punctuator(StarEqual) => Punctuator(Complex(vec![Star, Equal])),
-    //         Punctuator(SlashEqual) => Punctuator(Complex(vec![Slash, Equal])),
-    //         _ => self.clone(),
-    //     }
-    // }
-    // pub fn is_complex(&self) -> bool {
-    //     use PunctuatorKind::*;
-    //     use TokenKind::*;
-    //     if let Punctuator(Complex(_)) = self.clone().complexify() {
-    //         true
-    //     } else {
-    //         false
-    //     }
-    // }
+    pub fn complexify(self) -> TokenKind {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+        let tok = match &self {
+            Punctuator(EqualEqual) => Punctuator(Complex(vec![Equal, Equal])),
+            Punctuator(BangEqual) => Punctuator(Complex(vec![Bang, Equal])),
+            Punctuator(GreaterEqual) => Punctuator(Complex(vec![Greater, Equal])),
+            Punctuator(LessEqual) => Punctuator(Complex(vec![Less, Equal])),
+            Punctuator(AmpersandAmpersand) => Punctuator(Complex(vec![Ampersand, Ampersand])),
+            Punctuator(PipePipe) => Punctuator(Complex(vec![Pipe, Pipe])),
+            Punctuator(MinusGreater) => Punctuator(Complex(vec![Minus, Greater])),
+            Punctuator(PlusEqual) => Punctuator(Complex(vec![Plus, Equal])),
+            Punctuator(MinusEqual) => Punctuator(Complex(vec![Minus, Equal])),
+            Punctuator(StarEqual) => Punctuator(Complex(vec![Star, Equal])),
+            Punctuator(SlashEqual) => Punctuator(Complex(vec![Slash, Equal])),
+            _ => self.clone(),
+        };
+        assert!(tok.clone().simplify() == self.clone());
+        tok
+    }
+    pub fn is_complex(&self) -> bool {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+        matches!(self.clone().complexify(), Punctuator(Complex(_)))
+    }
     pub fn is_to_skip(&self) -> bool {
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -268,7 +266,7 @@ pub enum LiteralKind {
     Integer { content: String, base: NumberBase },
     Floating { content: String },
     Boolean(bool),
-    //Char(char)
+    Char(char),
     String(String),
     //Unit,
 }
@@ -278,10 +276,20 @@ pub struct Position {
     pub line: u32,
     pub column: u32,
 }
+impl Position {
+    pub fn new(line: u32, column: u32) -> Position {
+        Position { line, column }
+    }
+}
 #[derive(Clone, Copy, PartialEq)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
+}
+impl Span {
+    pub fn new(start: Position, end: Position) -> Self {
+        Span { start, end }
+    }
 }
 impl std::fmt::Debug for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -340,4 +348,13 @@ pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
     pub whitespace: Whitespace,
+}
+impl Token {
+    pub fn new_undefind_whitespace(kind: TokenKind, span: Span) -> Self {
+        Token {
+            kind,
+            span,
+            whitespace: Whitespace::Undefined,
+        }
+    }
 }
