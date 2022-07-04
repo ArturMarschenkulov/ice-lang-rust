@@ -1,3 +1,2 @@
-
-
-var emoji: char = ' ';
+/*Test*/
+var s := "hallo";

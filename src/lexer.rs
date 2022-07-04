@@ -171,7 +171,7 @@ impl Lexer {
 
             ' ' | '\r' | '\t' => SpecialKeyword(Whitespace),
             '\n' => SpecialKeyword(Newline),
-            '"' => self.lex_string(),
+            '"' => self.lex_string().unwrap(),
             '\'' => self.lex_char().unwrap(),
             cc if is_digit(cc) => self.lex_number().unwrap(),
             cc if is_alpha(cc) => self.lex_identifier(),
@@ -181,12 +181,10 @@ impl Lexer {
                 //     todo!()
                 // }
                 _ => {
-                    return Err(LexerError {
-                        msg: format!(
-                            "Character '{}' is unknown. At '{}:{}'.",
-                            cc, self.cursor.line, self.cursor.column
-                        ),
-                    })
+                    return Err(LexerError::new(format!(
+                        "Character '{}' is unknown. At '{}:{}'.",
+                        cc, self.cursor.line, self.cursor.column
+                    )))
                 }
             },
         };
@@ -217,19 +215,19 @@ impl Lexer {
         }
         Token::new_undefind_whitespace(token_kind, Span::new(start_pos, end_pos))
     }
-    fn lex_escape_char(&mut self) -> char {
+    fn lex_escape_char(&mut self) -> Result<char, LexerError> {
         self.match_char('\\').unwrap();
         self.cursor.column += 1;
 
         let escaped_char = match self.peek(0).unwrap() {
-            'n' => '\n',
-            'r' => '\r',
-            't' => '\t',
-            '\\' => '\\',
-            '\'' => '\'',
-            '"' => '"',
-            '0' => '\0',
-            _ => panic!("Unknown escape sequence"),
+            'n' => Ok('\n'),
+            'r' => Ok('\r'),
+            't' => Ok('\t'),
+            '\\' => Ok('\\'),
+            '\'' => Ok('\''),
+            '"' => Ok('"'),
+            '0' => Ok('\0'),
+            _ => Err(LexerError::new(format!("Unknown escape sequence"))),
         };
         self.advance();
         self.cursor.column += 1;
@@ -245,7 +243,7 @@ impl Lexer {
             let ch = if c == '\'' {
                 return Err(LexerError::new(format!("empty character literal")));
             } else if c == '\\' {
-                self.lex_escape_char()
+                self.lex_escape_char()?
             } else if c == '\n' || c == '\r' {
                 return Err(LexerError::new(format!("newline in character literal")));
             } else {
@@ -268,10 +266,11 @@ impl Lexer {
         };
         Ok(Literal(Char(ch.unwrap())))
     }
-    fn lex_string(&mut self) -> TokenKind {
+    fn lex_string(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
         self.match_char('\"').unwrap();
+        self.cursor.column += 1;
 
         let mut string_content = std::string::String::new();
         while let Some(c) = self.peek(0) {
@@ -281,7 +280,7 @@ impl Lexer {
 
             match c {
                 '\\' => {
-                    let escape_char = self.lex_escape_char();
+                    let escape_char = self.lex_escape_char().unwrap();
                     string_content.push(escape_char);
                 }
                 '\n' => {
@@ -306,12 +305,14 @@ impl Lexer {
             }
         }
         self.match_char('\"').unwrap();
-        self.cursor.column += (2 - 1) as u32;
+        self.cursor.column += 1;
+
+        self.cursor.column -= 1;
 
         if self.peek(0) == None {
-            panic!("Unterminated string.");
+            return Err(LexerError::new(format!("Unterminated string.")));
         }
-        Literal(String(string_content))
+        Ok(Literal(String(string_content)))
     }
     fn lex_comment_line(&mut self) -> TokenKind {
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
@@ -477,6 +478,11 @@ impl Lexer {
 impl Lexer {
     fn advance(&mut self) {
         self.index += 1;
+    }
+    fn advance_new_line(&mut self) {
+        self.index += 1;
+        self.cursor.line += 1;
+        self.cursor.column = 1;
     }
     fn is_inbounds(&self, offset: usize) -> bool {
         self.index + offset <= self.chars.len()
