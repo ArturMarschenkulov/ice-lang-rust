@@ -76,61 +76,62 @@ impl Ice {
     }
 
     fn run(&mut self, text: &str) {
+        let mut time_vec = Vec::<(&str, std::time::Duration)>::new();
+
+        println!("");
+        println!("Source code start:");
+        println!("{}", text.to_owned());
+        println!("Source code end.");
+        println!("");
+
         let show_stages = true;
         let show_token_stream = true;
         let show_ast_tree = true;
 
-        println!("{}", text.to_owned());
+        let lexer_str = ansi_term::Color::Cyan.paint("Lexer").to_string();
+        let parser_str = ansi_term::Color::Cyan.paint("Parser").to_string();
+    
+
         if show_stages {
-            println!("    Tokenizer Stage:");
+            println!("");
+            println!("{} Stage:", lexer_str);
+            println!("");
         }
+
         let now = Instant::now();
         let tokens = get_tokens_from_source(text);
-        if show_stages {
-            println!(
-                "      Tokenizer took {} nanoseconds",
-                now.elapsed().as_nanos()
-            );
-        }
+        time_vec.push(("Lexer", now.elapsed()));
+
         if show_token_stream {
             for token in &tokens {
-                let start_x = token.span.start.line;
-                let start_y = token.span.start.column;
-                let end_x = token.span.end.line;
-                let end_y = token.span.end.column;
-                let span_str = format!("{}:{}-{}:{}", start_x, start_y, end_x, end_y);
-                println!("{:?} {:?} {}", token.kind, token.whitespace, span_str);
+                println!("{:?} {:?} {:?}", &token.kind, &token.whitespace, &token.span);
             }
         }
 
         if show_stages {
-            println!("    Parser Stage:");
+            println!("");
+            println!("{} Stage:", parser_str);
+            println!("");
         }
+        
         let now = Instant::now();
         let ast = get_ast_from_tokens(tokens);
-        if show_stages {
-            println!("      Parser took {} nanoseconds", now.elapsed().as_nanos());
-        }
+        time_vec.push(("Parser", now.elapsed()));
+
         if show_ast_tree {
             print_ast(&ast);
         }
-        // if false {
-        //     if show_stages {
-        //         println!("    Evaluator Stage:");
-        //     }
-        //     let now = Instant::now();
-        //     get_evaluation_from_ast(&ast);
-        //     if show_stages {
-        //         println!(
-        //             "      Evaluator took {} nanoseconds",
-        //             now.elapsed().as_nanos()
-        //         );
-        //     }
-        // }
 
-        //get_asm_from_ast(&ast);
+        for (stage, time) in time_vec {
+            let stage = ansi_term::Color::Cyan.paint(stage).to_string();
+            let nano_t = ansi_term::Color::Red.paint(format!("{}", time.as_nanos())).to_string();
+            let micro_t = ansi_term::Color::Red.paint(format!("{}", time.as_micros())).to_string();
+            let mili_t = ansi_term::Color::Red.paint(format!("{}", time.as_millis())).to_string();
+            let sec_t = ansi_term::Color::Red.paint(format!("{}", time.as_secs())).to_string();
+            println!("{:15} took {:>20}nanosec, {:>20}microsec, {:>20}milisec, {:>20}sec", stage, nano_t, micro_t, mili_t, sec_t);
+        }
 
-        println!("{:?} milliseconds have passed", now.elapsed().as_millis());
+        println!("{:?} milliseconds have passed", now.elapsed().as_nanos());
     }
 }
 fn main() {
