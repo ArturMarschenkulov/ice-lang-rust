@@ -105,7 +105,7 @@ impl TokenKind {
             Punctuator(SlashEqual) => Punctuator(Complex(vec![Slash, Equal])),
             _ => self.clone(),
         };
-        assert!(tok.clone().simplify() == self.clone());
+        assert!(tok.clone().simplify() == self);
         tok
     }
     pub fn is_complex(&self) -> bool {
@@ -261,13 +261,25 @@ pub enum NumberBase {
     Decimal,     // 0d
     Hexadecimal, // 0x
 }
+impl NumberBase {
+    pub fn as_num(&self) -> u8 {
+        use NumberBase::*;
+        match self {
+            Binary => 2,
+            Octal => 8,
+            Decimal => 10,
+            Hexadecimal => 16,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum LiteralKind {
     Integer { content: String, base: NumberBase },
     Floating { content: String },
     Boolean(bool),
     Char(char),
-    String(String),
+    Str(String),
     //Unit,
 }
 
@@ -289,6 +301,12 @@ pub struct Span {
 impl Span {
     pub fn new(start: Position, end: Position) -> Self {
         Span { start, end }
+    }
+    pub fn from_tuples(start: (u32, u32), end: (u32, u32)) -> Self {
+        Span {
+            start: Position::new(start.0, start.1),
+            end: Position::new(end.0, end.1),
+        }
     }
 }
 impl std::fmt::Debug for Span {

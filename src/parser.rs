@@ -499,9 +499,9 @@ impl Parser {
                     Expr::Symbol(self.peek(-1).clone())
                 }
             }
-            Literal(String(s)) => {
+            Literal(Str(s)) => {
                 self.advance();
-                Expr::Literal(String(s))
+                Expr::Literal(Str(s))
             }
             Literal(Char(c)) => {
                 self.advance();
