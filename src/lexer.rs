@@ -123,7 +123,7 @@ impl Lexer {
         use TokenKind::*;
         let token_eof = Token::new_undefind_whitespace(
             SpecialKeyword(Eof),
-            Span::new(Position::new(1, 1), Position::new(1, 1)),
+            Span::from_tuples((1, 1), (1, 1)),
         );
         tokens_pass_2.push(token_eof);
         tokens_pass_2
@@ -153,7 +153,7 @@ impl Lexer {
             '?' => Punctuator(Question),
             ',' => Punctuator(Comma),
             '.' => match self.peek(1) {
-                Some(s) if is_digit(s) => self.lex_number().unwrap(),
+                Some(s) if is_digit(s) && !self.match_char_at('.', -1).is_some() => self.lex_number().unwrap(),
                 _ => Punctuator(Dot),
             },
             '#' => Punctuator(Hash),
@@ -216,7 +216,7 @@ impl Lexer {
         Token::new_undefind_whitespace(token_kind, Span::new(start_pos, end_pos))
     }
     fn lex_escape_char(&mut self) -> Result<char, LexerError> {
-        self.match_char('\\').unwrap();
+        self.eat_char('\\').unwrap();
         self.cursor.column += 1;
 
         let escaped_char = match self.peek(0).unwrap() {
@@ -237,7 +237,7 @@ impl Lexer {
     fn lex_char(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.match_char('\'').unwrap();
+        self.eat_char('\'').unwrap();
 
         let ch = if let Some(c) = self.peek(0) {
             let ch = if c == '\'' {
@@ -256,7 +256,7 @@ impl Lexer {
             None
         };
 
-        match self.match_char('\'') {
+        match self.eat_char('\'') {
             Some(_) => {}
             None => {
                 return Err(LexerError::new(format!(
@@ -269,10 +269,10 @@ impl Lexer {
     fn lex_string(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.match_char('\"').unwrap();
+        self.eat_char('\"').unwrap();
         self.cursor.column += 1;
 
-        let mut string_content = std::string::String::new();
+        let mut string_content = String::new();
         while let Some(c) = self.peek(0) {
             if c == '"' {
                 break;
@@ -304,7 +304,7 @@ impl Lexer {
                 }
             }
         }
-        self.match_char('\"').unwrap();
+        self.eat_char('\"').unwrap();
         self.cursor.column += 1;
 
         self.cursor.column -= 1;
@@ -312,12 +312,11 @@ impl Lexer {
         if self.peek(0) == None {
             return Err(LexerError::new(format!("Unterminated string.")));
         }
-        Ok(Literal(String(string_content)))
+        Ok(Literal(Str(string_content)))
     }
     fn lex_comment_line(&mut self) -> TokenKind {
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
-        self.match_char('/').unwrap();
-        self.match_char('/').unwrap();
+        self.eat_str("////").unwrap();
 
         while self.peek(0) != Some('\n') && self.peek(0) != None {
             self.advance();
@@ -328,10 +327,8 @@ impl Lexer {
     }
     fn lex_comment_block(&mut self) -> TokenKind {
         // TODO: Implement nested block comments
-        self.match_char('/').unwrap();
-        self.cursor.column += 1;
-        self.match_char('*').unwrap();
-        self.cursor.column += 1;
+        self.eat_str("/*").unwrap();
+        self.cursor.column += 2; 
 
         while self.peek(0) != Some('*') && self.peek(1) != Some('/') {
             self.advance();
@@ -344,37 +341,29 @@ impl Lexer {
             }
             self.cursor.column += 1;
         }
-
-        self.match_char('*').unwrap();
-        self.cursor.column += 1;
-        self.match_char('/').unwrap();
-        self.cursor.column += 1;
+        
+        self.eat_str("*/").unwrap();
+        self.cursor.column += 2;
         TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
     }
     fn lex_number(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
 
-        let mut has_base_prefix = true;
-        let mut number_base = NumberBase::Decimal;
-        match self.peek_into_str(1).unwrap().as_str() {
-            "0b" => number_base = NumberBase::Binary,
-            "0o" => number_base = NumberBase::Octal,
-            "0d" => number_base = NumberBase::Decimal,
-            "0x" => number_base = NumberBase::Hexadecimal,
-            _ => has_base_prefix = false,
-        }
-
-        let is_in_number_base = match number_base {
-            NumberBase::Binary => is_binary,
-            NumberBase::Octal => is_octal,
-            NumberBase::Decimal => is_digit,
-            NumberBase::Hexadecimal => is_hexadecimal,
+        let (number_base, has_base_prefix, is_in_number_base)
+            : (NumberBase, bool, fn(char) -> bool) 
+            = match self.peek_into_str(1).unwrap().as_str() {
+            "0b" => (NumberBase::Binary, true, is_binary),
+            "0o" => (NumberBase::Octal, true, is_octal),
+            "0d" => (NumberBase::Decimal, true, is_digit),
+            "0x" => (NumberBase::Hexadecimal, true, is_hexadecimal),
+            _ => (NumberBase::Decimal, false, is_digit),
         };
+        
         if has_base_prefix {
             self.advance();
-            self.cursor.column += 1;
             self.advance();
+            self.cursor.column += 1;
             self.cursor.column += 1;
         }
         let mut is_after_dot = false;
@@ -382,13 +371,24 @@ impl Lexer {
         let mut string = std::string::String::new();
         while let Some(c) = self.peek(0) {
             match c {
-                c if c == '.' && !is_floating && !has_base_prefix => {
-                    string.push(c);
-                    self.advance();
-                    is_floating = true;
-                    is_after_dot = true;
+                '.' if is_floating => {
+                    return Err(LexerError::new(format!("multiple dots in number")));
                 }
-                c if c == '_' && !is_after_dot => {
+                '.' if has_base_prefix => {
+                    return Err(LexerError::new(format!("dot after base prefix")));
+                }
+                // in a number there can be only one dot
+                // it can't be in a number which has a prefix, because floating points don't have a base prefix
+                '.' if !is_floating && !has_base_prefix && self.peek(1).unwrap() != '.'  => {
+                    //if self.peek(1).unwrap() != '.' {
+                        string.push(c);
+                        self.advance();
+                        is_floating = true;
+                        is_after_dot = true;
+                    //}
+                }
+                // a '_' is not possible after a '.'. E.g. '1._3' is not a number, this is an integer with a member variable.
+                '_' if !is_after_dot => {
                     //string.push(c);
                     self.advance();
                 }
@@ -401,15 +401,9 @@ impl Lexer {
                             is_after_dot = false;
                         }
                     } else {
-                        let base_str = match number_base {
-                            NumberBase::Binary => "2",
-                            NumberBase::Octal => "8",
-                            NumberBase::Decimal => "10",
-                            NumberBase::Hexadecimal => "16",
-                        };
                         return Err(LexerError::new(format!(
                             "invalid digit for base {} literal",
-                            base_str
+                            number_base.as_num()
                         )));
                     }
                 }
@@ -475,6 +469,7 @@ impl Lexer {
 }
 
 /// This impl is the cursor part for the lexer.
+/// 
 impl Lexer {
     fn advance(&mut self) {
         self.index += 1;
@@ -484,20 +479,35 @@ impl Lexer {
         self.cursor.line += 1;
         self.cursor.column = 1;
     }
-    fn is_inbounds(&self, offset: usize) -> bool {
-        self.index + offset <= self.chars.len()
+
+    fn peek(&self, n: isize) -> Option<char> {
+        let new_offset = if n.is_negative() {
+            self.index.checked_sub(-n as usize)
+        } else if n.is_positive(){
+            self.index.checked_add(n as usize)
+        } else {
+            Some(self.index)
+        };
+        match new_offset {
+            Some(new_offset) => self.chars.get(new_offset).copied(),
+            None => None,
+        }
     }
-    fn peek(&self, n: usize) -> Option<char> {
-        // if self.is_inbounds(n) {
-        //     self.chars.get(self.index + n).copied()
-        // } else {
-        //     None
-        // }
-        // bound checking happens automatically in the get function.
-        self.chars.get(self.index + n).copied()
+    fn is_inbounds(&self, offset: isize) -> bool {
+        let new_offset = if offset.is_negative() {
+            self.index.checked_sub(-offset as usize)
+        } else if offset.is_positive(){
+            self.index.checked_add(offset as usize)
+        } else {
+            Some(self.index)
+        };
+        match new_offset {
+            Some(new_offset) => new_offset < self.chars.len(),
+            None => false,
+        }
     }
     /// peeks up to `n` consecutive chars and returns them as a string. If 'n == 0', refers to the current
-    fn peek_into_str(&self, n: usize) -> Option<String> {
+    fn peek_into_str(&self, n: isize) -> Option<String> {
         if self.is_inbounds(n) {
             let mut str = String::new();
             for i in 0..=n {
@@ -510,24 +520,44 @@ impl Lexer {
         }
     }
 
-    // fn eat_char(&mut self) -> Option<char> {
-    //     let c = self.chars[self.index];
-    //     self.index += 1;
-    //     c
-    // }
-
-    /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
-    fn match_char(&mut self, ch: char) -> Option<char> {
-        if self.peek(0) == Some(ch) {
-            self.advance();
-            Some(ch)
+    /// peeks at the offset `n`. If the peeked char is the same as `c`, it returns it wrapped in a `Some`, otherwise `None`.
+    fn match_char_at(&self, c: char, n: isize) -> Option<char>  {
+        if self.peek(n) == Some(c) {
+            Some(c)
         } else {
             None
         }
     }
-    fn match_char_any(&mut self, chars: &[char]) -> Option<char> {
+    fn match_char(&self, c: char) -> Option<char> {
+        self.match_char_at(c, 0)
+    }
+    /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
+    fn eat_char(&mut self, ch: char) -> Option<char> {
+        let c = self.match_char(ch);
+        if c.is_some() {
+            self.advance();
+        }
+        c
+    }
+    fn eat_str(&mut self, str: &str) -> Option<String> {
+        let mut result = String::new();
+        let chars = str.chars().collect::<Vec<char>>();
+        for n in 0..chars.len() {
+            let c = self.peek(n as isize).unwrap();
+            result.push(c);
+        }
+        if result == str {
+            for n in 0..chars.len() {
+                self.advance();
+            }
+            Some(result)
+        } else {
+            panic!();
+        }
+    }
+    fn eat_char_any(&mut self, chars: &[char]) -> Option<char> {
         for ch in chars {
-            if let Some(c) = self.match_char(*ch) {
+            if let Some(c) = self.eat_char(*ch) {
                 return Some(c);
             }
         }
