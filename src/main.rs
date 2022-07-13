@@ -44,21 +44,21 @@ impl Ice {
                 }
             }
         }
-        if num_arg {
-            println!("from file");
-            let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
-            self.run_file(text_from_file)
-        } else {
-            let run_test_file = true;
-            if run_test_file {
-                let file = "tests\\test.ice";
-                self.run_file(&mut file.to_owned());
-            } else {
-                println!("from memory");
-                let text_from_memoroy = TEXT;
-                self.run(text_from_memoroy);
-            }
-        }
+        // if num_arg {
+        //     println!("from file");
+        //     let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
+        //     self.run_file(text_from_file)
+        // } else {
+        //     let run_test_file = true;
+        //     if run_test_file {
+        //         let file = "tests\\test.ice";
+        //         self.run_file(&mut file.to_owned());
+        //     } else {
+        //         println!("from memory");
+        //         let text_from_memoroy = TEXT;
+        //         self.run(text_from_memoroy);
+        //     }
+        // }
     }
 
     fn run_file(&mut self, path: &mut String) {
@@ -123,20 +123,26 @@ impl Ice {
         }
 
         for (stage, time) in time_vec {
-            let stage = ansi_term::Color::Cyan.paint(stage).to_string();
-            let nano_t = ansi_term::Color::Red.paint(format!("{}", time.as_nanos())).to_string();
-            let micro_t = ansi_term::Color::Red.paint(format!("{}", time.as_micros())).to_string();
-            let mili_t = ansi_term::Color::Red.paint(format!("{}", time.as_millis())).to_string();
-            let sec_t = ansi_term::Color::Red.paint(format!("{}", time.as_secs())).to_string();
-            println!("{:15} took {:>20}nanosec, {:>20}microsec, {:>20}milisec, {:>20}sec", stage, nano_t, micro_t, mili_t, sec_t);
+            let ansi_cyan = ansi_term::Color::Cyan;
+            let ansi_red = ansi_term::Color::Red;
+
+            let stage = ansi_cyan.paint(stage).to_string();
+            let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
+            let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
+            let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
+            let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
+            
+            println!("{:15} took {:>17}nanosec, {:>17}microsec, {:>17}milisec, {:>17}sec", stage, nano_t, micro_t, mili_t, sec_t);
         }
 
         println!("{:?} milliseconds have passed", now.elapsed().as_nanos());
     }
 }
 fn main() {
+    println!("------------------------------------------------------------");
     let mut ice = Ice {};
     ice.main();
+    println!("------------------------------------------------------------");
 }
 
 /*
