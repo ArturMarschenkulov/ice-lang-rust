@@ -188,7 +188,7 @@ pub enum KeywordKind {
     Println,
 }
 impl KeywordKind {
-    pub fn get_length(&self) -> usize {
+    pub fn len(&self) -> usize {
         use KeywordKind::*;
         match self {
             Var => "var".len(),
@@ -242,13 +242,15 @@ pub fn conv_to_complex(tokens: &[Token]) -> Token {
 
             let first_tok = tokens.first().unwrap();
             let last_tok = tokens.last().unwrap();
+            let s = (first_tok.whitespace.as_bools().0, last_tok.whitespace.as_bools().1);
+            let ws = Whitespace::from(s);
             Token {
                 kind: token_kind,
                 span: Span {
                     start: first_tok.span.start,
                     end: last_tok.span.end,
                 },
-                whitespace: Whitespace::Undefined,
+                whitespace: ws,
             }
         }
     }
@@ -325,7 +327,7 @@ pub enum Whitespace {
     Left,
     Right,
     Both,
-    Undefined,
+    //Undefined,
 }
 impl Whitespace {
     pub fn from(bools: (bool, bool)) -> Self {
@@ -350,16 +352,21 @@ impl Whitespace {
 
         Whitespace::from((is_prev_whitespace, is_next_whitespace))
     }
-    // pub fn as_bools(self) -> (bool, bool) {
-    //     use Whitespace::*;
-    //     match self {
-    //         None => (false, false),
-    //         Left => (true, false),
-    //         Right => (false, true),
-    //         Both => (true, true),
-    //         Undefined => unreachable!(),
-    //     }
-    // }
+    pub fn is_left_whitespace(c: char) -> bool {
+        c == ' '
+    }
+    pub fn is_right_whitespace(c: char) -> bool {
+        c == ' '
+    }
+    pub fn as_bools(self) -> (bool, bool) {
+        use Whitespace::*;
+        match self {
+            None => (false, false),
+            Left => (true, false),
+            Right => (false, true),
+            Both => (true, true),
+        }
+    }
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
@@ -368,11 +375,18 @@ pub struct Token {
     pub whitespace: Whitespace,
 }
 impl Token {
-    pub fn new_undefind_whitespace(kind: TokenKind, span: Span) -> Self {
+    pub fn new(kind: TokenKind, span: Span, whitespace: Whitespace) -> Self {
         Token {
             kind,
             span,
-            whitespace: Whitespace::Undefined,
+            whitespace,
         }
     }
+    // pub fn new_undefind_whitespace(kind: TokenKind, span: Span) -> Self {
+    //     Token {
+    //         kind,
+    //         span,
+    //         whitespace: Whitespace::Undefined,
+    //     }
+    // }
 }

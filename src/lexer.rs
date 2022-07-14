@@ -63,7 +63,7 @@ impl Lexer {
         let mut tokens_pass_0 = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
-            println!("{:?}", token);
+            println!("oswlo: {:?}", token);
             tokens_pass_0.push(token);
         }
         let tokens_pass_0 = tokens_pass_0;
@@ -97,7 +97,6 @@ impl Lexer {
                         punc_vec.clear();
                         tokens_pass_1.push(punc_token);
                     }
-
                     tokens_pass_1.push(token.clone());
                 }
             }
@@ -114,17 +113,9 @@ impl Lexer {
             }
         }
 
-        for tp in &tokens_pass_2 {
-            if tp.whitespace == token::Whitespace::Undefined {
-                panic!("Token has no whitespace: {:?}", tp);
-            }
-        }
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        let token_eof = Token::new_undefind_whitespace(
-            SpecialKeyword(Eof),
-            Span::from_tuples((1, 1), (1, 1)),
-        );
+        let token_eof = Token::new(SpecialKeyword(Eof), Span::from_tuples((1, 1), (1, 1)), token::Whitespace::None);
         tokens_pass_2.push(token_eof);
         tokens_pass_2
     }
@@ -133,68 +124,67 @@ impl Lexer {
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
+
         let kind = match c {
-            '+' => Punctuator(Plus),
-            '-' => Punctuator(Minus),
-            '*' => Punctuator(Star),
+            '+' => Ok(Punctuator(Plus)),
+            '-' => Ok(Punctuator(Minus)),
+            '*' => Ok(Punctuator(Star)),
+            '=' => Ok(Punctuator(Equal)),
+            '!' => Ok(Punctuator(Bang)),
+            '>' => Ok(Punctuator(Greater)),
+            '<' => Ok(Punctuator(Less)),
+            '&' => Ok(Punctuator(Ampersand)),
+            '|' => Ok(Punctuator(Pipe)),
+            '%' => Ok(Punctuator(Percent)),
+            '$' => Ok(Punctuator(Dollar)),
+            '?' => Ok(Punctuator(Question)),
+            ',' => Ok(Punctuator(Comma)),
+            '#' => Ok(Punctuator(Hash)),
+            '\\' => Ok(Punctuator(Backslash)),
+            '@' => Ok(Punctuator(At)),
+
+            '(' => Ok(Punctuator(LeftParen)),
+            ')' => Ok(Punctuator(RightParen)),
+            '[' => Ok(Punctuator(LeftBracket)),
+            ']' => Ok(Punctuator(RightBracket)),
+            '{' => Ok(Punctuator(LeftBrace)),
+            '}' => Ok(Punctuator(RightBrace)),
+            
+            ':' => Ok(Punctuator(Colon)),
+            ';' => Ok(Punctuator(Semicolon)),
+            ' ' | '\r' | '\t' => Ok(SpecialKeyword(Whitespace)),
+            '\n' => Ok(SpecialKeyword(Newline)),
+
             '/' => match self.peek_into_str(1).unwrap().as_str() {
                 "//" => self.lex_comment_line(),
                 "/*" => self.lex_comment_block(),
-                _ => Punctuator(Slash),
+                _ => Ok(Punctuator(Slash)),
             },
-            '=' => Punctuator(Equal),
-            '!' => Punctuator(Bang),
-            '>' => Punctuator(Greater),
-            '<' => Punctuator(Less),
-            '&' => Punctuator(Ampersand),
-            '|' => Punctuator(Pipe),
-            '%' => Punctuator(Percent),
-            '$' => Punctuator(Dollar),
-            '?' => Punctuator(Question),
-            ',' => Punctuator(Comma),
             '.' => match self.peek(1) {
-                Some(s) if is_digit(s) && !self.match_char_at('.', -1).is_some() => self.lex_number().unwrap(),
-                _ => Punctuator(Dot),
+                Some(s) if is_digit(s) && !self.match_char_at('.', -1).is_some() => {
+                    self.lex_number()
+                }
+                _ => Ok(Punctuator(Dot)),
             },
-            '#' => Punctuator(Hash),
-            '\\' => Punctuator(Backslash),
-            '@' => Punctuator(At),
-            '(' => Punctuator(LeftParen),
-            ')' => Punctuator(RightParen),
-            '[' => Punctuator(LeftBracket),
-            ']' => Punctuator(RightBracket),
-            '{' => Punctuator(LeftBrace),
-            '}' => Punctuator(RightBrace),
-
-            ':' => Punctuator(Colon),
-            ';' => Punctuator(Semicolon),
-
-            ' ' | '\r' | '\t' => SpecialKeyword(Whitespace),
-            '\n' => SpecialKeyword(Newline),
-            '"' => self.lex_string().unwrap(),
-            '\'' => self.lex_char().unwrap(),
-            cc if is_digit(cc) => self.lex_number().unwrap(),
+            '"' => self.lex_string(),
+            '\'' => self.lex_char(),
+            cc if is_digit(cc) => self.lex_number(),
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => match cc {
-                // cc => {
-                //     UnicodeXID::is_xid_start(cc);
-                //     todo!()
-                // }
-                _ => {
-                    return Err(LexerError::new(format!(
-                        "Character '{}' is unknown. At '{}:{}'.",
-                        cc, self.cursor.line, self.cursor.column
-                    )))
-                }
+                _ => Err(LexerError::new(format!(
+                    "Character '{}' is unknown. At '{}:{}'.",
+                    cc, self.cursor.line, self.cursor.column
+                ))),
             },
         };
+        let kind = kind?;
         // NOTE: If the token is simple we advance here, because the match statements look prettier that way.
         // With more complex tokens, basically everything except single punctuators,
         // handle the advance in their own functions
         if kind.is_simple() {
             self.advance();
-        } else {
         }
+
         Ok(kind)
     }
 
@@ -203,17 +193,40 @@ impl Lexer {
     fn scan_token(&mut self, c: char) -> Token {
         use SpecialKeywordKind::*;
         let start_pos = self.cursor;
+        let start_index = self.index;
 
         let token_kind = self.scan_token_kind(c).unwrap();
 
         let end_pos = self.cursor;
+        let end_index = self.index;
         if token_kind == TokenKind::SpecialKeyword(Newline) {
             self.cursor.line += 1;
             self.cursor.column = 1;
         } else {
             self.cursor.column += 1;
         }
-        Token::new_undefind_whitespace(token_kind, Span::new(start_pos, end_pos))
+        // TODO: Whitespace determination should be implemented here or deeper down
+
+
+        // Ensure that every span of a token is on the same line.
+        assert!(end_pos.line == start_pos.line);
+
+
+        let token_start_index = 0 - (end_index - start_index) as isize;
+        let token_end_index = -1 as isize;
+        
+        let tok_start_left = self.peek(token_start_index-1);
+        let tok_end_right = self.peek(token_end_index+1);
+        //println!("liolo: {:?}=={:?}::{:?}", token_kind, tok_start_left, tok_end_right);
+
+        let is_ws_left = token::Whitespace::is_left_whitespace(tok_start_left.unwrap_or(' '));
+        let is_ws_right = token::Whitespace::is_right_whitespace(tok_end_right.unwrap_or(' '));
+        
+        let ws = token::Whitespace::from((is_ws_left, is_ws_right));
+        println!("{:?}", ws);
+        
+        //Token::new_undefind_whitespace(token_kind, Span::new(start_pos, end_pos));
+        Token::new(token_kind, Span::new(start_pos, end_pos), ws)
     }
     fn lex_escape_char(&mut self) -> Result<char, LexerError> {
         self.eat_char('\\').unwrap();
@@ -232,6 +245,8 @@ impl Lexer {
         self.advance();
         self.cursor.column += 1;
 
+        self.cursor.column -= 1;
+
         escaped_char
     }
     fn lex_char(&mut self) -> Result<TokenKind, LexerError> {
@@ -239,19 +254,18 @@ impl Lexer {
         use TokenKind::*;
         self.eat_char('\'').unwrap();
 
-        let ch = if let Some(c) = self.peek(0) {
-            let ch = if c == '\'' {
-                return Err(LexerError::new(format!("empty character literal")));
-            } else if c == '\\' {
-                self.lex_escape_char()?
-            } else if c == '\n' || c == '\r' {
-                return Err(LexerError::new(format!("newline in character literal")));
-            } else {
-                self.advance();
-                self.cursor.column += 1;
-                c
+        let c = if let Some(c) = self.peek(0) {
+            let c = match c {
+                '\\' => self.lex_escape_char(),
+                '\'' => Err(LexerError::new(format!("empty character literal"))),
+                '\n' | '\r' => Err(LexerError::new(format!("newline in character literal"))),
+                _ => {
+                    self.advance();
+                    self.cursor.column += 1;
+                    Ok(c)
+                }
             };
-            Some(ch)
+            c.ok()
         } else {
             None
         };
@@ -264,7 +278,7 @@ impl Lexer {
                 )))
             }
         };
-        Ok(Literal(Char(ch.unwrap())))
+        Ok(Literal(Char(c.unwrap())))
     }
     fn lex_string(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
@@ -314,23 +328,29 @@ impl Lexer {
         }
         Ok(Literal(Str(string_content)))
     }
-    fn lex_comment_line(&mut self) -> TokenKind {
+    fn lex_comment_line(&mut self) -> Result<TokenKind, LexerError> {
+        use TokenKind::*;
+        use SpecialKeywordKind::*;
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
-        self.eat_str("////").unwrap();
+        self.eat_str("//").unwrap();
+        self.cursor.column += 2;
 
         while self.peek(0) != Some('\n') && self.peek(0) != None {
             self.advance();
             self.cursor.column += 1;
         }
+        self.cursor.column -= 1;
         //assert!(self.peek(0) == Some('\n'));
-        TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
+        Ok(SpecialKeyword(Comment))
     }
-    fn lex_comment_block(&mut self) -> TokenKind {
+    fn lex_comment_block(&mut self) -> Result<TokenKind, LexerError> {
+        use TokenKind::*;
+        use SpecialKeywordKind::*;
         // TODO: Implement nested block comments
         self.eat_str("/*").unwrap();
-        self.cursor.column += 2; 
+        self.cursor.column += 2;
 
-        while self.peek(0) != Some('*') && self.peek(1) != Some('/') {
+        while !self.match_str("*/").is_some() {
             self.advance();
 
             if self.peek(0) == Some('\n') {
@@ -339,27 +359,30 @@ impl Lexer {
             } else {
                 self.cursor.column += 1;
             }
-            self.cursor.column += 1;
         }
-        
+
         self.eat_str("*/").unwrap();
         self.cursor.column += 2;
-        TokenKind::SpecialKeyword(SpecialKeywordKind::Comment)
+
+        self.cursor.column -= 1;
+
+        Ok(SpecialKeyword(Comment))
     }
     fn lex_number(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
 
-        let (number_base, has_base_prefix, is_in_number_base)
-            : (NumberBase, bool, fn(char) -> bool) 
-            = match self.peek_into_str(1).unwrap().as_str() {
+        let (number_base, has_base_prefix, is_in_number_base): (
+            NumberBase,
+            bool,
+            fn(char) -> bool,
+        ) = match self.peek_into_str(1).unwrap().as_str() {
             "0b" => (NumberBase::Binary, true, is_binary),
             "0o" => (NumberBase::Octal, true, is_octal),
             "0d" => (NumberBase::Decimal, true, is_digit),
             "0x" => (NumberBase::Hexadecimal, true, is_hexadecimal),
             _ => (NumberBase::Decimal, false, is_digit),
         };
-        
         if has_base_prefix {
             self.advance();
             self.advance();
@@ -368,47 +391,47 @@ impl Lexer {
         }
         let mut is_after_dot = false;
         let mut is_floating = false;
-        let mut string = std::string::String::new();
+        let mut string = String::new();
         while let Some(c) = self.peek(0) {
-            match c {
-                '.' if is_floating => {
-                    return Err(LexerError::new(format!("multiple dots in number")));
-                }
-                '.' if has_base_prefix => {
-                    return Err(LexerError::new(format!("dot after base prefix")));
-                }
-                // in a number there can be only one dot
-                // it can't be in a number which has a prefix, because floating points don't have a base prefix
-                '.' if !is_floating && !has_base_prefix && self.peek(1).unwrap() != '.'  => {
-                    //if self.peek(1).unwrap() != '.' {
-                        string.push(c);
-                        self.advance();
-                        is_floating = true;
-                        is_after_dot = true;
-                    //}
-                }
-                // a '_' is not possible after a '.'. E.g. '1._3' is not a number, this is an integer with a member variable.
-                '_' if !is_after_dot => {
-                    //string.push(c);
-                    self.advance();
-                }
+            let res: Result<(), LexerError> = match c {
                 // checks whether it is a possible digit at all.
                 c if is_hexadecimal(c) => {
                     if is_in_number_base(c) {
                         string.push(c);
-                        self.advance();
                         if is_after_dot {
                             is_after_dot = false;
                         }
+                        Ok(())
                     } else {
-                        return Err(LexerError::new(format!(
+                        Err(LexerError::new(format!(
                             "invalid digit for base {} literal",
                             number_base.as_num()
-                        )));
+                        )))
                     }
                 }
+                // in a number there can be only one dot
+                // it can't be in a number which has a prefix, because floating points don't have a base prefix
+                '.' if !is_floating
+                    && !has_base_prefix
+                    && !self.match_char_at('.', 1).is_some() =>
+                {
+                    string.push(c);
+                    is_floating = true;
+                    is_after_dot = true;
+                    Ok(())
+                }
+                // a '_' is not possible after a '.'. E.g. '1._3' is not a number, this is an integer followed by an identifier.
+                '_' if !is_after_dot => Ok(()),
+                '.' if is_floating => Err(LexerError::new(format!("multiple dots in number"))),
+                '.' if has_base_prefix => Err(LexerError::new(format!("dot after base prefix"))),
+
                 _ => break,
             };
+            if let Err(e) = res {
+                return Err(e);
+            } else {
+                self.advance()
+            }
         }
 
         let _starts_with_dot = string.starts_with('.');
@@ -416,13 +439,8 @@ impl Lexer {
         self.cursor.column += (string.len() - 1) as u32;
 
         let lit = if is_floating {
-            //let error_msg = format!("Could not parse floating point number: {}", string);
-            //string.parse::<f64>().expect(&error_msg);
-
             Literal(Floating { content: string })
         } else {
-            //let error_msg = format!("Could not parse integer number: {}", string);
-            //string.parse::<u128>().expect(&error_msg);
             Literal(Integer {
                 content: string,
                 base: number_base,
@@ -430,7 +448,10 @@ impl Lexer {
         };
         Ok(lit)
     }
-    fn lex_identifier(&mut self) -> TokenKind {
+    fn lex_identifier(&mut self) -> Result<TokenKind, LexerError> {
+        use KeywordKind::*;
+        use TokenKind::*;
+
         let mut string_content = String::new();
         while let Some(ch) = self.peek(0) {
             if is_alpha_numeric(ch) {
@@ -441,9 +462,8 @@ impl Lexer {
             }
         }
 
-        //determine keywords
-        use KeywordKind::*;
-        use TokenKind::*;
+        // Here we determine whether the identifier is a keyword or not.
+
         let token = match string_content.as_ref() {
             "var" => Keyword(Var),
             "fn" => Keyword(Fn),
@@ -460,16 +480,16 @@ impl Lexer {
             _ => Identifier(string_content),
         };
         match &token {
-            Keyword(kw) => self.cursor.column += (kw.get_length() - 1) as u32,
+            Keyword(kw) => self.cursor.column += (kw.len() - 1) as u32,
             Identifier(id) => self.cursor.column += (id.len() - 1) as u32,
             _ => panic!("Identifier not a keyword or identifier."),
         };
-        token
+        Ok(token)
     }
 }
 
 /// This impl is the cursor part for the lexer.
-/// 
+///
 impl Lexer {
     fn advance(&mut self) {
         self.index += 1;
@@ -483,7 +503,7 @@ impl Lexer {
     fn peek(&self, n: isize) -> Option<char> {
         let new_offset = if n.is_negative() {
             self.index.checked_sub(-n as usize)
-        } else if n.is_positive(){
+        } else if n.is_positive() {
             self.index.checked_add(n as usize)
         } else {
             Some(self.index)
@@ -496,7 +516,7 @@ impl Lexer {
     fn is_inbounds(&self, offset: isize) -> bool {
         let new_offset = if offset.is_negative() {
             self.index.checked_sub(-offset as usize)
-        } else if offset.is_positive(){
+        } else if offset.is_positive() {
             self.index.checked_add(offset as usize)
         } else {
             Some(self.index)
@@ -507,11 +527,11 @@ impl Lexer {
         }
     }
     /// peeks up to `n` consecutive chars and returns them as a string. If 'n == 0', refers to the current
-    fn peek_into_str(&self, n: isize) -> Option<String> {
-        if self.is_inbounds(n) {
+    fn peek_into_str(&self, n: usize) -> Option<String> {
+        if self.is_inbounds(n as isize) {
             let mut str = String::new();
             for i in 0..=n {
-                let c = self.peek(i).unwrap();
+                let c = self.peek(i as isize).unwrap();
                 str.push(c);
             }
             Some(str)
@@ -521,7 +541,7 @@ impl Lexer {
     }
 
     /// peeks at the offset `n`. If the peeked char is the same as `c`, it returns it wrapped in a `Some`, otherwise `None`.
-    fn match_char_at(&self, c: char, n: isize) -> Option<char>  {
+    fn match_char_at(&self, c: char, n: isize) -> Option<char> {
         if self.peek(n) == Some(c) {
             Some(c)
         } else {
@@ -530,6 +550,13 @@ impl Lexer {
     }
     fn match_char(&self, c: char) -> Option<char> {
         self.match_char_at(c, 0)
+    }
+    fn match_str(&self, s: &str) -> Option<String> {
+        if self.peek_into_str(s.len() - 1) == Some(s.to_string()) {
+            Some(s.to_string())
+        } else {
+            None
+        }
     }
     /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
     fn eat_char(&mut self, ch: char) -> Option<char> {
@@ -547,12 +574,12 @@ impl Lexer {
             result.push(c);
         }
         if result == str {
-            for n in 0..chars.len() {
+            for _ in 0..chars.len() {
                 self.advance();
             }
             Some(result)
         } else {
-            panic!();
+            None
         }
     }
     fn eat_char_any(&mut self, chars: &[char]) -> Option<char> {
