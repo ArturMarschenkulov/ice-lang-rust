@@ -12,7 +12,6 @@ macro_rules! get_function_name {
         &name[..name.len() - 3]
     }};
 }
-//println!("{}", get_function_name!());
 
 /*
 stmt_declaration
@@ -73,7 +72,7 @@ fn get_unary_operator_precedence(token: &Token) -> i32 {
     use PunctuatorKind::*;
     use TokenKind::*;
     match token.kind {
-        Punctuator(Plus) | Punctuator(Minus) | Punctuator(Bang) => 6,
+        Punctuator(Plus) | Punctuator(Minus) | Punctuator(Exclamation) => 6,
         _ => 0,
     }
 }
@@ -81,7 +80,7 @@ fn get_binary_operator_precedence(token: &Token) -> i32 {
     use PunctuatorKind::*;
     use TokenKind::*;
     match token.kind {
-        Punctuator(Star) | Punctuator(Slash) | Punctuator(Percent) => 5,
+        Punctuator(Asterisk) | Punctuator(Slash) | Punctuator(Percent) => 5,
         Punctuator(Plus) | Punctuator(Minus) => 4,
         Punctuator(Less)
         | Punctuator(LessEqual)
@@ -90,7 +89,7 @@ fn get_binary_operator_precedence(token: &Token) -> i32 {
         | Punctuator(EqualEqual)
         | Punctuator(BangEqual) => 3,
         Punctuator(Ampersand) | Punctuator(AmpersandAmpersand) => 2,
-        Punctuator(Pipe) | Punctuator(PipePipe) => 1,
+        Punctuator(VerticalBar) | Punctuator(PipePipe) => 1,
         _ => 0,
     }
 }
@@ -139,7 +138,7 @@ fn get_infix_binding_power(token: &Token) -> BindingPower {
 
     let arr = [
         //
-        (Punctuator(Star), 7, Left),
+        (Punctuator(Asterisk), 7, Left),
         (Punctuator(Slash), 7, Left),
         (Punctuator(Percent), 7, Left),
         //
@@ -154,7 +153,7 @@ fn get_infix_binding_power(token: &Token) -> BindingPower {
         (Punctuator(BangEqual), 4, None),
         //
         (Punctuator(Ampersand), 3, None),
-        (Punctuator(Pipe), 2, None),
+        (Punctuator(VerticalBar), 2, None),
         //
         (Punctuator(Equal), 1, Right),
     ];
@@ -193,8 +192,7 @@ impl Parser {
         use PunctuatorKind::*;
         use TokenKind::*;
 
-        let token = self.peek(0);
-        match &token.kind {
+        match &self.peek(0).unwrap().kind {
             Keyword(Var) => self.parse_stmt_decl_var(),
             Keyword(Fn) => self.parse_stmt_decl_fn(),
             Punctuator(Semicolon) => {
@@ -209,82 +207,80 @@ impl Parser {
         use PunctuatorKind::*;
         use TokenKind::*;
 
-        assert!(self.peek(0).kind == Keyword(Var));
-        self.advance();
+        //println!("{:?}", self.peek(0).unwrap());
+        self.eat_tok(Keyword(Var)).unwrap();
 
-        //if let Literal(lit_name) = self.peek(0).kind {}
-        let name = self.consume_identifier("Expected variable name.").unwrap();
+        let name = self
+            .eat_tok_identifier()
+            .expect("Expected variable name")
+            .clone();
 
-        let token = self.peek(0);
-        let mut ty: Option<String> = None;
-        let init = match &token.kind {
-            Punctuator(Colon) => {
-                self.advance();
-
-                let token = self.peek(0);
-                if let Identifier(t) = &token.kind {
-                    ty = Some(t.clone());
-                    self.advance();
-                }
-
-                let token = self.peek(0);
-                match &token.kind {
-                    Punctuator(Equal) => {
-                        self.advance();
-                        Some(self.parse_expr())
-                    }
-                    _ => None,
-                }
+        self.eat_tok(Punctuator(Colon)).unwrap();
+        let ident = self.eat_tok_identifier().map(|tok| {
+            if let Identifier(id) = &tok.kind {
+                id.clone()
+            } else {
+                unreachable!("Expected identifier")
             }
-            _ => None,
+        });
+
+        let equal_sign = self.eat_tok(Punctuator(Equal));
+        let init = match equal_sign {
+            Ok(_) => Some(self.parse_expr()),
+            Err(_) => None,
         };
-        self.consume(
-            &Punctuator(Semicolon),
-            "Expected ';' after variable declaration.",
-        );
-        Box::from(Stmt::VarDeclaration(name, ty, init))
+
+        self.eat_tok(Punctuator(Semicolon))
+            .expect("Expected ';' after variable declaration");
+        Box::from(Stmt::VarDeclaration(name, ident, init))
     }
     fn parse_stmt_decl_fn(&mut self) -> Box<Stmt> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
 
-        assert!(self.peek(0).kind == Keyword(Fn));
-        self.advance();
-        //let s = self.consume_ident().
-        let name = self.consume_identifier("Expected function name.").unwrap();
-        self.consume(&Punctuator(LeftParen), "Expected '(' after function name')");
+        self.eat_tok(Keyword(Fn)).unwrap();
+
+        let name = self
+            .eat_tok_identifier()
+            .expect("Expected function name")
+            .clone();
+        self.eat_tok(Punctuator(LeftParen))
+            .expect("Expected '(' after function name");
 
         let mut _token = self.peek(0).clone();
-        let mut parameters: Vec<(Token, String)> = Vec::new();
-        if self.peek(0).kind != Punctuator(RightParen) {
-            while {
-                let _para = self.consume_identifier("Expected parameter").clone();
-                self.consume(&Punctuator(Colon), "Expected ':' after parameter name");
-                let _ty = self.consume_identifier("Expected type after ':'");
-                //let l = (_para, _ty);
-                if let Ok(para) = _para {
-                    parameters.push((para, "".to_string()));
-                }
-                let res = self.peek(0).kind == Punctuator(Comma);
-                if res {
-                    self.advance();
-                }
-                res
-            } {}
-        }
-        self.consume(&Punctuator(RightParen), "Expected ')' after parameters");
+        let mut parameters: Vec<(Token, Token)> = Vec::new();
 
-        self.consume(&Punctuator(LeftBrace), "Expected '{' after function part");
+        while let Err(_) = self.check_tok(Punctuator(RightParen)) {
+            let param_name = self
+                .eat_tok_identifier()
+                .expect("Expected parameter name")
+                .clone();
+            self.eat_tok(Punctuator(Colon))
+                .expect("Expected ':' after parameter name");
+            let param_type = self
+                .eat_tok_identifier()
+                .expect("Expected parameter type")
+                .clone();
+            let _ = self.eat_tok(Punctuator(Comma));
+            parameters.push((param_name, param_type));
+        }
+
+        self.eat_tok(Punctuator(RightParen))
+            .expect("Expected ')' after function parameters");
+
+        self.check_tok(Punctuator(LeftBrace))
+            .expect("Expected '{' after function name");
         let block = self.parse_expr_block();
-        self.consume(&Punctuator(RightBrace), "Expect '}' after function body.");
+        self.eat_tok(Punctuator(RightBrace))
+            .expect("Expected '}' after function body");
         Box::from(Stmt::FnDeclaration(name, parameters, block))
     }
     fn parse_stmt(&mut self) -> Box<Stmt> {
         use KeywordKind::*;
         use TokenKind::*;
         let token = self.peek(0);
-        match &token.kind {
+        match &token.unwrap().kind {
             Keyword(Print) => {
                 self.advance();
                 self.parse_stmt_print()
@@ -297,29 +293,34 @@ impl Parser {
         }
     }
     fn parse_stmt_expression(&mut self) -> Box<Stmt> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
         let expr = self.parse_expr();
-        //("{:?}", &self.tokens[self.current]);
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::Semicolon),
-            "Expect ';' after expression1",
-        );
+
+        self.eat_tok(Punctuator(Semicolon))
+            .expect("Expected ';' after expression");
 
         Box::from(Stmt::Expression(expr))
     }
     fn parse_stmt_print(&mut self) -> Box<Stmt> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
         let expr = self.parse_expr();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::Semicolon),
-            "Expect ';' after expression2",
-        );
+        self.eat_tok(Punctuator(Semicolon))
+            .expect("Expected ';' after expression.");
+
         Box::from(Stmt::Print(expr))
     }
     fn parse_stmt_println(&mut self) -> Box<Stmt> {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
         let expr = self.parse_expr();
-        self.consume(
-            &TokenKind::Punctuator(PunctuatorKind::Semicolon),
-            "Expect ';' after expression3",
-        );
+        self.eat_tok(Punctuator(Semicolon))
+            .expect("Expect ';' after expression2");
+
         Box::from(Stmt::Println(expr))
     }
     fn parse_expr(&mut self) -> Box<Expr> {
@@ -332,10 +333,12 @@ impl Parser {
 
         self.advance(); //skip the if
         let condition = self.parse_expr();
-        self.consume(&Punctuator(LeftBrace), "Expect '{' after if condition.");
+        self.eat_tok(Punctuator(LeftBrace))
+            .expect("Expected '{' after if condition");
         let then_branch = self.parse_expr_block();
-        self.consume(&Punctuator(RightBrace), "Expect '}' after then branch.");
-        let else_branch = match self.peek(0).kind {
+        self.eat_tok(Punctuator(RightBrace))
+            .expect("Expected '}' after if body");
+        let else_branch = match self.peek(0).unwrap().kind {
             Keyword(Else) => {
                 self.advance();
                 Some(self.parse_expr_else())
@@ -348,27 +351,32 @@ impl Parser {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
-        match self.peek(0).kind {
+        match self.peek(0).unwrap().kind {
             Keyword(If) => {
                 //self.advance();
                 self.parse_expr_if()
             }
             _ => {
-                self.consume(&Punctuator(LeftBrace), "Expect '{' after else condition.");
+                self.eat_tok(Punctuator(LeftBrace))
+                    .expect("Expected '{' after else");
                 let e = self.parse_expr_block();
-                self.consume(&Punctuator(RightBrace), "Expect '}' after else branch.");
+                self.eat_tok(Punctuator(RightBrace))
+                    .expect("Expected '}' after else body");
                 e
             }
         }
     }
     fn parse_expr_while(&mut self) -> Box<Expr> {
+        use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
-        self.advance(); //skip the while
+        self.eat_tok(Keyword(While)).unwrap();
         let condition = self.parse_expr();
-        self.consume(&Punctuator(LeftBrace), "Expect '{' after while condition.");
+        self.eat_tok(Punctuator(LeftBrace))
+            .expect("Expect '{' after while condition.");
         let while_body = self.parse_expr_block();
-        self.consume(&Punctuator(RightBrace), "Expect '}' after while body.");
+        self.eat_tok(Punctuator(RightBrace))
+            .expect("Expect '}' after while body.");
         Box::from(Expr::While(condition, while_body))
     }
     fn parse_expr_for(&mut self) -> Box<Expr> {
@@ -376,7 +384,7 @@ impl Parser {
         use PunctuatorKind::*;
         use TokenKind::*;
         self.advance(); //skip the for
-        let initilizer = match self.peek(0).kind {
+        let initilizer = match self.peek(0).unwrap().kind {
             Keyword(Var) => Some(self.parse_stmt_decl_var()),
             Punctuator(Semicolon) => {
                 self.advance();
@@ -386,16 +394,16 @@ impl Parser {
         };
 
         let condition = self.parse_expr();
-        self.consume(&Punctuator(Semicolon), "Expect ';' after for condition.");
+        self.eat_tok(Punctuator(Semicolon))
+            .expect("Expected ';' after for condition");
 
         let itr_expr = self.parse_expr();
-        self.consume(
-            &Punctuator(LeftBrace),
-            "Expect '{' after for interation expression.",
-        );
+        self.eat_tok(Punctuator(LeftBrace))
+            .expect("Expected '{' after for iterator expression");
 
         let while_body = self.parse_expr_block();
-        self.consume(&Punctuator(RightBrace), "Expect '}' after while body.");
+        self.eat_tok(Punctuator(RightBrace))
+            .expect("Expected '}' after for body");
         Box::from(Expr::For(
             initilizer.unwrap(),
             condition,
@@ -407,18 +415,18 @@ impl Parser {
         use PunctuatorKind::*;
         use TokenKind::*;
         // Helper function (or rather closure).
-        let should_add = |sel: &mut Self| -> bool {
-            let mut pointer = sel.current;
-            while sel.tokens[pointer].kind != Punctuator(RightBrace) {
-                if sel.tokens[pointer].kind == Punctuator(Semicolon) {
+        let should_add = |sel: &Self| -> bool {
+            let mut i = 0;
+            while !sel.check_tok_at(Punctuator(RightBrace), i as isize).is_ok() {
+                if sel.check_tok_at(Punctuator(Semicolon), i as isize).is_ok() {
                     return true;
                 }
-                pointer += 1;
+                i += 1;
             }
             false
         };
         let mut statements: Vec<Stmt> = Vec::new();
-        while !self.is_at_end() && (self.peek(0).kind != Punctuator(RightBrace)) {
+        while !self.is_at_end() && !self.check_tok(Punctuator(LeftBrace)).is_ok() {
             if should_add(self) {
                 statements.push(*self.parse_stmt_decl());
             } else {
@@ -426,7 +434,7 @@ impl Parser {
             }
         }
 
-        let expr = if self.tokens[self.current].kind == Punctuator(RightBrace) {
+        let expr = if self.check_tok(Punctuator(RightBrace)).is_ok() {
             None
         } else {
             Some(self.parse_expr())
@@ -435,9 +443,9 @@ impl Parser {
         Box::from(Expr::Block(statements, expr))
     }
     fn parse_expr_binary(&mut self, prev_bp: f32) -> Box<Expr> {
-        let un_op_prec = get_unary_operator_precedence(self.peek(0));
+        let un_op_prec = get_unary_operator_precedence(self.peek(0).unwrap());
         let mut left = if un_op_prec != 0 && un_op_prec >= prev_bp as i32 {
-            let op = self.peek(0).clone();
+            let op = self.peek(0).unwrap().clone();
             self.advance();
             let right = self.parse_expr_binary(un_op_prec as f32);
             Box::from(Expr::Unary(op, right))
@@ -446,7 +454,7 @@ impl Parser {
         };
 
         loop {
-            let binding_power = get_infix_binding_power(self.peek(0));
+            let binding_power = get_infix_binding_power(self.peek(0).unwrap());
             if binding_power.is_zero() || binding_power.left < prev_bp {
                 break;
             } else if binding_power.left == prev_bp {
@@ -458,7 +466,7 @@ impl Parser {
                 );
             }
 
-            let operator = self.peek(0).clone();
+            let operator = self.peek(0).unwrap().clone();
             self.advance();
             let right = self.parse_expr_binary(binding_power.right);
             left = Box::from(Expr::Binary(left, operator.clone(), right));
@@ -470,7 +478,7 @@ impl Parser {
         use LiteralKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
-        let token = self.peek(0).clone();
+        let token = self.peek(0).unwrap().clone();
 
         let expr = match token.kind {
             Keyword(False) => {
@@ -490,13 +498,13 @@ impl Parser {
                 Expr::Literal(Floating { content })
             }
             Identifier(_) => {
-                if self.peek(1).clone().kind == Punctuator(PunctuatorKind::LeftParen) {
+                if self.check_tok_at(Punctuator(LeftParen), 1).is_ok() {
                     //self.advance();
                     *self.parse_expr_fn_call()
                     //*self._call()
                 } else {
                     self.advance();
-                    Expr::Symbol(self.peek(-1).clone())
+                    Expr::Symbol(self.peek(-1).unwrap().clone())
                 }
             }
             Literal(Str(s)) => {
@@ -513,16 +521,15 @@ impl Parser {
             Punctuator(LeftParen) => {
                 self.advance(); //skip the (
                 let left = self.parse_expr();
-                self.consume(&Punctuator(RightParen), "Expect ')' after expression4");
+                self.eat_tok(Punctuator(RightParen))
+                    .expect("Expected ')' after expression");
                 Expr::Grouping(left)
             }
             Punctuator(LeftBrace) => {
                 self.advance(); //skip the {
                 let stmts = self.parse_expr_block();
-                self.consume(
-                    &Punctuator(PunctuatorKind::RightBrace),
-                    "Expect '}' after block",
-                );
+                self.eat_tok(Punctuator(RightBrace))
+                    .expect("Expected '}' after expression");
                 *stmts
             }
             unhandled => {
@@ -535,66 +542,99 @@ impl Parser {
         use PunctuatorKind::*;
         use TokenKind::*;
 
-        let callee = Box::from(Expr::Symbol(self.peek(0).clone()));
+        let callee = Box::from(Expr::Symbol(self.peek(0).unwrap().clone()));
         self.advance();
-        self.consume(
-            &Punctuator(PunctuatorKind::LeftParen),
-            "Expect '(' after function name.",
-        );
+        self.eat_tok(Punctuator(LeftParen))
+            .expect("Expected '(' after function name");
 
         let mut arguments: Vec<Expr> = Vec::new();
-        while self.peek(0).kind != Punctuator(RightParen) {
+        while self.peek(0).unwrap().kind != Punctuator(RightParen) {
             arguments.push(*self.parse_expr());
-            if self.peek(0).kind != Punctuator(RightParen) {
-                self.consume(&Punctuator(Comma), "Expect ',' after argument.");
+            if self.peek(0).unwrap().kind != Punctuator(RightParen) {
+                self.eat_tok(Punctuator(Comma))
+                    .expect("Expected ',' after argument");
             }
         }
 
-        self.consume(
-            &Punctuator(RightParen),
-            "Expect ')' after function arguments.",
-        );
+        self.eat_tok(Punctuator(RightParen))
+            .expect("Expected ')' after arguments");
 
         Box::from(Expr::FnCall(callee, arguments))
     }
 }
 impl Parser {
-    fn consume(&mut self, kind: &TokenKind, message: &str) {
-        if &self.peek(0).kind == kind && !self.is_at_end() {
-            self.advance();
+    // fn peek(&self, offset: i32) -> &Token {
+    //     let index = self.current as i32 + offset;
+    //     if index as usize >= self.tokens.len() {
+    //         panic!("Index out of bounds");
+    //         //&self.tokens[self.current]
+    //     } else {
+    //         &self.tokens[index as usize]
+    //     }
+    // }
+    fn peek(&self, offset: isize) -> Option<&Token> {
+        let new_offset = if offset.is_negative() {
+            self.current.checked_sub(-offset as usize)
+        } else if offset.is_positive() {
+            self.current.checked_add(offset as usize)
         } else {
-            //let f = format!("{:?}; {:?}; kind = {:?}, self.kind = {:?}", &self.peek(0), message, kind, self.peek(0).kind);
-            let msg = format!("{} but instead found {:?}", message, &self.peek(0).kind);
-            println!("{}", msg);
-        }
-    }
-    fn consume_ident(&mut self) -> Result<Token, String> {
-        todo!()
-    }
-    fn consume_identifier(&mut self, message: &str) -> Result<Token, String> {
-        use TokenKind::*;
-        // TODO: This looks messy. Fix it!
-        let token = self.peek(0).clone();
-        let token_kind = &token.kind;
-        if let Identifier(_) = token_kind {
-            self.advance();
-            Ok(token)
-        } else {
-            let f = format!("{:?}; {:?}", &self.peek(0), message);
-            println!("{}", &f);
-            Err(f)
-        }
+            Some(self.current)
+        };
 
-        // if let TokenKind::Identifier(name) = self.peek(0).kind.clone() {
-        //     self.advance();
-        //     Ok(Token {
-        //         kind: TokenKind::Identifier(name),
-        //     })
-        // } else {
-        //     let f = format!("{:?}; {:?}", &self.peek(0), message);
-        //     println!("{}", &f);
-        //     Err(f)
-        // }
+        match new_offset {
+            Some(new_offset) => self.tokens.get(new_offset),
+            None => None,
+        }
+    }
+
+    fn check_tok_at(&self, kind: TokenKind, offset: isize) -> Result<&Token, Option<&Token>> {
+        match self.peek(offset) {
+            Some(token) => {
+                if token.kind == kind {
+                    Ok(token)
+                } else {
+                    Err(Some(token))
+                }
+            }
+            None => Err(None),
+        }
+    }
+    fn check_tok(&self, kind: TokenKind) -> Result<&Token, Option<&Token>> {
+        self.check_tok_at(kind, 0)
+    }
+    fn eat_tok(&mut self, kind: TokenKind) -> Result<&Token, Option<&Token>> {
+        // This is an ugly workaround for a limitation of the borrow checker.
+        // Rust's new polonius would be able to handle this better,
+        // but for now we'll just use this.
+        // TODO: If polonius is ready, use the better version.
+
+        match &self.peek(0).unwrap().kind {
+            k if *k == kind => self.advance(),
+            _ => (),
+        };
+
+        let peeked = self.peek(-1);
+        match peeked {
+            Some(token) if token.kind == kind => Ok(token),
+            Some(_) => Err(peeked),
+            None => Err(None),
+        }
+    }
+
+    fn eat_tok_identifier(&mut self) -> Option<&Token> {
+        use TokenKind::*;
+        if let Identifier(_) = self.peek(0).unwrap().kind {
+            self.advance();
+        } else {
+            ()
+        };
+
+        let m = self.peek(-1);
+        if let Identifier(_) = m.unwrap().kind {
+            m
+        } else {
+            None
+        }
     }
     fn advance(&mut self) {
         if !self.is_at_end() {
@@ -604,15 +644,6 @@ impl Parser {
     fn is_at_end(&self) -> bool {
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        self.peek(0).kind == SpecialKeyword(Eof)
-    }
-    fn peek(&self, offset: i32) -> &Token {
-        let index = self.current as i32 + offset;
-        if index as usize >= self.tokens.len() {
-            panic!("qqqq");
-            //&self.tokens[self.current]
-        } else {
-            &self.tokens[index as usize]
-        }
+        self.peek(0).unwrap().kind == SpecialKeyword(Eof)
     }
 }
