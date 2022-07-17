@@ -8,6 +8,53 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
+    pub fn from_char(c: char) -> Self {
+        use KeywordKind::*;
+        use LiteralKind::*;
+        use PunctuatorKind::*;
+        use SpecialKeywordKind::*;
+        use TokenKind::*;
+
+        match c {
+            '+' => Punctuator(Plus),
+            '-' => Punctuator(Minus),
+            '*' => Punctuator(Asterisk),
+            '/' => Punctuator(Slash),
+            '%' => Punctuator(Percent),
+            '^' => Punctuator(Caret),
+            '&' => Punctuator(Ampersand),
+            '|' => Punctuator(VerticalBar),
+            '!' => Punctuator(Exclamation),
+            '=' => Punctuator(Equal),
+            '<' => Punctuator(Less),
+            '>' => Punctuator(Greater),
+            '.' => Punctuator(Dot),
+            ',' => Punctuator(Comma),
+            ':' => Punctuator(Colon),
+            ';' => Punctuator(Semicolon),
+            '(' => Punctuator(LeftParen),
+            ')' => Punctuator(RightParen),
+            '[' => Punctuator(LeftBracket),
+            ']' => Punctuator(RightBracket),
+            '{' => Punctuator(LeftBrace),
+            '}' => Punctuator(RightBrace),
+            o => panic!(
+                "This case is either invalid or not yet implemented: {:?}",
+                o
+            ),
+        }
+    }
+
+    pub fn as_str(&self) -> String {
+        use TokenKind::*;
+        match &self {
+            Punctuator(p) => p.as_str(),
+            Literal(l) => todo!("it's not yet implemented for literals"), //l.as_str(),
+            Identifier(s) => s.to_string(),
+            Keyword(k) => k.as_str().to_owned(),
+            SpecialKeyword(k) => k.as_str().to_owned(),
+        }
+    }
     pub fn can_be_part_of_complex(&self) -> bool {
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -36,14 +83,14 @@ impl TokenKind {
             Punctuator(p) => matches!(
                 p,
                 Plus | Minus
-                    | Star
+                    | Asterisk
                     | Slash
                     | Equal
-                    | Bang
+                    | Exclamation
                     | Greater
                     | Less
                     | Ampersand
-                    | Pipe
+                    | VerticalBar
                     | Colon
                     | Semicolon
                     | Percent
@@ -71,17 +118,17 @@ impl TokenKind {
         match &self {
             Punctuator(Complex(c)) => match *c.as_slice() {
                 [Equal, Equal] => Punctuator(EqualEqual),
-                [Bang, Equal] => Punctuator(BangEqual),
+                [Exclamation, Equal] => Punctuator(BangEqual),
                 [Greater, Equal] => Punctuator(GreaterEqual),
                 [Less, Equal] => Punctuator(LessEqual),
                 [Ampersand, Ampersand] => Punctuator(AmpersandAmpersand),
-                [Pipe, Pipe] => Punctuator(PipePipe),
+                [VerticalBar, VerticalBar] => Punctuator(PipePipe),
 
                 [Minus, Greater] => Punctuator(MinusGreater),
 
                 [Plus, Equal] => Punctuator(PlusEqual),
                 [Minus, Equal] => Punctuator(MinusEqual),
-                [Star, Equal] => Punctuator(StarEqual),
+                [Asterisk, Equal] => Punctuator(StarEqual),
                 [Slash, Equal] => Punctuator(SlashEqual),
                 _ => self.clone(),
             },
@@ -93,15 +140,15 @@ impl TokenKind {
         use TokenKind::*;
         let tok = match &self {
             Punctuator(EqualEqual) => Punctuator(Complex(vec![Equal, Equal])),
-            Punctuator(BangEqual) => Punctuator(Complex(vec![Bang, Equal])),
+            Punctuator(BangEqual) => Punctuator(Complex(vec![Exclamation, Equal])),
             Punctuator(GreaterEqual) => Punctuator(Complex(vec![Greater, Equal])),
             Punctuator(LessEqual) => Punctuator(Complex(vec![Less, Equal])),
             Punctuator(AmpersandAmpersand) => Punctuator(Complex(vec![Ampersand, Ampersand])),
-            Punctuator(PipePipe) => Punctuator(Complex(vec![Pipe, Pipe])),
+            Punctuator(PipePipe) => Punctuator(Complex(vec![VerticalBar, VerticalBar])),
             Punctuator(MinusGreater) => Punctuator(Complex(vec![Minus, Greater])),
             Punctuator(PlusEqual) => Punctuator(Complex(vec![Plus, Equal])),
             Punctuator(MinusEqual) => Punctuator(Complex(vec![Minus, Equal])),
-            Punctuator(StarEqual) => Punctuator(Complex(vec![Star, Equal])),
+            Punctuator(StarEqual) => Punctuator(Complex(vec![Asterisk, Equal])),
             Punctuator(SlashEqual) => Punctuator(Complex(vec![Slash, Equal])),
             _ => self.clone(),
         };
@@ -126,26 +173,27 @@ impl TokenKind {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PunctuatorKind {
     // Punctuator
-    Plus,      // +
-    Minus,     // -
-    Star,      // *
-    Slash,     // /
-    Equal,     // =
-    Bang,      // !
-    Greater,   // >
-    Less,      // <
-    Ampersand, // &
-    Pipe,      // |
-    Colon,     // :
-    Semicolon, // ;
-    Percent,   // %
-    Dollar,    // $
-    Question,  // ?
-    Hash,      // #
-    Dot,       // .
-    Comma,     // ,
-    Backslash, // \
-    At,        // @
+    Plus,        // +
+    Minus,       // -
+    Asterisk,    // *
+    Slash,       // /
+    Equal,       // =
+    Exclamation, // !
+    Greater,     // >
+    Less,        // <
+    Ampersand,   // &
+    VerticalBar, // |
+    Colon,       // :
+    Semicolon,   // ;
+    Percent,     // %
+    Dollar,      // $
+    Question,    // ?
+    Hash,        // #
+    Dot,         // .
+    Comma,       // ,
+    Backslash,   // \
+    At,          // @
+    Caret,       // ^
 
     LeftParen,    // (
     RightParen,   // )
@@ -170,6 +218,65 @@ pub enum PunctuatorKind {
     StarEqual,  // *=
     SlashEqual, // /=
 }
+impl PunctuatorKind {
+    fn as_str(&self) -> String {
+        use PunctuatorKind::*;
+        let s = match self {
+            Plus => "+",
+            Minus => "-",
+            Asterisk => "*",
+            Slash => "/",
+            Equal => "=",
+            Exclamation => "!",
+            Greater => ">",
+            Less => "<",
+            Ampersand => "&",
+            VerticalBar => "|",
+            Colon => ":",
+            Semicolon => ";",
+            Percent => "%",
+            Dollar => "$",
+            Question => "?",
+            Hash => "#",
+            Dot => ".",
+            Comma => ",",
+            Backslash => "\\",
+            At => "@",
+            Caret => "^",
+
+            LeftParen => "(",
+            RightParen => ")",
+            LeftBracket => "[",
+            RightBracket => "]",
+            LeftBrace => "{",
+            RightBrace => "}",
+
+            EqualEqual => "==",
+            BangEqual => "!=",
+            MinusGreater => "->",
+            AmpersandAmpersand => "&&",
+            PipePipe => "||",
+            GreaterEqual => ">=",
+            LessEqual => "<=",
+            PlusEqual => "+=",
+            MinusEqual => "-=",
+            StarEqual => "*=",
+            SlashEqual => "/=",
+            _ => "",
+        };            
+        if s.is_empty() {
+            match self {
+                Complex(complex) => {
+                    complex.iter().map(|t| t.as_str()).collect::<String>()
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            s.to_string()
+        }
+
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum KeywordKind {
@@ -188,25 +295,26 @@ pub enum KeywordKind {
     Println,
 }
 impl KeywordKind {
-    pub fn len(&self) -> usize {
+    fn as_str(&self) -> &str {
         use KeywordKind::*;
         match self {
-            Var => "var".len(),
-            Fn => "fn".len(),
+            Var => "var",
+            Fn => "fn",
 
-            If => "if".len(),
-            Else => "else".len(),
-            While => "while".len(),
-            For => "for".len(),
+            If => "if",
+            Else => "else",
+            While => "while",
+            For => "for",
 
-            // Those are actually literals, so they will get special treatement
-            True => "true".len(),
-            False => "false".len(),
+            True => "true",
+            False => "false",
 
-            // They will be removed
-            Print => "print".len(),
-            Println => "println".len(),
+            Print => "print",
+            Println => "println",
         }
+    }
+    pub fn len(&self) -> usize {
+        self.as_str().len()
     }
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -215,6 +323,18 @@ pub enum SpecialKeywordKind {
     Newline,
     Whitespace,
     Comment, //Unknown,
+}
+
+impl SpecialKeywordKind {
+    fn as_str(&self) -> &str {
+        use SpecialKeywordKind::*;
+        match self {
+            Eof => "eof",
+            Newline => "newline",
+            Whitespace => "whitespace",
+            Comment => "comment",
+        }
+    }
 }
 
 /// Tokens a slice of tokens and converts them into a complex token.
@@ -242,15 +362,17 @@ pub fn conv_to_complex(tokens: &[Token]) -> Token {
 
             let first_tok = tokens.first().unwrap();
             let last_tok = tokens.last().unwrap();
-            let s = (first_tok.whitespace.as_bools().0, last_tok.whitespace.as_bools().1);
-            let ws = Whitespace::from(s);
+            let bools = (
+                first_tok.whitespace.as_bools().0,
+                last_tok.whitespace.as_bools().1,
+            );
             Token {
                 kind: token_kind,
                 span: Span {
                     start: first_tok.span.start,
                     end: last_tok.span.end,
                 },
-                whitespace: ws,
+                whitespace: Whitespace::from(bools),
             }
         }
     }
@@ -327,30 +449,16 @@ pub enum Whitespace {
     Left,
     Right,
     Both,
-    //Undefined,
 }
 impl Whitespace {
     pub fn from(bools: (bool, bool)) -> Self {
         use Whitespace::*;
         match bools {
             (true, true) => Both,
-            (true, false) => Right,
-            (false, true) => Left,
+            (true, false) => Left,
+            (false, true) => Right,
             (false, false) => None,
         }
-    }
-    /// Creates the whitespace from given tokens. Those tokens are wrapped in an `Option`, to make handling first
-    /// and last tokens easier for the caller
-    pub fn from_token_kinds(
-        left_token_kind: Option<&TokenKind>,
-        right_token_kind: Option<&TokenKind>,
-    ) -> Self {
-        let is_prev_whitespace = left_token_kind.map(|tok| tok.is_to_skip()).unwrap_or(false);
-        let is_next_whitespace = right_token_kind
-            .map(|tok| tok.is_to_skip())
-            .unwrap_or(false);
-
-        Whitespace::from((is_prev_whitespace, is_next_whitespace))
     }
     pub fn is_left_whitespace(c: char) -> bool {
         c == ' '
@@ -382,11 +490,4 @@ impl Token {
             whitespace,
         }
     }
-    // pub fn new_undefind_whitespace(kind: TokenKind, span: Span) -> Self {
-    //     Token {
-    //         kind,
-    //         span,
-    //         whitespace: Whitespace::Undefined,
-    //     }
-    // }
 }

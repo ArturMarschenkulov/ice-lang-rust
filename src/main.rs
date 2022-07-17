@@ -78,11 +78,11 @@ impl Ice {
     fn run(&mut self, text: &str) {
         let mut time_vec = Vec::<(&str, std::time::Duration)>::new();
 
-        println!("");
+        println!();
         println!("Source code start:");
         println!("{}", text.to_owned());
         println!("Source code end.");
-        println!("");
+        println!();
 
         let show_stages = true;
         let show_token_stream = true;
@@ -93,9 +93,9 @@ impl Ice {
     
 
         if show_stages {
-            println!("");
+            println!();
             println!("{} Stage:", lexer_str);
-            println!("");
+            println!();
         }
 
         let now = Instant::now();
@@ -103,15 +103,30 @@ impl Ice {
         time_vec.push(("Lexer", now.elapsed()));
 
         if show_token_stream {
+            println!("----Token Stream----");
             for token in &tokens {
-                println!("{:?} {:?} {:?}", &token.kind, &token.whitespace, &token.span);
+                println!("retat: {:?} {:?} {:?}", &token.kind, &token.whitespace, &token.span);
             }
+            println!("~~~~Token Stream~~~~");
+        }
+
+        for (stage, time) in &time_vec {
+            let ansi_cyan = ansi_term::Color::Cyan;
+            let ansi_red = ansi_term::Color::Red;
+
+            let stage = ansi_cyan.paint(*stage).to_string();
+            let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
+            let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
+            let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
+            let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
+            
+            println!("{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec", stage, nano_t, micro_t, mili_t, sec_t);
         }
 
         if show_stages {
-            println!("");
+            println!();
             println!("{} Stage:", parser_str);
-            println!("");
+            println!();
         }
         
         let now = Instant::now();
@@ -122,17 +137,17 @@ impl Ice {
             print_ast(&ast);
         }
 
-        for (stage, time) in time_vec {
+        for (stage, time) in &time_vec {
             let ansi_cyan = ansi_term::Color::Cyan;
             let ansi_red = ansi_term::Color::Red;
 
-            let stage = ansi_cyan.paint(stage).to_string();
+            let stage = ansi_cyan.paint(*stage).to_string();
             let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
             let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
             let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
             let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
             
-            println!("{:15} took {:>17}nanosec, {:>17}microsec, {:>17}milisec, {:>17}sec", stage, nano_t, micro_t, mili_t, sec_t);
+            println!("{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec", stage, nano_t, micro_t, mili_t, sec_t);
         }
 
         println!("{:?} milliseconds have passed", now.elapsed().as_nanos());

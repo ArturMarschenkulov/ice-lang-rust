@@ -20,7 +20,7 @@ pub enum Expr {
 pub enum Stmt {
     Expression(Box<Expr>),
     VarDeclaration(Token, Option<String>, Option<Box<Expr>>),
-    FnDeclaration(Token, Vec<(Token, String)>, Box<Expr>),
+    FnDeclaration(Token, Vec<(Token, Token)>, Box<Expr>),
     NoOperation,
 
     Print(Box<Expr>),
