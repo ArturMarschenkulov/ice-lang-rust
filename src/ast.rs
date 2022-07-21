@@ -1,12 +1,22 @@
-use crate::token::{LiteralKind, Token};
+use crate::token::{LiteralKind, Token, TokenKind};
 use debug_tree::*;
+
+// struct Program {
+//     pub statements: Vec<Statement>,
+// }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Literal(LiteralKind),
     Grouping(Box<Expr>),
     Binary(Box<Expr>, Token, Box<Expr>),
     Unary(Token, Box<Expr>),
-    Symbol(Token),
+    Symbol {
+        name: Token,
+        /// `None` means there is no path to this symbol (`x`)
+        /// `Some` means there is a path to this symbol (`x::y::z`),
+        /// however it can be also empty (`::x`)
+        path: Option<Vec<Token>>,
+    }, // symbol, path
     // Assign(Token, Token, Box<Expr>),
     Block(Vec<Stmt>, Option<Box<Expr>>),
 
@@ -16,15 +26,42 @@ pub enum Expr {
 
     FnCall(Box<Expr>, Vec<Expr>),
 }
+
+#[derive(Clone, Debug, PartialEq)]
+struct Parameter {
+    name: Token,
+    ty: Token,
+}
+
+// NOTE: This is a placeholder name, since right now, we can only parse one file, so a whole project will always be a file.
+// Later on, one should change the name, maybe 'Crate', 'Project', 'Package', 'Program', 'Module' etc.
+struct FileModule {
+    items: Vec<Item>,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Item {
+    /// fn foo(x: i32) {...}
+    Fn {
+        name: Token,
+        params: Vec<(Token, Token)>,
+        body: Box<Expr>,
+    },
+    // /// type Foo = struct { x: i32 }
+    // Struct {
+    //     name: Token,
+    //     fields: Vec<(Token, Token)>,
+    // },
+}
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     Expression(Box<Expr>),
-    VarDeclaration(Token, Option<String>, Option<Box<Expr>>),
-    FnDeclaration(Token, Vec<(Token, Token)>, Box<Expr>),
+    VarDeclaration {
+        var: Token,
+        ty: Option<Token>,
+        init: Option<Box<Expr>>,
+    },
+    Definition(Item),
     NoOperation,
-
-    Print(Box<Expr>),
-    Println(Box<Expr>),
 }
 
 pub fn print_ast(ast: &Vec<Stmt>) {
@@ -55,8 +92,22 @@ impl Expr {
                 add_branch!("Unary: {:?}", _t.kind);
                 _ber.print();
             }
-            Expr::Symbol(_t) => {
-                add_branch!("Symbol: {:?}", _t.kind);
+            Expr::Symbol { name, path } => {
+
+                let s = if path.is_some() {
+                    let s = path.clone().unwrap().iter().map(|t| {
+                        if let TokenKind::Identifier(id) = &t.kind {
+                            id.clone()
+                        } else {
+                            panic!("Expected identifier")
+                        }
+                    })
+                    .collect::<Vec<String>>();
+                    Some(s)
+                } else {
+                    None
+                };
+                add_branch!("Symbol: {}, {:?}", name.kind.as_str(), s);
             }
             // Expr::Assign(_t0, _t1, _be) => {
             //     add_branch!("Assign: {:?}", _t0.kind);
@@ -114,34 +165,30 @@ impl Stmt {
                 add_branch!("SExpression: ");
                 _be.print();
             }
-            Stmt::VarDeclaration(_t, _type, _obe) => {
+            Stmt::VarDeclaration { var, ty, init } => {
                 add_branch!("SVarDeclaration: ");
-                add_leaf!("T: {:?}", _t.kind);
-                add_leaf!("T: {:?}", _type);
-                _obe.as_ref().unwrap().print();
+                add_leaf!("T: {:?}", var.kind);
+                add_leaf!("T: {:?}", ty);
+                match init.as_ref() {
+                    Some(i) => i.print(),
+                    None => add_leaf!("T: {:?}", init),
+                }
+                // init.as_ref().unwrap().print();
             }
-            Stmt::FnDeclaration(_t, _vt, _be) => {
+            Stmt::Definition(Item::Fn { name, params, body }) => {
                 add_branch!("SFnDeclaration: ");
-                add_leaf!("T: {:?}", _t.kind);
+                add_leaf!("T: {:?}", name.kind);
                 {
                     add_branch!("parameters: ");
-                    for _t in _vt {
-                        add_leaf!("T: {:?}", _t.0.kind);
+                    for _t in params {
+                        add_leaf!("T: {}: {}", _t.0.kind.as_str(), _t.1.kind.as_str());
                         //_t.print();
                     }
                 }
-                _be.print();
+                body.print();
             }
             Stmt::NoOperation => {
                 add_branch!("SNoOp");
-            }
-            Stmt::Print(be) => {
-                add_branch!("Sprint: ");
-                be.print();
-            }
-            Stmt::Println(be) => {
-                add_branch!("Sprintln: ");
-                be.print();
             }
         }
     }

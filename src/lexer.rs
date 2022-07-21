@@ -1,7 +1,17 @@
+//! This module contains the lexer.
+//!
+//! TODO:
+//!
+//! - [ ] Maybe in the future, this module should be elevated into one's own crate.
+//! - [ ] Make it possible to be an on demand lexer.
+//! - [ ] Implement nested comments.
+//! - [ ] Consider adding different comment styles.
+
+use std::convert::TryInto;
+
 use crate::error::*;
 use crate::token;
 use crate::token::*;
-use unicode_xid::UnicodeXID;
 
 fn is_digit(c: char) -> bool {
     ('0'..='9').contains(&c)
@@ -31,6 +41,12 @@ fn is_alpha_numeric(c: char) -> bool {
 //     c == ' ' || c == '\t' || c == '\n' || c == '\r'
 // }
 
+fn is_left_whitespace(c: char) -> bool {
+    c == ' '
+}
+fn is_right_whitespace(c: char) -> bool {
+    c == ' '
+}
 #[allow(dead_code)]
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
     Lexer::new_from_str(source).scan_tokens()
@@ -52,24 +68,69 @@ impl Lexer {
         }
     }
     fn scan_tokens(&mut self) -> Vec<Token> {
-        let mut punc_vec = Vec::new();
-        let mut tokens_pass_0 = Vec::new();
+        let mut puncs: Vec<Token> = Vec::new();
+        let mut tokens = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
-            //println!("oswlo: {:?}", token);
+            println!("{:?}", &token);
+            use PunctuatorKind::*;
+            use TokenKind::*;
 
-            if token.kind.can_be_part_of_complex() {
-                punc_vec.push(token);
+            // In this part we combine simple punctuator tokens to complex ones, if possible
+
+            // We have a `puncs`, where copies of the previous punctuators lie,
+            // which could be combined to a complex token.
+
+            // If the scanned token is not a punctuator, we flush the `puncs`.
+            //let is_empty = puncs.is_empty();
+            // let mut to_puncs = false;
+            // let mut to_tokens = false;
+
+            let last_puncs_kind = {
+                if !puncs.is_empty() {
+                    Some(puncs[puncs.len() - 1].kind.clone())
+                } else {
+                    None
+                }
+            };
+            let is_last_column = last_puncs_kind == Some(Punctuator(Colon));
+
+            if let Punctuator(punc) = &token.kind {
+                let is_last_same = last_puncs_kind == Some(Punctuator(punc.clone()));
+                let is_curr_equal = punc == &Equal;
+
+                let is_column_equal = is_last_column && is_curr_equal;
+
+                if punc.is_structural() {
+                    // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
+                    // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.
+                    // - valid examples: `.`, `.=`, `..`
+                    // - invalid examples: `=.`, `.=.`
+                    // `:`: Must be the first punctuator OR all the preceding punctuators must be `:`
+                    // - valid examples: `:`, `::`
+                    // - invalid examples: `:=:`
+                    // `=`: It can't form a complex token with a preceding `:`.
+
+                    if [Dot, Colon].contains(punc) {
+                        if (puncs.is_empty() || is_last_same) && is_column_equal {
+                            puncs.push(token.clone());
+                        }
+                    }
+                    tokens.push(token);
+                }
             } else {
-                if !punc_vec.is_empty() {
-                    let punc_token = conv_to_complex(&punc_vec);
-                    punc_vec.clear();
-                    tokens_pass_0.push(punc_token);
+                if !puncs.is_empty() {
+                    tokens.push(cook_tokens(&puncs));
+                    puncs.clear();
                 }
                 if !token.kind.is_to_skip() {
-                    tokens_pass_0.push(token.clone());
+                    tokens.push(token);
                 }
             }
+        }
+        if !puncs.is_empty() {
+            tokens.push(cook_tokens(&puncs));
+            puncs.clear();
         }
 
         use SpecialKeywordKind::*;
@@ -79,58 +140,34 @@ impl Lexer {
             Span::from_tuples((1, 1), (1, 1)),
             token::Whitespace::None,
         );
-        tokens_pass_0.push(token_eof);
-        tokens_pass_0
+        tokens.push(token_eof);
+        tokens
     }
 
     fn scan_token_kind(&mut self, c: char) -> Result<TokenKind, LexerError> {
         use PunctuatorKind::*;
-        use SpecialKeywordKind::*;
         use TokenKind::*;
 
         let kind = match c {
-            '+' => Ok(Punctuator(Plus)),
-            '-' => Ok(Punctuator(Minus)),
-            '*' => Ok(Punctuator(Asterisk)),
-            '=' => Ok(Punctuator(Equal)),
-            '!' => Ok(Punctuator(Exclamation)),
-            '>' => Ok(Punctuator(Greater)),
-            '<' => Ok(Punctuator(Less)),
-            '&' => Ok(Punctuator(Ampersand)),
-            '|' => Ok(Punctuator(VerticalBar)),
-            '%' => Ok(Punctuator(Percent)),
-            '$' => Ok(Punctuator(Dollar)),
-            '?' => Ok(Punctuator(Question)),
-            ',' => Ok(Punctuator(Comma)),
-            '#' => Ok(Punctuator(Hash)),
-            '\\' => Ok(Punctuator(Backslash)),
-            '@' => Ok(Punctuator(At)),
-
-            '(' => Ok(Punctuator(LeftParen)),
-            ')' => Ok(Punctuator(RightParen)),
-            '[' => Ok(Punctuator(LeftBracket)),
-            ']' => Ok(Punctuator(RightBracket)),
-            '{' => Ok(Punctuator(LeftBrace)),
-            '}' => Ok(Punctuator(RightBrace)),
-
-            ':' => Ok(Punctuator(Colon)),
-            ';' => Ok(Punctuator(Semicolon)),
-            ' ' | '\r' | '\t' => Ok(SpecialKeyword(Whitespace)),
-            '\n' => Ok(SpecialKeyword(Newline)),
-
             '/' => match self.peek_into_str(1).unwrap().as_str() {
                 "//" => self.lex_comment_line(),
                 "/*" => self.lex_comment_block(),
                 _ => Ok(Punctuator(Slash)),
             },
             '.' => match self.peek(1) {
-                Some(s) if is_digit(s) && !self.check_char_at('.', -1).ok().is_some() => {
+                Some(s) if is_digit(s) && !self.check_at('.', -1).ok().is_some() => {
                     self.lex_number()
                 }
                 _ => Ok(Punctuator(Dot)),
             },
             '"' => self.lex_string(),
             '\'' => self.lex_char(),
+            p if PunctuatorKind::from_char(p).is_some() => {
+                Ok(Punctuator(PunctuatorKind::from_char(p).unwrap()))
+            }
+            p if SpecialKeywordKind::from_char(p).is_some() => {
+                Ok(SpecialKeyword(SpecialKeywordKind::from_char(p).unwrap()))
+            }
             cc if is_digit(cc) => self.lex_number(),
             cc if is_alpha(cc) => self.lex_identifier(),
             cc => match cc {
@@ -162,6 +199,7 @@ impl Lexer {
 
         let end_pos = self.cursor;
         let end_index = self.index;
+
         if token_kind == TokenKind::SpecialKeyword(Newline) {
             self.cursor.line += 1;
             self.cursor.column = 1;
@@ -169,21 +207,23 @@ impl Lexer {
             self.cursor.column += 1;
         }
 
-        let token_start_index = 0 - (end_index - start_index) as isize;
-        let token_end_index = -1 as isize;
+        let whitespace = {
+            let index_start = 0 - (end_index - start_index) as isize;
+            let index_end = -1 as isize;
 
-        let tok_start_left = self.peek(token_start_index - 1);
-        let tok_end_right = self.peek(token_end_index + 1);
+            let index_start_left = self.peek(index_start - 1);
+            let index_end_right = self.peek(index_end + 1);
 
-        let is_ws_left = token::Whitespace::is_left_whitespace(tok_start_left.unwrap_or(' '));
-        let is_ws_right = token::Whitespace::is_right_whitespace(tok_end_right.unwrap_or(' '));
+            let ws_left = is_left_whitespace(index_start_left.unwrap_or(' '));
+            let ws_right = is_right_whitespace(index_end_right.unwrap_or(' '));
 
-        let whitespace = token::Whitespace::from((is_ws_left, is_ws_right));
+            token::Whitespace::from((ws_left, ws_right))
+        };
 
         Token::new(token_kind, Span::new(start_pos, end_pos), whitespace)
     }
     fn lex_escape_char(&mut self) -> Result<char, LexerError> {
-        self.eat_char('\\').unwrap();
+        self.eat('\\').unwrap();
         self.cursor.column += 1;
 
         let escaped_char = match self.peek(0).unwrap() {
@@ -206,7 +246,7 @@ impl Lexer {
     fn lex_char(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.eat_char('\'').unwrap();
+        self.eat('\'').unwrap();
 
         let c = if let Some(c) = self.peek(0) {
             let c = match c {
@@ -224,7 +264,7 @@ impl Lexer {
             None
         };
 
-        match self.eat_char('\'') {
+        match self.eat('\'') {
             Some(_) => {}
             None => {
                 return Err(LexerError::new(format!(
@@ -237,7 +277,7 @@ impl Lexer {
     fn lex_string(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.eat_char('\"').unwrap();
+        self.eat('\"').unwrap();
         self.cursor.column += 1;
 
         let mut string_content = String::new();
@@ -272,7 +312,7 @@ impl Lexer {
                 }
             }
         }
-        self.eat_char('\"').unwrap();
+        self.eat('\"').unwrap();
         self.cursor.column += 1;
 
         self.cursor.column -= 1;
@@ -322,9 +362,13 @@ impl Lexer {
 
         Ok(SpecialKeyword(Comment))
     }
+
     fn lex_number(&mut self) -> Result<TokenKind, LexerError> {
         use LiteralKind::*;
         use TokenKind::*;
+
+        // TODO: Floating point numbers can't be abbreviated like in some other languages.
+        // `.5`, `5.` are not possible short forms for `0.5` and `5.0` respectively.
 
         let (number_base, has_base_prefix, is_in_number_base): (
             NumberBase,
@@ -367,7 +411,7 @@ impl Lexer {
                 // it can't be in a number which has a prefix, because floating points don't have a base prefix
                 '.' if !is_floating
                     && !has_base_prefix
-                    && !self.check_char_at('.', 1).ok().is_some() =>
+                    && !self.check_at('.', 1).ok().is_some() =>
                 {
                     string.push(c);
                     is_floating = true;
@@ -404,8 +448,8 @@ impl Lexer {
     }
     fn lex_identifier(&mut self) -> Result<TokenKind, LexerError> {
         use KeywordKind::*;
-        use TokenKind::*;
         use LiteralKind::*;
+        use TokenKind::*;
 
         let mut string_content = String::new();
         while let Some(ch) = self.peek(0) {
@@ -437,7 +481,9 @@ impl Lexer {
         match &token {
             Keyword(kw) => self.cursor.column += (kw.len() - 1) as u32,
             Identifier(id) => self.cursor.column += (id.len() - 1) as u32,
-            _ => panic!("Identifier not a keyword or identifier."),
+            Literal(Boolean(false)) => self.cursor.column += ("false".len() - 1) as u32,
+            Literal(Boolean(true)) => self.cursor.column += ("true".len() - 1) as u32,
+            other => panic!("Identifier not a keyword or identifier. {:?}", other),
         };
         Ok(token)
     }
@@ -445,7 +491,12 @@ impl Lexer {
 
 /// This impl is the cursor part for the lexer.
 ///
+///
 impl Lexer {
+    fn move_by(&mut self, offset: isize) {
+        //let s: usize = self.index + offset.try_into().unwrap();
+        //self.index += self.calc_offset(n);
+    }
     fn advance(&mut self) {
         self.index += 1;
     }
@@ -470,15 +521,13 @@ impl Lexer {
     /// If the offset is 0, it will look at the current character.
     /// If resulting index is out of bounds, it will return None.
     fn peek(&self, offset: isize) -> Option<char> {
-        let new_offset = self.calc_offset(offset);
-        match new_offset {
+        match self.calc_offset(offset) {
             Some(new_offset) => self.chars.get(new_offset).copied(),
             None => None,
         }
     }
     fn is_inbounds(&self, offset: isize) -> bool {
-        let new_offset = self.calc_offset(offset);
-        match new_offset {
+        match self.calc_offset(offset) {
             Some(new_offset) => new_offset < self.chars.len(),
             None => false,
         }
@@ -498,15 +547,15 @@ impl Lexer {
     }
 
     /// peeks at the offset `n`. If the peeked char is the same as `c`, it returns it wrapped in a `Some`, otherwise `None`.
-    fn check_char_at(&self, c: char, n: isize) -> Result<char, Option<char>> {
+    fn check_at(&self, c: char, n: isize) -> Result<char, Option<char>> {
         match self.peek(n) {
             Some(ch) if c == ch => Ok(c),
             Some(other) => Err(Some(other)),
             None => Err(None),
         }
     }
-    fn check_char(&self, c: char) -> Result<char, Option<char>> {
-        self.check_char_at(c, 0)
+    fn check(&self, c: char) -> Result<char, Option<char>> {
+        self.check_at(c, 0)
     }
     fn check_str(&self, s: &str) -> Option<String> {
         if self.peek_into_str(s.len() - 1) == Some(s.to_string()) {
@@ -516,8 +565,8 @@ impl Lexer {
         }
     }
     /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
-    fn eat_char(&mut self, ch: char) -> Option<char> {
-        let c = self.check_char(ch);
+    fn eat(&mut self, ch: char) -> Option<char> {
+        let c = self.check(ch);
         if c.is_ok() {
             self.advance();
         }
@@ -541,7 +590,7 @@ impl Lexer {
     }
     fn eat_char_any(&mut self, chars: &[char]) -> Option<char> {
         for ch in chars {
-            if let Some(c) = self.eat_char(*ch) {
+            if let Some(c) = self.eat(*ch) {
                 return Some(c);
             }
         }

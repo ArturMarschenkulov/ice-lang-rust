@@ -8,43 +8,6 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    pub fn from_char(c: char) -> Self {
-        use KeywordKind::*;
-        use LiteralKind::*;
-        use PunctuatorKind::*;
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
-
-        match c {
-            '+' => Punctuator(Plus),
-            '-' => Punctuator(Minus),
-            '*' => Punctuator(Asterisk),
-            '/' => Punctuator(Slash),
-            '%' => Punctuator(Percent),
-            '^' => Punctuator(Caret),
-            '&' => Punctuator(Ampersand),
-            '|' => Punctuator(VerticalBar),
-            '!' => Punctuator(Exclamation),
-            '=' => Punctuator(Equal),
-            '<' => Punctuator(Less),
-            '>' => Punctuator(Greater),
-            '.' => Punctuator(Dot),
-            ',' => Punctuator(Comma),
-            ':' => Punctuator(Colon),
-            ';' => Punctuator(Semicolon),
-            '(' => Punctuator(LeftParen),
-            ')' => Punctuator(RightParen),
-            '[' => Punctuator(LeftBracket),
-            ']' => Punctuator(RightBracket),
-            '{' => Punctuator(LeftBrace),
-            '}' => Punctuator(RightBrace),
-            o => panic!(
-                "This case is either invalid or not yet implemented: {:?}",
-                o
-            ),
-        }
-    }
-
     pub fn as_str(&self) -> String {
         use TokenKind::*;
         match &self {
@@ -55,111 +18,51 @@ impl TokenKind {
             SpecialKeyword(k) => k.as_str().to_owned(),
         }
     }
+    fn is_delimiter(&self) -> bool {
+        use TokenKind::*;
+        match &self {
+            Punctuator(p) => p.is_delimiter(),
+            _ => false,
+        }
+    }
     pub fn can_be_part_of_complex(&self) -> bool {
-        use PunctuatorKind::*;
         use TokenKind::*;
         match self {
-            Punctuator(p) => !matches!(
-                p,
-                Semicolon
-                    | Comma
-                    | Dot
-                    | Colon
-                    | LeftBrace
-                    | RightBrace
-                    | LeftBracket
-                    | RightBracket
-                    | LeftParen
-                    | RightParen
-            ),
+            Punctuator(p) => p.can_be_part_of_complex(),
             _ => false,
         }
     }
     pub fn is_simple(&self) -> bool {
-        use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
         match self {
-            Punctuator(p) => matches!(
-                p,
-                Plus | Minus
-                    | Asterisk
-                    | Slash
-                    | Equal
-                    | Exclamation
-                    | Greater
-                    | Less
-                    | Ampersand
-                    | VerticalBar
-                    | Colon
-                    | Semicolon
-                    | Percent
-                    | Dollar
-                    | Question
-                    | Hash
-                    | Dot
-                    | Comma
-                    | Backslash
-                    | At
-                    | LeftParen
-                    | RightParen
-                    | LeftBracket
-                    | RightBracket
-                    | LeftBrace
-                    | RightBrace
-            ),
+            Punctuator(p) => p.is_simple(),
             SpecialKeyword(Eof) | SpecialKeyword(Newline) | SpecialKeyword(Whitespace) => true,
             _ => false,
         }
     }
-    pub fn simplify(self) -> TokenKind {
-        use PunctuatorKind::*;
-        use TokenKind::*;
-        match &self {
-            Punctuator(Complex(c)) => match *c.as_slice() {
-                [Equal, Equal] => Punctuator(EqualEqual),
-                [Exclamation, Equal] => Punctuator(BangEqual),
-                [Greater, Equal] => Punctuator(GreaterEqual),
-                [Less, Equal] => Punctuator(LessEqual),
-                [Ampersand, Ampersand] => Punctuator(AmpersandAmpersand),
-                [VerticalBar, VerticalBar] => Punctuator(PipePipe),
-
-                [Minus, Greater] => Punctuator(MinusGreater),
-
-                [Plus, Equal] => Punctuator(PlusEqual),
-                [Minus, Equal] => Punctuator(MinusEqual),
-                [Asterisk, Equal] => Punctuator(StarEqual),
-                [Slash, Equal] => Punctuator(SlashEqual),
-                _ => self.clone(),
-            },
-            _ => self.clone(),
-        }
-    }
-    pub fn complexify(self) -> TokenKind {
-        use PunctuatorKind::*;
-        use TokenKind::*;
-        let tok = match &self {
-            Punctuator(EqualEqual) => Punctuator(Complex(vec![Equal, Equal])),
-            Punctuator(BangEqual) => Punctuator(Complex(vec![Exclamation, Equal])),
-            Punctuator(GreaterEqual) => Punctuator(Complex(vec![Greater, Equal])),
-            Punctuator(LessEqual) => Punctuator(Complex(vec![Less, Equal])),
-            Punctuator(AmpersandAmpersand) => Punctuator(Complex(vec![Ampersand, Ampersand])),
-            Punctuator(PipePipe) => Punctuator(Complex(vec![VerticalBar, VerticalBar])),
-            Punctuator(MinusGreater) => Punctuator(Complex(vec![Minus, Greater])),
-            Punctuator(PlusEqual) => Punctuator(Complex(vec![Plus, Equal])),
-            Punctuator(MinusEqual) => Punctuator(Complex(vec![Minus, Equal])),
-            Punctuator(StarEqual) => Punctuator(Complex(vec![Asterisk, Equal])),
-            Punctuator(SlashEqual) => Punctuator(Complex(vec![Slash, Equal])),
-            _ => self.clone(),
-        };
-        assert!(tok.clone().simplify() == self);
-        tok
-    }
-    pub fn is_complex(&self) -> bool {
-        use PunctuatorKind::*;
-        use TokenKind::*;
-        matches!(self.clone().complexify(), Punctuator(Complex(_)))
-    }
+    // pub fn simplify(self) -> TokenKind {
+    //     use TokenKind::*;
+    //     match self {
+    //         Punctuator(complex) => Punctuator(complex.fuse()),
+    //         _ => self.clone(),
+    //     }
+    // }
+    // pub fn complexify(self) -> TokenKind {
+    //     use PunctuatorKind::*;
+    //     use TokenKind::*;
+    //     let tok = match self {
+    //         Punctuator(punc) => Punctuator(punc.unfuse()),
+    //         _ => self,
+    //     };
+    //     //assert!(tok.clone().simplify() == self.clone());
+    //     tok
+    // }
+    // pub fn is_complex(&self) -> bool {
+    //     use PunctuatorKind::*;
+    //     use TokenKind::*;
+    //     matches!(self.clone().complexify(), Punctuator(Complex(_)))
+    // }
     pub fn is_to_skip(&self) -> bool {
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -183,17 +86,21 @@ pub enum PunctuatorKind {
     Less,        // <
     Ampersand,   // &
     VerticalBar, // |
-    Colon,       // :
-    Semicolon,   // ;
-    Percent,     // %
-    Dollar,      // $
-    Question,    // ?
-    Hash,        // #
-    Dot,         // .
-    Comma,       // ,
-    Backslash,   // \
-    At,          // @
-    Caret,       // ^
+
+    Percent,   // %
+    Dollar,    // $
+    Question,  // ?
+    Hash,      // #
+    Backslash, // \
+    At,        // @
+    Caret,     // ^
+    Tilde,     // ~
+    Backtick,  // `
+    Dot,       // .
+
+    Colon,     // :
+    Semicolon, // ;
+    Comma,     // ,
 
     LeftParen,    // (
     RightParen,   // )
@@ -203,10 +110,14 @@ pub enum PunctuatorKind {
     RightBrace,   // }
 
     // Punctuators two
+    // Below are the complex punctuators.
     Complex(Vec<PunctuatorKind>),
-    EqualEqual,         // ==
-    BangEqual,          // !=
-    MinusGreater,       // ->
+
+    // These are the 'fused complex punctuators'.
+    // Basically complex punctuators, which get a special treatement, either for now or forever
+    EqualEqual, // ==
+    BangEqual,  // !=
+
     AmpersandAmpersand, // &&
     PipePipe,           // ||
 
@@ -217,8 +128,194 @@ pub enum PunctuatorKind {
     MinusEqual, // -=
     StarEqual,  // *=
     SlashEqual, // /=
+
+    // These are complex structural tokens. `EqualGreater` might
+    MinusGreater, // ->
+    // EqualGreater,       // =>
+    ColonColon, // ::
 }
+
 impl PunctuatorKind {
+    pub fn from_char(c: char) -> Option<PunctuatorKind> {
+        use PunctuatorKind::*;
+        match c {
+            '+' => Some(Plus),
+            '-' => Some(Minus),
+            '*' => Some(Asterisk),
+            '/' => Some(Slash),
+            '=' => Some(Equal),
+            '!' => Some(Exclamation),
+            '>' => Some(Greater),
+            '<' => Some(Less),
+            '&' => Some(Ampersand),
+            '|' => Some(VerticalBar),
+            '%' => Some(Percent),
+            '$' => Some(Dollar),
+            '?' => Some(Question),
+            '#' => Some(Hash),
+            '\\' => Some(Backslash),
+            '@' => Some(At),
+            '^' => Some(Caret),
+            '.' => Some(Dot),
+            ':' => Some(Colon),
+            ';' => Some(Semicolon),
+            ',' => Some(Comma),
+            '~' => Some(Tilde),
+            '`' => Some(Backtick),
+
+            '(' => Some(LeftParen),
+            ')' => Some(RightParen),
+            '[' => Some(LeftBracket),
+            ']' => Some(RightBracket),
+            '{' => Some(LeftBrace),
+            '}' => Some(RightBrace),
+            _ => None,
+        }
+    }
+    // 'fuses' simple complex tokens into fused complex tokens, if possible. Otherwise it does nothing.
+    fn fuse(self) -> PunctuatorKind {
+        use PunctuatorKind::*;
+        match &self {
+            Complex(c) => match *c.as_slice() {
+                [Equal, Equal] => EqualEqual,
+                [Exclamation, Equal] => BangEqual,
+                [Greater, Equal] => GreaterEqual,
+                [Less, Equal] => LessEqual,
+                [Ampersand, Ampersand] => AmpersandAmpersand,
+                [VerticalBar, VerticalBar] => PipePipe,
+
+                [Minus, Greater] => MinusGreater,
+                [Colon, Colon] => ColonColon,
+
+                [Plus, Equal] => PlusEqual,
+                [Minus, Equal] => MinusEqual,
+                [Asterisk, Equal] => StarEqual,
+                [Slash, Equal] => SlashEqual,
+                _ => self,
+            },
+            _ => self,
+        }
+    }
+    // 'unfuses' fused complex tokens into simple complex tokens, if possible. Otherwise it does nothing.
+    pub fn unfuse(self) -> PunctuatorKind {
+        use PunctuatorKind::*;
+        match self {
+            EqualEqual => Complex(vec![Equal, Equal]),
+            BangEqual => Complex(vec![Exclamation, Equal]),
+            GreaterEqual => Complex(vec![Greater, Equal]),
+            LessEqual => Complex(vec![Less, Equal]),
+            AmpersandAmpersand => Complex(vec![Ampersand, Ampersand]),
+            PipePipe => Complex(vec![VerticalBar, VerticalBar]),
+
+            MinusGreater => Complex(vec![Minus, Greater]),
+            ColonColon => Complex(vec![Colon, Colon]),
+
+            PlusEqual => Complex(vec![Plus, Equal]),
+            MinusEqual => Complex(vec![Minus, Equal]),
+            StarEqual => Complex(vec![Asterisk, Equal]),
+            SlashEqual => Complex(vec![Slash, Equal]),
+            _ => self,
+        }
+    }
+    fn is_simple(&self) -> bool {
+        use PunctuatorKind::*;
+        !matches!(self.clone().unfuse(), Complex(_))
+    }
+    fn is_complex(&self) -> bool {
+        !self.is_simple()
+    }
+    fn is_complex_fused(&self) -> bool {
+        use PunctuatorKind::*;
+        match self.clone() {
+            Complex(_) => false,
+            token => !token.unfuse().is_simple(),
+        }
+    }
+
+    fn is_delimiter(&self) -> bool {
+        use PunctuatorKind::*;
+        matches!(
+            self,
+            LeftParen | RightParen | LeftBracket | RightBracket | LeftBrace | RightBrace
+        )
+    }
+    fn is_delimiter_open(&self) -> bool {
+        use PunctuatorKind::*;
+        matches!(self, LeftParen | LeftBracket | LeftBrace)
+    }
+    fn is_delimiter_close(&self) -> bool {
+        use PunctuatorKind::*;
+        matches!(self, RightParen | RightBracket | RightBrace)
+    }
+
+    /// Returns `true`, if the token is a structural token.
+    /// Those are tokens which are integral for the structure of the language.
+    /// Because of that the parser treats them in a more special way.
+    ///
+    /// Right now those tokens are `.`, `,`, `;`, `:`, `->`, `::`, `=>`.
+    pub fn is_structural(&self) -> bool {
+        use PunctuatorKind::*;
+        match self {
+            Dot | Comma | Semicolon | Colon | Equal=> true,
+            RightParen | RightBracket | RightBrace => true,
+            LeftParen | LeftBracket | LeftBrace => true,
+            MinusGreater | ColonColon => true,
+            Complex(complex) => matches!(*complex.as_slice(), [Minus, Greater] | [Equal, Greater]),
+            _ => false,
+        }
+    }
+
+    /// Returns `true`, if the token can be part of a complex token.
+    ///
+    /// The are special rules for structural tokens to be part of complex tokens.
+    pub fn can_be_part_of_complex(&self) -> bool {
+        use PunctuatorKind::*;
+
+        match self {
+            p => !matches!(
+                p,
+                Semicolon
+                    | Comma
+                    | Dot
+                    | Colon
+                    // Delimiters can never be part of a complex expression.
+                    | LeftBrace
+                    | RightBrace
+                    | LeftBracket
+                    | RightBracket
+                    | LeftParen
+                    | RightParen
+            ),
+            _ => false,
+        }
+    }
+    fn can_be_operator(&self) -> bool {
+        use PunctuatorKind::*;
+        // ':', ';', ',' are 'structural' opereators, but they are not operators in the sense of the language.
+        // The complex punctuators '->' and '=>' may also possibly become 'structural' operators, and thus
+        // they should not be regarded as operators.
+        match self {
+            Colon | Semicolon | Comma => false,
+            token if token.is_complex_fused() => {
+                !matches!(token, MinusGreater /*| EqualGreater*/)
+            }
+            Complex(c) => !matches!(*c.as_slice(), [Minus, Greater] | [Equal, Greater]),
+            _ => true,
+        }
+    }
+    fn is_overloadable(&self) -> bool {
+        use PunctuatorKind::*;
+        !matches!(self, Colon | Semicolon | Comma | Dot)
+    }
+    fn can_be_custom_op_part(&self) -> bool {
+        use PunctuatorKind::*;
+        match self {
+            delim if delim.is_delimiter() => false,
+            Semicolon | Comma | Colon => false,
+            _ => true,
+        }
+    }
+
     fn as_str(&self) -> String {
         use PunctuatorKind::*;
         let s = match self {
@@ -263,22 +360,19 @@ impl PunctuatorKind {
             StarEqual => "*=",
             SlashEqual => "/=",
             _ => "",
-        };            
+        };
         if s.is_empty() {
             match self {
-                Complex(complex) => {
-                    complex.iter().map(|t| t.as_str()).collect::<String>()
-                }
+                Complex(complex) => complex.iter().map(|t| t.as_str()).collect::<String>(),
                 _ => unreachable!(),
             }
         } else {
             s.to_string()
         }
-
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum KeywordKind {
     Var,
     Fn,
@@ -287,9 +381,6 @@ pub enum KeywordKind {
     Else,
     While,
     For,
-
-    True,
-    False,
 
     Print,
     Println,
@@ -306,9 +397,6 @@ impl KeywordKind {
             While => "while",
             For => "for",
 
-            True => "true",
-            False => "false",
-
             Print => "print",
             Println => "println",
         }
@@ -317,7 +405,7 @@ impl KeywordKind {
         self.as_str().len()
     }
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SpecialKeywordKind {
     Eof,
     Newline,
@@ -326,6 +414,15 @@ pub enum SpecialKeywordKind {
 }
 
 impl SpecialKeywordKind {
+    pub fn from_char(c: char) -> Option<Self> {
+        use SpecialKeywordKind::*;
+        match c {
+            '\0' => Some(Eof),
+            '\n' => Some(Newline),
+            ' ' | '\t' | '\r' => Some(Whitespace),
+            _ => None,
+        }
+    }
     fn as_str(&self) -> &str {
         use SpecialKeywordKind::*;
         match self {
@@ -340,7 +437,7 @@ impl SpecialKeywordKind {
 /// Tokens a slice of tokens and converts them into a complex token.
 /// Certain complex tokens are converted into a single token, which significes several tokens.
 /// If token slice has only one token, the singular token itself is returned.
-pub fn conv_to_complex(tokens: &[Token]) -> Token {
+pub fn cook_tokens(tokens: &[Token]) -> Token {
     use PunctuatorKind::*;
     use TokenKind::*;
     let tok_kinds = tokens
@@ -358,7 +455,7 @@ pub fn conv_to_complex(tokens: &[Token]) -> Token {
         0 => unreachable!(),
         1 => tokens.first().unwrap().clone(),
         _ => {
-            let token_kind = Punctuator(Complex(tok_kinds)).simplify();
+            let token_kind = Punctuator(Complex(tok_kinds).fuse());
 
             let first_tok = tokens.first().unwrap();
             let last_tok = tokens.last().unwrap();
@@ -460,12 +557,7 @@ impl Whitespace {
             (false, false) => None,
         }
     }
-    pub fn is_left_whitespace(c: char) -> bool {
-        c == ' '
-    }
-    pub fn is_right_whitespace(c: char) -> bool {
-        c == ' '
-    }
+
     pub fn as_bools(self) -> (bool, bool) {
         use Whitespace::*;
         match self {
