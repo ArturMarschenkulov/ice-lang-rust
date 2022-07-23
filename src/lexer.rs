@@ -13,40 +13,48 @@ use crate::error::*;
 use crate::token;
 use crate::token::*;
 
-fn is_digit(c: char) -> bool {
-    ('0'..='9').contains(&c)
+fn is_digit(c: &char) -> bool {
+    ('0'..='9').contains(c)
 }
-fn is_hexadecimal(c: char) -> bool {
-    let num = ('0'..='9').contains(&c);
-    let upper = ('A'..='F').contains(&c);
-    let lower = ('a'..='f').contains(&c);
+fn is_hexadecimal(c: &char) -> bool {
+    // let is_hd = c.is_digit(16);
+    // let is_lower_case = c.is_uppercase();
+    // is_hd && is_lower_case
+
+    let num = ('0'..='9').contains(c);
+    let upper = ('A'..='F').contains(c);
+    let lower = ('a'..='f').contains(c);
     num || upper || lower
 }
-fn is_octal(c: char) -> bool {
-    ('0'..='7').contains(&c)
+fn is_octal(c: &char) -> bool {
+    // c.is_digit(8)
+    ('0'..='7').contains(c)
 }
-fn is_binary(c: char) -> bool {
-    ('0'..='1').contains(&c)
+fn is_binary(c: &char) -> bool {
+    // c.is_digit(2)
+    ('0'..='1').contains(c)
 }
-fn is_alpha(c: char) -> bool {
-    let minor_case = ('a'..='z').contains(&c);
-    let major_case = ('A'..='Z').contains(&c);
-    let underscore = c == '_';
+fn is_alpha(c: &char) -> bool {
+    // let is_alphabetic = c.is_alphabetic();
+    // let underscore = c == &'_';
+    // is_alphabetic || underscore
+
+    let minor_case = ('a'..='z').contains(c);
+    let major_case = ('A'..='Z').contains(c);
+    let underscore = c == &'_';
     minor_case || major_case || underscore
 }
-fn is_alpha_numeric(c: char) -> bool {
+fn is_alpha_numeric(c: &char) -> bool {
+    // c.is_alphanumeric()
     is_digit(c) || is_alpha(c)
 }
-// fn is_whitespace(c: char) -> bool {
-//     c == ' ' || c == '\t' || c == '\n' || c == '\r'
-// }
+fn is_left_whitespace(c: &char) -> bool {
+    c == &' '
+}
+fn is_right_whitespace(c: &char) -> bool {
+    c == &' '
+}
 
-fn is_left_whitespace(c: char) -> bool {
-    c == ' '
-}
-fn is_right_whitespace(c: char) -> bool {
-    c == ' '
-}
 #[allow(dead_code)]
 pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
     Lexer::new_from_str(source).scan_tokens()
