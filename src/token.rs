@@ -41,6 +41,18 @@ impl TokenKind {
             _ => false,
         }
     }
+    pub fn is_punctuator(&self) -> bool {
+        matches!(self, TokenKind::Punctuator(_))
+    }
+    pub fn is_literal(&self) -> bool {
+        matches!(self, TokenKind::Literal(_))
+    }
+    pub fn is_keyword(&self) -> bool {
+        matches!(self, TokenKind::Keyword(_))
+    }
+    pub fn is_identifier(&self) -> bool {
+        matches!(self, TokenKind::Identifier(_))
+    }
     // pub fn simplify(self) -> TokenKind {
     //     use TokenKind::*;
     //     match self {
