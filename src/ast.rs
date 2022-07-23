@@ -40,26 +40,28 @@ struct FileModule {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Item {
-    /// fn foo(x: i32) {...}
-    Fn {
-        name: Token,
-        params: Vec<(Token, Token)>,
-        body: Box<Expr>,
-    },
-    // /// type Foo = struct { x: i32 }
-    // Struct {
-    //     name: Token,
-    //     fields: Vec<(Token, Token)>,
-    // },
-}
-#[derive(Clone, Debug, PartialEq)]
-pub enum Stmt {
-    Expression(Box<Expr>),
-    VarDeclaration {
+    /// let a: i32 = 4,
+    Var {
         var: Token,
         ty: Option<Token>,
         init: Option<Box<Expr>>,
     },
+    /// fn foo(x: i32) {...}
+    Fn {
+        name: Token,
+        params: Vec<(Token, Token)>,
+        ret: Option<Token>,
+        body: Box<Expr>,
+    },
+    /// type Foo = struct { x: i32 }
+    Struct {
+        name: Token,
+        fields: Vec<(Token, Token)>,
+    },
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum Stmt {
+    Expression(Box<Expr>),
     Definition(Item),
     NoOperation,
 }
@@ -93,16 +95,19 @@ impl Expr {
                 _ber.print();
             }
             Expr::Symbol { name, path } => {
-
                 let s = if path.is_some() {
-                    let s = path.clone().unwrap().iter().map(|t| {
-                        if let TokenKind::Identifier(id) = &t.kind {
-                            id.clone()
-                        } else {
-                            panic!("Expected identifier")
-                        }
-                    })
-                    .collect::<Vec<String>>();
+                    let s = path
+                        .clone()
+                        .unwrap()
+                        .iter()
+                        .map(|t| {
+                            if let TokenKind::Identifier(id) = &t.kind {
+                                id.clone()
+                            } else {
+                                panic!("Expected identifier")
+                            }
+                        })
+                        .collect::<Vec<String>>();
                     Some(s)
                 } else {
                     None
@@ -165,7 +170,7 @@ impl Stmt {
                 add_branch!("SExpression: ");
                 _be.print();
             }
-            Stmt::VarDeclaration { var, ty, init } => {
+            Stmt::Definition(Item::Var { var, ty, init }) => {
                 add_branch!("SVarDeclaration: ");
                 add_leaf!("T: {:?}", var.kind);
                 add_leaf!("T: {:?}", ty);
@@ -175,17 +180,38 @@ impl Stmt {
                 }
                 // init.as_ref().unwrap().print();
             }
-            Stmt::Definition(Item::Fn { name, params, body }) => {
+            Stmt::Definition(Item::Fn {
+                name,
+                params,
+                ret,
+                body,
+            }) => {
                 add_branch!("SFnDeclaration: ");
                 add_leaf!("T: {:?}", name.kind);
                 {
                     add_branch!("parameters: ");
-                    for _t in params {
+                    for param in params {
+                        add_leaf!("T: {}: {}", param.0.kind.as_str(), param.1.kind.as_str());
+                        //_t.print();
+                    }
+                }
+                {
+                    let s = ret.clone().map(|t| t.kind.as_str());
+                    add_branch!("ret: ");
+                    add_leaf!("T: {:?}", s);
+                }
+                body.print();
+            }
+            Stmt::Definition(Item::Struct { name, fields }) => {
+                add_branch!("SStructDeclaration: ");
+                add_leaf!("T: {:?}", name.kind);
+                {
+                    add_branch!("fields: ");
+                    for _t in fields {
                         add_leaf!("T: {}: {}", _t.0.kind.as_str(), _t.1.kind.as_str());
                         //_t.print();
                     }
                 }
-                body.print();
             }
             Stmt::NoOperation => {
                 add_branch!("SNoOp");

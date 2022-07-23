@@ -7,8 +7,6 @@
 //! - [ ] Implement nested comments.
 //! - [ ] Consider adding different comment styles.
 
-use std::convert::TryInto;
-
 use crate::error::*;
 use crate::token;
 use crate::token::*;
@@ -76,13 +74,14 @@ impl Lexer {
         }
     }
     fn scan_tokens(&mut self) -> Vec<Token> {
+        use PunctuatorKind::*;
+        use SpecialKeywordKind::*;
+        use TokenKind::*;
+
         let mut puncs: Vec<Token> = Vec::new();
         let mut tokens = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
-            println!("{:?}", &token);
-            use PunctuatorKind::*;
-            use TokenKind::*;
 
             // In this part we combine simple punctuator tokens to complex ones, if possible
 
@@ -90,9 +89,21 @@ impl Lexer {
             // which could be combined to a complex token.
 
             // If the scanned token is not a punctuator, we flush the `puncs`.
-            //let is_empty = puncs.is_empty();
-            // let mut to_puncs = false;
-            // let mut to_tokens = false;
+
+            // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
+            // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.
+            // - valid examples: `.`, `.=`, `..`
+            // - invalid examples: `=.`, `.=.`
+            // `:`: Must be the first punctuator OR all the preceding punctuators must be `:`
+            // - valid examples: `:`, `::`
+            // - invalid examples: `:=:`
+            // `=`: It can't form a complex token with a preceding `:`.
+
+            enum Action {
+                ToTokens,
+                ToPuncs,
+            }
+            let mut action = Action::ToTokens;
 
             let last_puncs_kind = {
                 if !puncs.is_empty() {
@@ -104,36 +115,35 @@ impl Lexer {
             let is_last_column = last_puncs_kind == Some(Punctuator(Colon));
 
             if let Punctuator(punc) = &token.kind {
+                action = Action::ToPuncs;
+
                 let is_last_same = last_puncs_kind == Some(Punctuator(punc.clone()));
                 let is_curr_equal = punc == &Equal;
 
-                let is_column_equal = is_last_column && is_curr_equal;
-
                 if punc.is_structural() {
-                    // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
-                    // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.
-                    // - valid examples: `.`, `.=`, `..`
-                    // - invalid examples: `=.`, `.=.`
-                    // `:`: Must be the first punctuator OR all the preceding punctuators must be `:`
-                    // - valid examples: `:`, `::`
-                    // - invalid examples: `:=:`
-                    // `=`: It can't form a complex token with a preceding `:`.
-
-                    if [Dot, Colon].contains(punc) {
-                        if (puncs.is_empty() || is_last_same) && is_column_equal {
-                            puncs.push(token.clone());
+                    action = Action::ToTokens;
+                    if [Dot, Colon].contains(punc)
+                        && (puncs.is_empty() || is_last_same)
+                        && (is_last_column && is_curr_equal)
+                    {
+                        if (puncs.is_empty() || is_last_same) && (is_last_column && is_curr_equal) {
+                            action = Action::ToPuncs;
                         }
                     }
-                    tokens.push(token);
                 }
-            } else {
-                if !puncs.is_empty() {
-                    tokens.push(cook_tokens(&puncs));
-                    puncs.clear();
+            }
+
+            match action {
+                Action::ToTokens => {
+                    if !puncs.is_empty() {
+                        tokens.push(cook_tokens(&puncs));
+                        puncs.clear();
+                    }
+                    if !token.kind.is_to_skip() {
+                        tokens.push(token);
+                    }
                 }
-                if !token.kind.is_to_skip() {
-                    tokens.push(token);
-                }
+                Action::ToPuncs => puncs.push(token),
             }
         }
         if !puncs.is_empty() {
@@ -141,8 +151,6 @@ impl Lexer {
             puncs.clear();
         }
 
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
         let token_eof = Token::new(
             SpecialKeyword(Eof),
             Span::from_tuples((1, 1), (1, 1)),
@@ -152,21 +160,17 @@ impl Lexer {
         tokens
     }
 
-    fn scan_token_kind(&mut self, c: char) -> Result<TokenKind, LexerError> {
+    fn scan_token_kind(&mut self, c: char) -> Result<(TokenKind, Position, usize), LexerError> {
         use PunctuatorKind::*;
+        use SpecialKeywordKind::*;
         use TokenKind::*;
 
+        let index_old = self.index;
         let kind = match c {
             '/' => match self.peek_into_str(1).unwrap().as_str() {
                 "//" => self.lex_comment_line(),
                 "/*" => self.lex_comment_block(),
                 _ => Ok(Punctuator(Slash)),
-            },
-            '.' => match self.peek(1) {
-                Some(s) if is_digit(s) && !self.check_at('.', -1).ok().is_some() => {
-                    self.lex_number()
-                }
-                _ => Ok(Punctuator(Dot)),
             },
             '"' => self.lex_string(),
             '\'' => self.lex_char(),
@@ -176,8 +180,8 @@ impl Lexer {
             p if SpecialKeywordKind::from_char(p).is_some() => {
                 Ok(SpecialKeyword(SpecialKeywordKind::from_char(p).unwrap()))
             }
-            cc if is_digit(cc) => self.lex_number(),
-            cc if is_alpha(cc) => self.lex_identifier(),
+            cc if is_digit(&cc) => self.lex_number(),
+            cc if is_alpha(&cc) => self.lex_identifier(),
             cc => match cc {
                 _ => Err(LexerError::new(format!(
                     "Character '{}' is unknown. At '{}:{}'.",
@@ -186,44 +190,47 @@ impl Lexer {
             },
         };
         let kind = kind?;
+        let index_new = self.index;
         // NOTE: If the token is simple we advance here, because the match statements look prettier that way.
         // With more complex tokens, basically everything except single punctuators,
         // handle the advance in their own functions
-        if kind.is_simple() {
+        // if kind.is_simple() {
+        //     self.advance();
+        // }
+        if index_old == index_new {
             self.advance();
         }
-
-        Ok(kind)
-    }
-
-    /// Scans a token
-    /// Returns the token which was lexed. It also moves the 'cursor' to the next character, so that one can lex the next token.
-    fn scan_token(&mut self, c: char) -> Token {
-        use SpecialKeywordKind::*;
-        let start_pos = self.cursor;
-        let start_index = self.index;
-
-        let token_kind = self.scan_token_kind(c).unwrap();
 
         let end_pos = self.cursor;
         let end_index = self.index;
 
-        if token_kind == TokenKind::SpecialKeyword(Newline) {
+        if kind == SpecialKeyword(Newline) {
             self.cursor.line += 1;
             self.cursor.column = 1;
         } else {
             self.cursor.column += 1;
         }
 
+        Ok((kind, end_pos, end_index))
+    }
+
+    /// Scans a token
+    /// Returns the token which was lexed. It also moves the 'cursor' to the next character, so that one can lex the next token.
+    fn scan_token(&mut self, c: char) -> Token {
+        let start_pos = self.cursor;
+        let start_index = self.index;
+
+        let (token_kind, end_pos, end_index) = self.scan_token_kind(c).unwrap();
+
         let whitespace = {
             let index_start = 0 - (end_index - start_index) as isize;
-            let index_end = -1 as isize;
+            let index_end = -1_isize;
 
             let index_start_left = self.peek(index_start - 1);
             let index_end_right = self.peek(index_end + 1);
 
-            let ws_left = is_left_whitespace(index_start_left.unwrap_or(' '));
-            let ws_right = is_right_whitespace(index_end_right.unwrap_or(' '));
+            let ws_left = is_left_whitespace(&index_start_left.unwrap_or(' '));
+            let ws_right = is_right_whitespace(&index_end_right.unwrap_or(' '));
 
             token::Whitespace::from((ws_left, ws_right))
         };
@@ -336,14 +343,13 @@ impl Lexer {
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
         self.eat_str("//").unwrap();
         self.cursor.column += 2;
-
         while self.peek(0) != Some('\n') && self.peek(0) != None {
             self.advance();
             self.cursor.column += 1;
         }
         self.cursor.column -= 1;
         //assert!(self.peek(0) == Some('\n'));
-        Ok(SpecialKeyword(Comment))
+        Ok(SpecialKeyword(Comment(CommentKind::Line)))
     }
     fn lex_comment_block(&mut self) -> Result<TokenKind, LexerError> {
         use SpecialKeywordKind::*;
@@ -352,7 +358,7 @@ impl Lexer {
         self.eat_str("/*").unwrap();
         self.cursor.column += 2;
 
-        while !self.check_str("*/").is_some() {
+        while self.check_str("*/").is_none() {
             self.advance();
 
             if self.peek(0) == Some('\n') {
@@ -368,7 +374,7 @@ impl Lexer {
 
         self.cursor.column -= 1;
 
-        Ok(SpecialKeyword(Comment))
+        Ok(SpecialKeyword(Comment(CommentKind::Block)))
     }
 
     fn lex_number(&mut self) -> Result<TokenKind, LexerError> {
@@ -381,7 +387,7 @@ impl Lexer {
         let (number_base, has_base_prefix, is_in_number_base): (
             NumberBase,
             bool,
-            fn(char) -> bool,
+            fn(&char) -> bool,
         ) = match self.peek_into_str(1).unwrap().as_str() {
             "0b" => (NumberBase::Binary, true, is_binary),
             "0o" => (NumberBase::Octal, true, is_octal),
@@ -397,12 +403,13 @@ impl Lexer {
         }
         let mut is_after_dot = false;
         let mut is_floating = false;
+
         let mut string = String::new();
         while let Some(c) = self.peek(0) {
             let res: Result<(), LexerError> = match c {
                 // checks whether it is a possible digit at all.
-                c if is_hexadecimal(c) => {
-                    if is_in_number_base(c) {
+                c if is_hexadecimal(&c) => {
+                    if is_in_number_base(&c) {
                         string.push(c);
                         if is_after_dot {
                             is_after_dot = false;
@@ -419,7 +426,8 @@ impl Lexer {
                 // it can't be in a number which has a prefix, because floating points don't have a base prefix
                 '.' if !is_floating
                     && !has_base_prefix
-                    && !self.check_at('.', 1).ok().is_some() =>
+                    && self.check_at('.', 1).ok().is_none()
+                    && self.peek(1).filter(is_in_number_base).is_some() =>
                 {
                     string.push(c);
                     is_floating = true;
@@ -461,12 +469,17 @@ impl Lexer {
 
         let mut string_content = String::new();
         while let Some(ch) = self.peek(0) {
-            if is_alpha_numeric(ch) {
+            if is_alpha_numeric(&ch) {
                 string_content.push(ch);
                 self.advance();
             } else {
                 break;
             }
+        }
+        // TODO: Here we are trying to do the above in a more functional way
+        {
+            let peeked = self.peek(0).and_then(|x| Some(x.is_alphanumeric()));
+            //println!("jnklsrnlkgn {:?}", s);
         }
 
         // Here we determine whether the identifier is a keyword or not.
@@ -474,6 +487,9 @@ impl Lexer {
         let token = match string_content.as_ref() {
             "var" => Keyword(Var),
             "fn" => Keyword(Fn),
+            "type" => Keyword(Type),
+            "struct" => Keyword(Struct),
+
             "if" => Keyword(If),
             "else" => Keyword(Else),
             "while" => Keyword(While),
@@ -534,6 +550,12 @@ impl Lexer {
             None => None,
         }
     }
+    // fn peek(&self, offset: isize) -> Option<&char> {
+    //     match self.calc_offset(offset) {
+    //         Some(new_offset) => self.chars.get(new_offset),
+    //         None => None,
+    //     }
+    // }
     fn is_inbounds(&self, offset: isize) -> bool {
         match self.calc_offset(offset) {
             Some(new_offset) => new_offset < self.chars.len(),

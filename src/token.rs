@@ -80,7 +80,7 @@ impl TokenKind {
         use TokenKind::*;
         matches!(
             self,
-            SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment)
+            SpecialKeyword(Whitespace) | SpecialKeyword(Newline) | SpecialKeyword(Comment(..))
         )
     }
 }
@@ -268,7 +268,7 @@ impl PunctuatorKind {
     pub fn is_structural(&self) -> bool {
         use PunctuatorKind::*;
         match self {
-            Dot | Comma | Semicolon | Colon | Equal=> true,
+            Dot | Comma | Semicolon | Colon | Equal => true,
             RightParen | RightBracket | RightBrace => true,
             LeftParen | LeftBracket | LeftBrace => true,
             MinusGreater | ColonColon => true,
@@ -388,6 +388,8 @@ impl PunctuatorKind {
 pub enum KeywordKind {
     Var,
     Fn,
+    Type,
+    Struct, // This kind should be able to be context sensitive
 
     If,
     Else,
@@ -403,6 +405,8 @@ impl KeywordKind {
         match self {
             Var => "var",
             Fn => "fn",
+            Type => "type",
+            Struct => "struct",
 
             If => "if",
             Else => "else",
@@ -417,12 +421,18 @@ impl KeywordKind {
         self.as_str().len()
     }
 }
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum CommentKind {
+    Line,
+    Block,
+}
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SpecialKeywordKind {
     Eof,
     Newline,
     Whitespace,
-    Comment, //Unknown,
+    Comment(CommentKind), //Unknown,
 }
 
 impl SpecialKeywordKind {
@@ -441,7 +451,7 @@ impl SpecialKeywordKind {
             Eof => "eof",
             Newline => "newline",
             Whitespace => "whitespace",
-            Comment => "comment",
+            Comment(..) => "comment",
         }
     }
 }

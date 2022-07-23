@@ -35,6 +35,9 @@ impl Ice {
             false => {
                 let run_test_file = true;
                 if run_test_file {
+                    // This is mainly for convenience
+                    // The actual end product should not have this branch
+                    
                     let file = "tests\\test.ice";
                     self.run_file(&mut file.to_owned());
                 } else {
@@ -44,21 +47,6 @@ impl Ice {
                 }
             }
         }
-        // if num_arg {
-        //     println!("from file");
-        //     let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
-        //     self.run_file(text_from_file)
-        // } else {
-        //     let run_test_file = true;
-        //     if run_test_file {
-        //         let file = "tests\\test.ice";
-        //         self.run_file(&mut file.to_owned());
-        //     } else {
-        //         println!("from memory");
-        //         let text_from_memoroy = TEXT;
-        //         self.run(text_from_memoroy);
-        //     }
-        // }
     }
 
     fn run_file(&mut self, path: &mut String) {
