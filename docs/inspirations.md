@@ -12,6 +12,9 @@ Here are interesting languages and interesting links to them.
 - [rust-by-example](https://doc.rust-lang.org/rust-by-example/index.html)
 - [nomicon](https://doc.rust-lang.org/nomicon/intro.html)
 - [patterns](https://github.com/rust-unofficial/patterns)
+- [dev-guide](https://rustc-dev-guide.rust-lang.org/about-this-guide.html)
+- [embedded](https://docs.rust-embedded.org/book/intro/index.html)
+- [perf-book](https://nnethercote.github.io/perf-book/introduction.html)
 ## Swift
 - [github](https://github.com/apple/swift),
 ## Carbon 
