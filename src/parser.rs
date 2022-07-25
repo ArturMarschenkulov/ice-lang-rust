@@ -1,4 +1,4 @@
-use crate::ast::{ExprKind, Field, ItemKind, Module, Parameter, Project, StmtKind, TyKind};
+use crate::ast::{Expr, ExprKind, Field, ItemKind, Module, Parameter, Project, StmtKind, TyKind};
 use crate::token::*;
 
 #[allow(unused_macros)]
@@ -439,7 +439,7 @@ impl Parser {
                 let _ = self.eat(&Punctuator(Semicolon));
             }
             StmtKind::Expression(ref expr) => {
-                match *expr.clone() {
+                match expr.clone().kind {
                     ExprKind::Block(..)
                     | ExprKind::If(..)
                     | ExprKind::While(..)
@@ -464,7 +464,7 @@ impl Parser {
         let expr = self.parse_expr();
         println!("parse_stmt_expression 1 {:?}", self.peek(0));
 
-        let s = match *expr {
+        let s = match expr.kind {
             ExprKind::Block(..) | ExprKind::If(..) | ExprKind::While(..) | ExprKind::For(..) => {
                 StmtKind::Expression(expr)
             }
@@ -475,16 +475,15 @@ impl Parser {
                     StmtKind::ExpressionWithoutSemicolon(expr)
                 };
                 stmt
-                
             }
         };
 
         Box::from(s)
     }
-    fn parse_expr(&mut self) -> Box<ExprKind> {
+    fn parse_expr(&mut self) -> Box<Expr> {
         self.parse_expr_binary(0.0)
     }
-    fn parse_expr_if(&mut self) -> Box<ExprKind> {
+    fn parse_expr_if(&mut self) -> Box<Expr> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -501,9 +500,11 @@ impl Parser {
             Keyword(Else) => Some(self.parse_expr_else()),
             _ => None,
         };
-        Box::from(ExprKind::If(condition, then_branch, else_branch))
+        Box::from(Expr {
+            kind: ExprKind::If(condition, then_branch, else_branch),
+        })
     }
-    fn parse_expr_else(&mut self) -> Box<ExprKind> {
+    fn parse_expr_else(&mut self) -> Box<Expr> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -523,7 +524,7 @@ impl Parser {
             }
         }
     }
-    fn parse_expr_while(&mut self) -> Box<ExprKind> {
+    fn parse_expr_while(&mut self) -> Box<Expr> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -534,9 +535,11 @@ impl Parser {
         let while_body = self.parse_expr_block();
         self.eat(&Punctuator(RightBrace))
             .expect("Expect '}' after while body.");
-        Box::from(ExprKind::While(condition, while_body))
+        Box::from(Expr {
+            kind: ExprKind::While(condition, while_body),
+        })
     }
-    fn parse_expr_for(&mut self) -> Box<ExprKind> {
+    fn parse_expr_for(&mut self) -> Box<Expr> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -562,14 +565,11 @@ impl Parser {
         let while_body = self.parse_expr_block();
         self.eat(&Punctuator(RightBrace))
             .expect("Expected '}' after for body");
-        Box::from(ExprKind::For(
-            initilizer.unwrap(),
-            condition,
-            itr_expr,
-            while_body,
-        ))
+        Box::from(Expr {
+            kind: ExprKind::For(initilizer.unwrap(), condition, itr_expr, while_body),
+        })
     }
-    fn parse_expr_block(&mut self) -> Box<ExprKind> {
+    fn parse_expr_block(&mut self) -> Box<Expr> {
         use PunctuatorKind::*;
         use TokenKind::*;
 
@@ -580,15 +580,19 @@ impl Parser {
             statements.push(*self.parse_stmt());
         }
 
-        Box::from(ExprKind::Block(statements))
+        Box::from(Expr {
+            kind: ExprKind::Block(statements),
+        })
     }
-    fn parse_expr_binary(&mut self, prev_bp: f32) -> Box<ExprKind> {
+    fn parse_expr_binary(&mut self, prev_bp: f32) -> Box<Expr> {
         let un_op_prec = get_unary_operator_precedence(self.peek(0).unwrap());
         let mut left = if un_op_prec != 0 && un_op_prec >= prev_bp as i32 {
             let op = self.peek(0).unwrap().clone();
             self.advance();
             let right = self.parse_expr_binary(un_op_prec as f32);
-            Box::from(ExprKind::Unary(op, right))
+            Box::from(Expr {
+                kind: ExprKind::Unary(op, right),
+            })
         } else {
             self.parse_expr_primary()
         };
@@ -609,11 +613,13 @@ impl Parser {
             let operator = self.peek(0).unwrap().clone();
             self.advance();
             let right = self.parse_expr_binary(binding_power.right);
-            left = Box::from(ExprKind::Binary(left, operator.clone(), right));
+            left = Box::from(Expr {
+                kind: ExprKind::Binary(left, operator.clone(), right),
+            });
         }
         left
     }
-    fn parse_expr_primary(&mut self) -> Box<ExprKind> {
+    fn parse_expr_primary(&mut self) -> Box<Expr> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -622,7 +628,9 @@ impl Parser {
         let expr = match token.kind {
             Literal(lit) => {
                 self.advance();
-                ExprKind::Literal(lit)
+                Expr {
+                    kind: ExprKind::Literal(lit),
+                }
             }
             Identifier(_) => {
                 if self.check(&Punctuator(LeftParen), 1).is_ok() {
@@ -641,9 +649,11 @@ impl Parser {
                     let actual_id = ids.pop().unwrap();
                     let actual_path = if ids.is_empty() { None } else { Some(ids) };
 
-                    ExprKind::Symbol {
-                        name: actual_id,
-                        path: actual_path,
+                    Expr {
+                        kind: ExprKind::Symbol {
+                            name: actual_id,
+                            path: actual_path,
+                        },
                     }
                 }
             }
@@ -656,7 +666,9 @@ impl Parser {
                 let left = self.parse_expr();
                 self.eat(&Punctuator(RightParen))
                     .expect("Expected ')' after expression");
-                ExprKind::Grouping(left)
+                Expr {
+                    kind: ExprKind::Grouping(left),
+                }
             }
             Punctuator(LeftBrace) => {
                 let stmts = self.parse_expr_block();
@@ -670,20 +682,22 @@ impl Parser {
         };
         Box::from(expr)
     }
-    fn parse_expr_fn_call(&mut self) -> Box<ExprKind> {
+    fn parse_expr_fn_call(&mut self) -> Box<Expr> {
         use PunctuatorKind::*;
         use TokenKind::*;
 
         let callee_name = self.eat_identifier().cloned().unwrap();
 
-        let callee = Box::from(ExprKind::Symbol {
-            name: callee_name,
-            path: None,
+        let callee = Box::from(Expr {
+            kind: ExprKind::Symbol {
+                name: callee_name,
+                path: None,
+            },
         });
         self.eat(&Punctuator(LeftParen))
             .expect("Expected '(' after function name");
 
-        let mut arguments: Vec<ExprKind> = Vec::new();
+        let mut arguments: Vec<Expr> = Vec::new();
         while self.peek(0).unwrap().kind != Punctuator(RightParen) {
             arguments.push(*self.parse_expr());
             if self.peek(0).unwrap().kind != Punctuator(RightParen) {
@@ -695,7 +709,9 @@ impl Parser {
         self.eat(&Punctuator(RightParen))
             .expect("Expected ')' after arguments");
 
-        Box::from(ExprKind::FnCall(callee, arguments))
+        Box::from(Expr {
+            kind: ExprKind::FnCall(callee, arguments),
+        })
     }
 }
 impl Parser {

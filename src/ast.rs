@@ -7,9 +7,9 @@ use debug_tree::*;
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Literal(LiteralKind),
-    Grouping(Box<ExprKind>),
-    Binary(Box<ExprKind>, Token, Box<ExprKind>),
-    Unary(Token, Box<ExprKind>),
+    Grouping(Box<Expr>),
+    Binary(Box<Expr>, Token, Box<Expr>),
+    Unary(Token, Box<Expr>),
     Symbol {
         name: Token,
         /// `None` means there is no path to this symbol (`x`)
@@ -20,11 +20,16 @@ pub enum ExprKind {
     // Block(Vec<StmtKind>, Option<Box<ExprKind>>),
     Block(Vec<StmtKind>),
 
-    If(Box<ExprKind>, Box<ExprKind>, Option<Box<ExprKind>>),
-    While(Box<ExprKind>, Box<ExprKind>),
-    For(Box<StmtKind>, Box<ExprKind>, Box<ExprKind>, Box<ExprKind>),
+    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
+    While(Box<Expr>, Box<Expr>),
+    For(Box<StmtKind>, Box<Expr>, Box<Expr>, Box<Expr>),
 
-    FnCall(Box<ExprKind>, Vec<ExprKind>),
+    FnCall(Box<Expr>, Vec<Expr>),
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Expr {
+    pub kind: ExprKind,
+    // pub span: Span,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,7 +63,7 @@ pub enum ItemKind {
         name: Token,
         params: Vec<Parameter>,
         ret: Option<TyKind>,
-        body: Box<ExprKind>,
+        body: Box<Expr>,
     },
     /// type Foo = struct { x: i32 }
     Struct { name: Token, fields: Vec<Field> },
@@ -84,12 +89,12 @@ pub enum StmtKind {
     Var {
         var: Token,
         ty: Option<TyKind>,
-        init: Option<Box<ExprKind>>,
+        init: Option<Box<Expr>>,
     },
     /// Expression with a trailing semicolon
-    Expression(Box<ExprKind>),
+    Expression(Box<Expr>),
     /// Expression without a trailing semicolon
-    ExpressionWithoutSemicolon(Box<ExprKind>),
+    ExpressionWithoutSemicolon(Box<Expr>),
     // TODO: Rename it into `Item`
     /// An item declaration/definition
     Item(ItemKind),
@@ -114,16 +119,16 @@ impl ExprKind {
             }
             ExprKind::Grouping(expr) => {
                 add_branch!("Group: ");
-                expr.print();
+                expr.kind.print();
             }
             ExprKind::Binary(expr_l, op, expr_r) => {
                 add_branch!("Binary: {:?}", op.kind);
-                expr_l.print();
-                expr_r.print();
+                expr_l.kind.print();
+                expr_r.kind.print();
             }
             ExprKind::Unary(op, expr) => {
                 add_branch!("Unary: {:?}", op.kind);
-                expr.print();
+                expr.kind.print();
             }
             ExprKind::Symbol { name, path } => {
                 let s = if path.is_some() {
@@ -163,31 +168,31 @@ impl ExprKind {
             }
             ExprKind::If(comp, then_branch, else_branch) => {
                 add_branch!("If: ");
-                comp.print();
-                then_branch.print();
+                comp.kind.print();
+                then_branch.kind.print();
                 if let Some(block) = else_branch {
-                    block.print();
+                    block.kind.print();
                 }
             }
             ExprKind::While(comp, body) => {
                 add_branch!("While: ");
-                comp.print();
-                body.print();
+                comp.kind.print();
+                body.kind.print();
             }
             ExprKind::For(init, comp, expr, body) => {
                 add_branch!("For: ");
                 init.print();
-                comp.print();
-                expr.print();
-                body.print();
+                comp.kind.print();
+                expr.kind.print();
+                body.kind.print();
             }
             ExprKind::FnCall(callable, parameters) => {
                 add_branch!("FnCall: ");
-                callable.print();
+                callable.kind.print();
                 {
                     add_branch!("parameters: ");
                     for _be1 in parameters {
-                        _be1.print();
+                        _be1.kind.print();
                     }
                 }
             }
@@ -202,18 +207,18 @@ impl StmtKind {
                 add_leaf!("T: {:?}", var.kind);
                 add_leaf!("T: {:?}", ty);
                 match init.as_ref() {
-                    Some(i) => i.print(),
+                    Some(i) => i.kind.print(),
                     None => add_leaf!("T: {:?}", init),
                 }
                 // init.as_ref().unwrap().print();
             }
             StmtKind::Expression(expr) => {
                 add_branch!("SExpression: ");
-                expr.print();
+                expr.kind.print();
             }
             StmtKind::ExpressionWithoutSemicolon(expr) => {
                 add_branch!("SExpressionWithoutSemicolon: ");
-                expr.print();
+                expr.kind.print();
             }
             StmtKind::Item(item) => {
                 item.print();
@@ -264,7 +269,7 @@ impl ItemKind {
                     add_branch!("ret: ");
                     add_leaf!("T: {:?}", s);
                 }
-                body.print();
+                body.kind.print();
             }
             ItemKind::Struct { name, fields } => {
                 add_branch!("SStructDeclaration: ");
