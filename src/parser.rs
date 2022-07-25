@@ -1,5 +1,5 @@
 use crate::ast::{
-    Expr, ExprKind, Field, ItemKind, Module, Parameter, Project, Stmt, StmtKind, TyKind,
+    Expr, ExprKind, Field, Item, ItemKind, Module, Parameter, Project, Stmt, StmtKind, TyKind,
 };
 use crate::token::*;
 
@@ -83,7 +83,7 @@ enum Delimiter {
     Bracket,     // [ ]
 }
 
-pub fn get_ast_from_tokens(tokens: Vec<Token>) -> Vec<ItemKind> {
+pub fn get_ast_from_tokens(tokens: Vec<Token>) -> Vec<Item> {
     Parser::from_tokens(tokens).parse()
 }
 pub fn parse_file(tokens: Vec<Token>) -> Project {
@@ -209,8 +209,8 @@ impl Parser {
     fn from_tokens(tokens: Vec<Token>) -> Self {
         Self { tokens, current: 0 }
     }
-    fn parse(&mut self) -> Vec<ItemKind> {
-        let mut items: Vec<ItemKind> = Vec::new();
+    fn parse(&mut self) -> Vec<Item> {
+        let mut items: Vec<Item> = Vec::new();
 
         while !self.is_at_end() {
             let item = self.parse_item();
@@ -227,7 +227,7 @@ impl Parser {
         }
         items
     }
-    fn parse_item_type_struct(&mut self) -> Box<ItemKind> {
+    fn parse_item_type_struct(&mut self) -> Box<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -255,9 +255,9 @@ impl Parser {
             .collect::<Vec<_>>();
 
         let strct = ItemKind::Struct { name, fields };
-        Box::from(strct)
+        Box::from(Item { kind: strct })
     }
-    fn parse_item_type(&mut self) -> Box<ItemKind> {
+    fn parse_item_type(&mut self) -> Box<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -279,7 +279,7 @@ impl Parser {
         };
         ty
     }
-    fn parse_item(&mut self) -> Box<ItemKind> {
+    fn parse_item(&mut self) -> Box<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -374,7 +374,7 @@ impl Parser {
             .unwrap_or_else(|_| panic!("Expected '{}' after {} parameters", end.as_str(), s.0));
         result
     }
-    fn parse_item_fn(&mut self) -> Box<ItemKind> {
+    fn parse_item_fn(&mut self) -> Box<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -412,11 +412,13 @@ impl Parser {
         let block = self.parse_expr_block();
         self.eat(&Punctuator(RightBrace))
             .expect("Expected '}' after function body");
-        Box::from(ItemKind::Fn {
-            name,
-            params: parameters,
-            ret: ret_type,
-            body: block,
+        Box::from(Item {
+            kind: ItemKind::Fn {
+                name,
+                params: parameters,
+                ret: ret_type,
+                body: block,
+            },
         })
     }
     fn parse_stmt(&mut self) -> Box<Stmt> {

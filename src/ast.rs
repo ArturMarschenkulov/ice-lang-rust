@@ -45,7 +45,7 @@ pub struct Project {
     pub modules: Vec<Module>,
 }
 pub struct Module {
-    pub items: Vec<ItemKind>,
+    pub items: Vec<Item>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum TyKind {
@@ -78,7 +78,10 @@ pub enum ItemKind {
     //     name: Token,
     // },
 }
-
+#[derive(Clone, Debug, PartialEq)]
+pub struct Item {
+    pub kind: ItemKind,
+}
 
 // The logic of the language and the way how it is parse do not match.
 // `ExpressionWithoutSemicolon` is in this a statement, however
@@ -97,7 +100,7 @@ pub enum StmtKind {
     ExpressionWithoutSemicolon(Box<Expr>),
     // TODO: Rename it into `Item`
     /// An item declaration/definition
-    Item(ItemKind),
+    Item(Item),
     /// Only a trailing semicolon
     NoOperation,
 }
@@ -107,12 +110,12 @@ pub struct Stmt {
     // pub span: Span,
 }
 
-pub fn print_ast(ast: &Vec<ItemKind>) {
+pub fn print_ast(ast: &Vec<Item>) {
     //debug_tree::add_branch!("Ast Tree");
     for ast_s in ast {
         //println!("{:#?}", ast_s);
         debug_tree::defer_print!();
-        ast_s.print();
+        ast_s.kind.print();
     }
 }
 
@@ -226,7 +229,7 @@ impl StmtKind {
                 expr.kind.print();
             }
             StmtKind::Item(item) => {
-                item.print();
+                item.kind.print();
             }
             StmtKind::NoOperation => {
                 add_branch!("SNoOp");
