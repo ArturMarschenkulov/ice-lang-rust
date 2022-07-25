@@ -78,7 +78,8 @@ impl Lexer {
         use SpecialKeywordKind::*;
         use TokenKind::*;
 
-        let mut puncs: Vec<Token> = Vec::new();
+        //let mut puncs: Vec<Token> = Vec::new();
+        let mut puncs: Vec<Token> = Vec::with_capacity(5);
         let mut tokens = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
@@ -280,8 +281,8 @@ impl Lexer {
         };
 
         match self.eat('\'') {
-            Some(_) => {}
-            None => {
+            Ok(..) => {}
+            Err(..) => {
                 return Err(LexerError::new(format!(
                     "character literal may only contain one codepoint"
                 )))
@@ -426,7 +427,7 @@ impl Lexer {
                 // it can't be in a number which has a prefix, because floating points don't have a base prefix
                 '.' if !is_floating
                     && !has_base_prefix
-                    && self.check_at('.', 1).ok().is_none()
+                    && self.check('.', 1).ok().is_none()
                     && self.peek(1).filter(is_in_number_base).is_some() =>
                 {
                     string.push(c);
@@ -577,15 +578,12 @@ impl Lexer {
     }
 
     /// peeks at the offset `n`. If the peeked char is the same as `c`, it returns it wrapped in a `Some`, otherwise `None`.
-    fn check_at(&self, c: char, n: isize) -> Result<char, Option<char>> {
+    fn check(&self, c: char, n: isize) -> Result<char, Option<char>> {
         match self.peek(n) {
             Some(ch) if c == ch => Ok(c),
             Some(other) => Err(Some(other)),
             None => Err(None),
         }
-    }
-    fn check(&self, c: char) -> Result<char, Option<char>> {
-        self.check_at(c, 0)
     }
     fn check_str(&self, s: &str) -> Option<String> {
         if self.peek_into_str(s.len() - 1) == Some(s.to_string()) {
@@ -595,13 +593,15 @@ impl Lexer {
         }
     }
     /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
-    fn eat(&mut self, ch: char) -> Option<char> {
-        let c = self.check(ch);
+    fn eat(&mut self, ch: char) -> Result<char, Option<char>> {
+        let c = self.check(ch, 0);
         if c.is_ok() {
             self.advance();
         }
-        c.ok()
+        let i32 = 3;
+        c
     }
+
     fn eat_str(&mut self, str: &str) -> Option<String> {
         let mut result = String::new();
         let chars = str.chars().collect::<Vec<char>>();
@@ -620,7 +620,7 @@ impl Lexer {
     }
     fn eat_char_any(&mut self, chars: &[char]) -> Option<char> {
         for ch in chars {
-            if let Some(c) = self.eat(*ch) {
+            if let Ok(c) = self.eat(*ch) {
                 return Some(c);
             }
         }

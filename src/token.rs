@@ -25,13 +25,6 @@ impl TokenKind {
             _ => false,
         }
     }
-    pub fn can_be_part_of_complex(&self) -> bool {
-        use TokenKind::*;
-        match self {
-            Punctuator(p) => p.can_be_part_of_complex(),
-            _ => false,
-        }
-    }
     pub fn is_simple(&self) -> bool {
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -52,6 +45,14 @@ impl TokenKind {
     }
     pub fn is_identifier(&self) -> bool {
         matches!(self, TokenKind::Identifier(_))
+    }
+    pub fn starts_item(&self) -> bool {
+        use TokenKind::*;
+        use KeywordKind::*;
+        match self {
+            Keyword(Fn) | Keyword(Type) => true,
+            _ => false,
+        }
     }
     // pub fn simplify(self) -> TokenKind {
     //     use TokenKind::*;
@@ -273,31 +274,6 @@ impl PunctuatorKind {
             LeftParen | LeftBracket | LeftBrace => true,
             MinusGreater | ColonColon => true,
             Complex(complex) => matches!(*complex.as_slice(), [Minus, Greater] | [Equal, Greater]),
-            _ => false,
-        }
-    }
-
-    /// Returns `true`, if the token can be part of a complex token.
-    ///
-    /// The are special rules for structural tokens to be part of complex tokens.
-    pub fn can_be_part_of_complex(&self) -> bool {
-        use PunctuatorKind::*;
-
-        match self {
-            p => !matches!(
-                p,
-                Semicolon
-                    | Comma
-                    | Dot
-                    | Colon
-                    // Delimiters can never be part of a complex expression.
-                    | LeftBrace
-                    | RightBrace
-                    | LeftBracket
-                    | RightBracket
-                    | LeftParen
-                    | RightParen
-            ),
             _ => false,
         }
     }

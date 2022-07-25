@@ -5,11 +5,11 @@ use debug_tree::*;
 //     pub statements: Vec<Statement>,
 // }
 #[derive(Clone, Debug, PartialEq)]
-pub enum Expr {
+pub enum ExprKind {
     Literal(LiteralKind),
-    Grouping(Box<Expr>),
-    Binary(Box<Expr>, Token, Box<Expr>),
-    Unary(Token, Box<Expr>),
+    Grouping(Box<ExprKind>),
+    Binary(Box<ExprKind>, Token, Box<ExprKind>),
+    Unary(Token, Box<ExprKind>),
     Symbol {
         name: Token,
         /// `None` means there is no path to this symbol (`x`)
@@ -17,56 +17,87 @@ pub enum Expr {
         /// however it can be also empty (`::x`)
         path: Option<Vec<Token>>,
     }, // symbol, path
-    // Assign(Token, Token, Box<Expr>),
-    Block(Vec<Stmt>, Option<Box<Expr>>),
+    // Block(Vec<StmtKind>, Option<Box<ExprKind>>),
+    Block(Vec<StmtKind>),
 
-    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
-    While(Box<Expr>, Box<Expr>),
-    For(Box<Stmt>, Box<Expr>, Box<Expr>, Box<Expr>),
+    If(Box<ExprKind>, Box<ExprKind>, Option<Box<ExprKind>>),
+    While(Box<ExprKind>, Box<ExprKind>),
+    For(Box<StmtKind>, Box<ExprKind>, Box<ExprKind>, Box<ExprKind>),
 
-    FnCall(Box<Expr>, Vec<Expr>),
+    FnCall(Box<ExprKind>, Vec<ExprKind>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Parameter {
-    name: Token,
-    ty: Token,
+pub struct Parameter {
+    pub name: Token,
+    pub ty: TyKind,
 }
 
 // NOTE: This is a placeholder name, since right now, we can only parse one file, so a whole project will always be a file.
 // Later on, one should change the name, maybe 'Crate', 'Project', 'Package', 'Program', 'Module' etc.
-struct FileModule {
-    items: Vec<Item>,
+// In Rust terms: `Project` is a `Crate` and `Module` is a `Module`.
+pub struct Project {
+    pub modules: Vec<Module>,
+}
+pub struct Module {
+    pub items: Vec<ItemKind>,
 }
 #[derive(Clone, Debug, PartialEq)]
-pub enum Item {
-    /// let a: i32 = 4,
-    Var {
-        var: Token,
-        ty: Option<Token>,
-        init: Option<Box<Expr>>,
-    },
+pub enum TyKind {
+    Simple(Token),
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Field {
+    pub name: Token,
+    pub ty: TyKind,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum ItemKind {
     /// fn foo(x: i32) {...}
     Fn {
         name: Token,
-        params: Vec<(Token, Token)>,
-        ret: Option<Token>,
-        body: Box<Expr>,
+        params: Vec<Parameter>,
+        ret: Option<TyKind>,
+        body: Box<ExprKind>,
     },
     /// type Foo = struct { x: i32 }
-    Struct {
-        name: Token,
-        fields: Vec<(Token, Token)>,
-    },
+    Struct { name: Token, fields: Vec<Field> },
+    // /// type Foo = enum { A, B }
+    // Enum {
+    //     name: Token,
+    //     variants: Vec<Field>,
+    // },
+
+    // /// type Unit = {}
+    // Unit {
+    //     name: Token,
+    // },
 }
+
+
+// The logic of the language and the way how it is parse do not match.
+// `ExpressionWithoutSemicolon` is in this a statement, however
+// in the language itself it's an expression.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Stmt {
-    Expression(Box<Expr>),
-    Definition(Item),
+pub enum StmtKind {
+    /// let a: i32 = 4,
+    Var {
+        var: Token,
+        ty: Option<TyKind>,
+        init: Option<Box<ExprKind>>,
+    },
+    /// Expression with a trailing semicolon
+    Expression(Box<ExprKind>),
+    /// Expression without a trailing semicolon
+    ExpressionWithoutSemicolon(Box<ExprKind>),
+    // TODO: Rename it into `Item`
+    /// An item declaration/definition
+    Item(ItemKind),
+    /// Only a trailing semicolon
     NoOperation,
 }
 
-pub fn print_ast(ast: &Vec<Stmt>) {
+pub fn print_ast(ast: &Vec<ItemKind>) {
     //debug_tree::add_branch!("Ast Tree");
     for ast_s in ast {
         //println!("{:#?}", ast_s);
@@ -75,26 +106,26 @@ pub fn print_ast(ast: &Vec<Stmt>) {
     }
 }
 
-impl Expr {
+impl ExprKind {
     fn print(&self) {
         match self {
-            Expr::Literal(_lk) => {
-                add_branch!("Lit {:?}", _lk);
+            ExprKind::Literal(lit) => {
+                add_branch!("Lit {:?}", lit);
             }
-            Expr::Grouping(_be) => {
+            ExprKind::Grouping(expr) => {
                 add_branch!("Group: ");
-                _be.print();
+                expr.print();
             }
-            Expr::Binary(_bel, _t, _ber) => {
-                add_branch!("Binary: {:?}", _t.kind);
-                _bel.print();
-                _ber.print();
+            ExprKind::Binary(expr_l, op, expr_r) => {
+                add_branch!("Binary: {:?}", op.kind);
+                expr_l.print();
+                expr_r.print();
             }
-            Expr::Unary(_t, _ber) => {
-                add_branch!("Unary: {:?}", _t.kind);
-                _ber.print();
+            ExprKind::Unary(op, expr) => {
+                add_branch!("Unary: {:?}", op.kind);
+                expr.print();
             }
-            Expr::Symbol { name, path } => {
+            ExprKind::Symbol { name, path } => {
                 let s = if path.is_some() {
                     let s = path
                         .clone()
@@ -118,44 +149,44 @@ impl Expr {
             //     add_branch!("Assign: {:?}", _t0.kind);
             //     _be.print();
             // }
-            Expr::Block(_vbs, _obe) => {
+            ExprKind::Block(stmts) => {
                 add_branch!("Block: ");
                 //print_ast(_vbs);
-                for ast_s in _vbs {
+                for ast_s in stmts {
                     //println!("{:#?}", ast_s);
                     //debug_tree::defer_print!();
                     ast_s.print();
                 }
-                if let Some(_be) = _obe {
-                    _be.print();
-                }
+                // if let Some(expr) = last_expr {
+                //     expr.print();
+                // }
             }
-            Expr::If(_be0, _be1, _obe) => {
+            ExprKind::If(comp, then_branch, else_branch) => {
                 add_branch!("If: ");
-                _be0.print();
-                _be1.print();
-                if let Some(_be3) = _obe {
-                    _be3.print();
+                comp.print();
+                then_branch.print();
+                if let Some(block) = else_branch {
+                    block.print();
                 }
             }
-            Expr::While(_be0, _be1) => {
+            ExprKind::While(comp, body) => {
                 add_branch!("While: ");
-                _be0.print();
-                _be1.print();
+                comp.print();
+                body.print();
             }
-            Expr::For(_bs, _be0, _be1, _be2) => {
+            ExprKind::For(init, comp, expr, body) => {
                 add_branch!("For: ");
-                _bs.print();
-                _be0.print();
-                _be1.print();
-                _be2.print();
+                init.print();
+                comp.print();
+                expr.print();
+                body.print();
             }
-            Expr::FnCall(_be, _vbe) => {
+            ExprKind::FnCall(callable, parameters) => {
                 add_branch!("FnCall: ");
-                _be.print();
+                callable.print();
                 {
                     add_branch!("parameters: ");
-                    for _be1 in _vbe {
+                    for _be1 in parameters {
                         _be1.print();
                     }
                 }
@@ -163,14 +194,10 @@ impl Expr {
         }
     }
 }
-impl Stmt {
+impl StmtKind {
     pub fn print(&self) {
         match self {
-            Stmt::Expression(_be) => {
-                add_branch!("SExpression: ");
-                _be.print();
-            }
-            Stmt::Definition(Item::Var { var, ty, init }) => {
+            StmtKind::Var { var, ty, init } => {
                 add_branch!("SVarDeclaration: ");
                 add_leaf!("T: {:?}", var.kind);
                 add_leaf!("T: {:?}", ty);
@@ -180,41 +207,81 @@ impl Stmt {
                 }
                 // init.as_ref().unwrap().print();
             }
-            Stmt::Definition(Item::Fn {
+            StmtKind::Expression(expr) => {
+                add_branch!("SExpression: ");
+                expr.print();
+            }
+            StmtKind::ExpressionWithoutSemicolon(expr) => {
+                add_branch!("SExpressionWithoutSemicolon: ");
+                expr.print();
+            }
+            StmtKind::Item(item) => {
+                item.print();
+            }
+            StmtKind::NoOperation => {
+                add_branch!("SNoOp");
+            }
+        }
+    }
+}
+
+impl ItemKind {
+    pub fn print(&self) {
+        match self {
+            ItemKind::Fn {
                 name,
                 params,
                 ret,
                 body,
-            }) => {
+            } => {
                 add_branch!("SFnDeclaration: ");
                 add_leaf!("T: {:?}", name.kind);
                 {
                     add_branch!("parameters: ");
+
                     for param in params {
-                        add_leaf!("T: {}: {}", param.0.kind.as_str(), param.1.kind.as_str());
+                        let st = if let TyKind::Simple(st) = &param.ty {
+                            Some(st)
+                        } else {
+                            None
+                        }
+                        .unwrap();
+                        add_leaf!("T: {}: {}", param.name.kind.as_str(), st.kind.as_str());
                         //_t.print();
                     }
                 }
                 {
-                    let s = ret.clone().map(|t| t.kind.as_str());
+                    let foo = |t: TyKind| {
+                        let st = if let TyKind::Simple(st) = t {
+                            Some(st)
+                        } else {
+                            None
+                        }
+                        .unwrap();
+                        st
+                    };
+                    let s = ret.clone().map(|t| foo(t).kind.as_str());
                     add_branch!("ret: ");
                     add_leaf!("T: {:?}", s);
                 }
                 body.print();
             }
-            Stmt::Definition(Item::Struct { name, fields }) => {
+            ItemKind::Struct { name, fields } => {
                 add_branch!("SStructDeclaration: ");
                 add_leaf!("T: {:?}", name.kind);
                 {
                     add_branch!("fields: ");
-                    for _t in fields {
-                        add_leaf!("T: {}: {}", _t.0.kind.as_str(), _t.1.kind.as_str());
+                    for field in fields {
+                        let st = if let TyKind::Simple(st) = &field.ty {
+                            Some(st)
+                        } else {
+                            None
+                        }
+                        .unwrap();
+                        add_leaf!("T: {}: {}", field.name.kind.as_str(), st.kind.as_str());
                         //_t.print();
                     }
                 }
-            }
-            Stmt::NoOperation => {
-                add_branch!("SNoOp");
             }
         }
     }
