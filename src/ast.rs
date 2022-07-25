@@ -18,11 +18,11 @@ pub enum ExprKind {
         path: Option<Vec<Token>>,
     }, // symbol, path
     // Block(Vec<StmtKind>, Option<Box<ExprKind>>),
-    Block(Vec<StmtKind>),
+    Block(Vec<Stmt>),
 
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     While(Box<Expr>, Box<Expr>),
-    For(Box<StmtKind>, Box<Expr>, Box<Expr>, Box<Expr>),
+    For(Box<Stmt>, Box<Expr>, Box<Expr>, Box<Expr>),
 
     FnCall(Box<Expr>, Vec<Expr>),
 }
@@ -101,6 +101,11 @@ pub enum StmtKind {
     /// Only a trailing semicolon
     NoOperation,
 }
+#[derive(Clone, Debug, PartialEq)]
+pub struct Stmt {
+    pub kind: StmtKind,
+    // pub span: Span,
+}
 
 pub fn print_ast(ast: &Vec<ItemKind>) {
     //debug_tree::add_branch!("Ast Tree");
@@ -160,7 +165,7 @@ impl ExprKind {
                 for ast_s in stmts {
                     //println!("{:#?}", ast_s);
                     //debug_tree::defer_print!();
-                    ast_s.print();
+                    ast_s.kind.print();
                 }
                 // if let Some(expr) = last_expr {
                 //     expr.print();
@@ -181,7 +186,7 @@ impl ExprKind {
             }
             ExprKind::For(init, comp, expr, body) => {
                 add_branch!("For: ");
-                init.print();
+                init.kind.print();
                 comp.kind.print();
                 expr.kind.print();
                 body.kind.print();

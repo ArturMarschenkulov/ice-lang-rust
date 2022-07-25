@@ -1,4 +1,6 @@
-use crate::ast::{Expr, ExprKind, Field, ItemKind, Module, Parameter, Project, StmtKind, TyKind};
+use crate::ast::{
+    Expr, ExprKind, Field, ItemKind, Module, Parameter, Project, Stmt, StmtKind, TyKind,
+};
 use crate::token::*;
 
 #[allow(unused_macros)]
@@ -304,7 +306,7 @@ impl Parser {
     /// 1. var <ident> := <expr>;
     /// 2. var <ident> : <type> = <expr>;
     /// 3. var <ident> : <type>;
-    fn parse_stmt_var(&mut self) -> Box<StmtKind> {
+    fn parse_stmt_var(&mut self) -> Box<Stmt> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -335,7 +337,7 @@ impl Parser {
         self.check(&Punctuator(Semicolon), 0)
             .expect("Expected ';' after variable declaration");
 
-        Box::from(var_decl)
+        Box::from(Stmt { kind: var_decl })
     }
     fn parse_delim_seq(
         &mut self,
@@ -417,7 +419,7 @@ impl Parser {
             body: block,
         })
     }
-    fn parse_stmt(&mut self) -> Box<StmtKind> {
+    fn parse_stmt(&mut self) -> Box<Stmt> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -426,15 +428,19 @@ impl Parser {
         println!("parse_stmt 0 {:?}", self.peek(0));
         let sk = match &token.unwrap().kind {
             Keyword(Var) => self.parse_stmt_var(),
-            s if s.starts_item() => Box::from(StmtKind::Item(*self.parse_item())),
+            s if s.starts_item() => Box::from(Stmt {
+                kind: StmtKind::Item(*self.parse_item()),
+            }),
             Punctuator(Semicolon) => {
                 self.advance();
-                Box::from(StmtKind::NoOperation)
+                Box::from(Stmt {
+                    kind: StmtKind::NoOperation,
+                })
             }
             _ => self.parse_stmt_expression(),
         };
         println!("parse_stmt 1 {:?}", self.peek(0));
-        match *sk {
+        match sk.kind {
             StmtKind::Var { .. } => {
                 let _ = self.eat(&Punctuator(Semicolon));
             }
@@ -457,7 +463,7 @@ impl Parser {
         }
         sk
     }
-    fn parse_stmt_expression(&mut self) -> Box<StmtKind> {
+    fn parse_stmt_expression(&mut self) -> Box<Stmt> {
         use PunctuatorKind::*;
         use TokenKind::*;
         println!("parse_stmt_expression 0 {:?}", self.peek(0));
@@ -478,7 +484,7 @@ impl Parser {
             }
         };
 
-        Box::from(s)
+        Box::from(Stmt { kind: s })
     }
     fn parse_expr(&mut self) -> Box<Expr> {
         self.parse_expr_binary(0.0)
@@ -574,7 +580,7 @@ impl Parser {
         use TokenKind::*;
 
         self.eat(&Punctuator(LeftBrace)).unwrap();
-        let mut statements: Vec<StmtKind> = Vec::new();
+        let mut statements: Vec<Stmt> = Vec::new();
 
         while !self.is_at_end() && self.check(&Punctuator(RightBrace), 0).is_err() {
             statements.push(*self.parse_stmt());
