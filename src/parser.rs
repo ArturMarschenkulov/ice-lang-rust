@@ -1,5 +1,5 @@
 use crate::ast::{
-    Expr, ExprKind, Field, Item, ItemKind, Module, Parameter, Project, Stmt, StmtKind, TyKind,
+    Expr, ExprKind, Field, Item, ItemKind, Module, Parameter, Project, Stmt, StmtKind, Ty, TyKind,
 };
 use crate::token::*;
 
@@ -320,7 +320,9 @@ impl Parser {
 
         self.eat(&Punctuator(Colon)).unwrap();
         let ty = self.eat_identifier().cloned().ok();
-        let ty = ty.map(|ty| TyKind::Simple(ty));
+        let ty = ty.map(|ty| Ty {
+            kind: TyKind::Simple(ty),
+        });
 
         let expr = match self.eat(&Punctuator(Equal)) {
             Ok(_) => Some(self.parse_expr()),
@@ -405,7 +407,9 @@ impl Parser {
             let _ = self.eat(&ret_symbol);
         }
         let ret_type = self.eat_identifier().cloned().ok();
-        let ret_type = ret_type.map(|ty| TyKind::Simple(ty));
+        let ret_type = ret_type.map(|ty| Ty {
+            kind: TyKind::Simple(ty),
+        });
 
         self.check(&Punctuator(LeftBrace), 0)
             .expect("Expected '{' after function name");

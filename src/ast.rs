@@ -52,6 +52,10 @@ pub enum TyKind {
     Simple(Token),
 }
 #[derive(Clone, Debug, PartialEq)]
+pub struct Ty {
+    pub kind: TyKind,
+}
+#[derive(Clone, Debug, PartialEq)]
 pub struct Field {
     pub name: Token,
     pub ty: TyKind,
@@ -62,7 +66,7 @@ pub enum ItemKind {
     Fn {
         name: Token,
         params: Vec<Parameter>,
-        ret: Option<TyKind>,
+        ret: Option<Ty>,
         body: Box<Expr>,
     },
     /// type Foo = struct { x: i32 }
@@ -91,7 +95,7 @@ pub enum StmtKind {
     /// let a: i32 = 4,
     Var {
         var: Token,
-        ty: Option<TyKind>,
+        ty: Option<Ty>,
         init: Option<Box<Expr>>,
     },
     /// Expression with a trailing semicolon
@@ -264,8 +268,8 @@ impl ItemKind {
                     }
                 }
                 {
-                    let foo = |t: TyKind| {
-                        let st = if let TyKind::Simple(st) = t {
+                    let foo = |t: Ty| {
+                        let st = if let TyKind::Simple(st) = t.kind {
                             Some(st)
                         } else {
                             None
