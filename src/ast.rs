@@ -87,7 +87,7 @@ pub struct Item {
     pub kind: ItemKind,
 }
 
-// The logic of the language and the way how it is parse do not match.
+// The logic of the language and the way how it is parsed do not match.
 // `ExpressionWithoutSemicolon` is in this a statement, however
 // in the language itself it's an expression.
 #[derive(Clone, Debug, PartialEq)]
