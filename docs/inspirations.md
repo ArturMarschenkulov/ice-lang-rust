@@ -1,4 +1,9 @@
 Here are listed the inspirations and other interesting stuff which might be relevant.
+# Goals
+
+Ice should be basically like a love child of Swift/C++/Rust and Haskell. Rust itself is already the love child between C++ and Haskell, however I find it is too restrictive.
+
+My goal with Ice is that it should have all the modern features, but be generally speaking as unsafe as C++. 
 
 # Generally interesting languages
 
@@ -25,9 +30,19 @@ Here are interesting languages and interesting links to them.
 - [github](https://github.com/odin-lang/Odin),
 ## Jai
 - Jai
+## Nim
+## Scala
+- [github](https://github.com/scala/scala)
+- [tour-of_scala](https://docs.scala-lang.org/tour/tour-of-scala.html)
+
+## Agda
+## Haskell
+
 
 # Compilers/Languages written in Rust
 Since this language is writtein in Rust, projects of languages written in Rust are a great inspiration.
 
+- [langs-in-rust](https://github.com/alilleybrinker/langs-in-rust)
 - jakt
 - [swc(typescript)](https://github.com/alilleybrinker/langs-in-rust)
+- [rustcc(C)](https://github.com/ClementTsang/rustcc)
