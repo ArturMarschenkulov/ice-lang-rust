@@ -4,7 +4,7 @@ use debug_tree::*;
 // struct Program {
 //     pub statements: Vec<Statement>,
 // }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ExprKind {
     Literal(LiteralKind),
     Grouping(Box<Expr>),
@@ -26,13 +26,13 @@ pub enum ExprKind {
 
     FnCall(Box<Expr>, Vec<Expr>),
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Expr {
     pub kind: ExprKind,
     // pub span: Span,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Parameter {
     pub name: Token,
     pub ty: TyKind,
@@ -47,20 +47,20 @@ pub struct Project {
 pub struct Module {
     pub items: Vec<Item>,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum TyKind {
     Simple(Token),
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Ty {
     pub kind: TyKind,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Field {
     pub name: Token,
     pub ty: TyKind,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ItemKind {
     /// fn foo(x: i32) {...}
     Fn {
@@ -82,7 +82,7 @@ pub enum ItemKind {
     //     name: Token,
     // },
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Item {
     pub kind: ItemKind,
 }
@@ -90,7 +90,7 @@ pub struct Item {
 // The logic of the language and the way how it is parsed do not match.
 // `ExpressionWithoutSemicolon` is in this a statement, however
 // in the language itself it's an expression.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum StmtKind {
     /// let a: i32 = 4,
     Var {
@@ -108,7 +108,7 @@ pub enum StmtKind {
     /// Only a trailing semicolon
     NoOperation,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Stmt {
     pub kind: StmtKind,
     // pub span: Span,
