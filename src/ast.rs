@@ -119,28 +119,32 @@ pub fn print_ast(ast: &Vec<Item>) {
     for ast_s in ast {
         //println!("{:#?}", ast_s);
         debug_tree::defer_print!();
-        ast_s.kind.print();
+        ast_s.print_debug_tree();
     }
 }
 
-impl ExprKind {
-    fn print(&self) {
-        match self {
+trait DebugTreePrinter {
+    fn print_debug_tree(&self);
+}
+
+impl DebugTreePrinter for Expr {
+    fn print_debug_tree(&self) {
+        match &self.kind {
             ExprKind::Literal(lit) => {
                 add_branch!("Lit {:?}", lit);
             }
             ExprKind::Grouping(expr) => {
                 add_branch!("Group: ");
-                expr.kind.print();
+                expr.print_debug_tree();
             }
             ExprKind::Binary(expr_l, op, expr_r) => {
                 add_branch!("Binary: {:?}", op.kind);
-                expr_l.kind.print();
-                expr_r.kind.print();
+                expr_l.print_debug_tree();
+                expr_r.print_debug_tree();
             }
             ExprKind::Unary(op, expr) => {
                 add_branch!("Unary: {:?}", op.kind);
-                expr.kind.print();
+                expr.print_debug_tree();
             }
             ExprKind::Symbol { name, path } => {
                 let s = if path.is_some() {
@@ -172,7 +176,7 @@ impl ExprKind {
                 for ast_s in stmts {
                     //println!("{:#?}", ast_s);
                     //debug_tree::defer_print!();
-                    ast_s.kind.print();
+                    ast_s.print_debug_tree();
                 }
                 // if let Some(expr) = last_expr {
                 //     expr.print();
@@ -180,60 +184,61 @@ impl ExprKind {
             }
             ExprKind::If(comp, then_branch, else_branch) => {
                 add_branch!("If: ");
-                comp.kind.print();
-                then_branch.kind.print();
+                comp.print_debug_tree();
+                then_branch.print_debug_tree();
                 if let Some(block) = else_branch {
-                    block.kind.print();
+                    block.print_debug_tree();
                 }
             }
             ExprKind::While(comp, body) => {
                 add_branch!("While: ");
-                comp.kind.print();
-                body.kind.print();
+                comp.print_debug_tree();
+                body.print_debug_tree();
             }
             ExprKind::For(init, comp, expr, body) => {
                 add_branch!("For: ");
-                init.kind.print();
-                comp.kind.print();
-                expr.kind.print();
-                body.kind.print();
+                init.print_debug_tree();
+                comp.print_debug_tree();
+                expr.print_debug_tree();
+                body.print_debug_tree();
             }
             ExprKind::FnCall(callable, parameters) => {
                 add_branch!("FnCall: ");
-                callable.kind.print();
+                callable.print_debug_tree();
                 {
                     add_branch!("parameters: ");
                     for _be1 in parameters {
-                        _be1.kind.print();
+                        _be1.print_debug_tree();
                     }
                 }
             }
         }
     }
 }
-impl StmtKind {
-    pub fn print(&self) {
-        match self {
+
+impl DebugTreePrinter for Stmt {
+    fn print_debug_tree(&self) {
+        match &self.kind {
             StmtKind::Var { var, ty, init } => {
                 add_branch!("SVarDeclaration: ");
                 add_leaf!("T: {:?}", var.kind);
                 add_leaf!("T: {:?}", ty);
                 match init.as_ref() {
-                    Some(i) => i.kind.print(),
+                    Some(i) => i.print_debug_tree(),
                     None => add_leaf!("T: {:?}", init),
                 }
                 // init.as_ref().unwrap().print();
             }
             StmtKind::Expression(expr) => {
                 add_branch!("SExpression: ");
-                expr.kind.print();
+                expr.print_debug_tree();
             }
             StmtKind::ExpressionWithoutSemicolon(expr) => {
                 add_branch!("SExpressionWithoutSemicolon: ");
-                expr.kind.print();
+                expr.print_debug_tree();
             }
             StmtKind::Item(item) => {
-                item.kind.print();
+                item.print_debug_tree();
             }
             StmtKind::NoOperation => {
                 add_branch!("SNoOp");
@@ -241,10 +246,9 @@ impl StmtKind {
         }
     }
 }
-
-impl ItemKind {
-    pub fn print(&self) {
-        match self {
+impl DebugTreePrinter for Item {
+    fn print_debug_tree(&self) {
+        match &self.kind {
             ItemKind::Fn {
                 name,
                 params,
@@ -268,20 +272,19 @@ impl ItemKind {
                     }
                 }
                 {
-                    let foo = |t: Ty| {
-                        let st = if let TyKind::Simple(st) = t.kind {
+                    let f = |t: Ty| {
+                        if let TyKind::Simple(st) = t.kind {
                             Some(st)
                         } else {
                             None
                         }
-                        .unwrap();
-                        st
+                        .unwrap()
                     };
-                    let s = ret.clone().map(|t| foo(t).kind.as_str());
+                    let s = ret.clone().map(|t| f(t).kind.as_str());
                     add_branch!("ret: ");
                     add_leaf!("T: {:?}", s);
                 }
-                body.kind.print();
+                body.print_debug_tree();
             }
             ItemKind::Struct { name, fields } => {
                 add_branch!("SStructDeclaration: ");
