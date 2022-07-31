@@ -27,7 +27,7 @@ Scala:
 
 type Functor<F<_>> = trait {
     fn fmap<A, B>(fa: F<A>, f: A -> B) -> F<B>;
-    fn infix (<$)<A, B>(a, )
+    fn (<$)<A, B>(a, )
 }
 
 impl Functor<Option<_>> for Option<_> {
@@ -40,6 +40,30 @@ impl Functor<Option<_>> for Option<_> {
     fn lift<A, B>(fa: Option<B>, a: A) -> Option<A> {
         a
     }
+}
+impl Functor<Option<_>> for Option<_> {
+    fn fmap<A, B>(fa: Option<A>, f: fn(A) -> B) -> Option<B> {
+        match fa {
+            None: None,
+            Some(a): Some(f(a)),
+        }
+    }
+}
+
+fn add(x: i32, y: i32) -> i32 {
+    
+}
+fn add x::i32 -> y::i32 -> i32 {
+    
+}
+
+typeclass monad<arrow<type, type> t> m { 
+    m<a> return(a x); 
+    m<b> bind(m<a> x, fn<a, m<b>> f); 
+}
+typeclass monad<arrow<type, type> t> m { 
+    fn return(a x) -> m<a>; 
+    fn bind(m<a> x, fn<a, m<b>> f) -> m<b>; 
 }
 
 // Functor[List].compose[Option].map(listOption)(_ + 1)
