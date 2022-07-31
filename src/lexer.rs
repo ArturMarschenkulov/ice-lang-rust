@@ -79,7 +79,7 @@ impl Lexer {
         use TokenKind::*;
 
         //let mut puncs: Vec<Token> = Vec::new();
-        let mut puncs: Vec<Token> = Vec::with_capacity(5);
+        let mut punc_cache: Vec<Token> = Vec::with_capacity(5);
         let mut tokens = Vec::new();
         while let Some(ch) = self.peek(0) {
             let token = self.scan_token(ch);
@@ -100,35 +100,48 @@ impl Lexer {
             // - invalid examples: `:=:`
             // `=`: It can't form a complex token with a preceding `:`.
 
+            // If it goes to `puncs` it is meant that it is cached to be potentially used for a complex token
+            // To the `tokens` simply means it goes to the token stream.
             enum Action {
                 ToTokens,
-                ToPuncs,
+                ToPuncCache,
             }
             let mut action = Action::ToTokens;
 
-            let last_puncs_kind = {
-                if !puncs.is_empty() {
-                    Some(puncs[puncs.len() - 1].kind.clone())
-                } else {
-                    None
-                }
-            };
-            let is_last_column = last_puncs_kind == Some(Punctuator(Colon));
+            let last_puncs_kind = punc_cache.last().map(|p| p.kind.clone());
+            let is_last_colon_ = last_puncs_kind == Some(Punctuator(Colon));
+            let is_last_colon = last_puncs_kind
+                .as_ref()
+                .map(|p| p == &Punctuator(Colon))
+                .unwrap_or(false);
 
             if let Punctuator(punc) = &token.kind {
-                action = Action::ToPuncs;
+                action = Action::ToPuncCache;
 
-                let is_last_same = last_puncs_kind == Some(Punctuator(punc.clone()));
+                let is_last_same_ = last_puncs_kind == Some(Punctuator(punc.clone()));
+                let is_last_same = last_puncs_kind
+                    .as_ref()
+                    .map(|p| p == &Punctuator(punc.clone()))
+                    .unwrap_or(false);
+
+                // This is temporary
+                assert_eq!(is_last_same, is_last_same_);
+                assert_eq!(is_last_colon, is_last_colon_);
+
                 let is_curr_equal = punc == &Equal;
+                // `puncs.is_empty()` basically means that it is the first token of the potential complex token
 
                 if punc.is_structural() {
                     action = Action::ToTokens;
-                    if [Dot, Colon].contains(punc)
-                        && (puncs.is_empty() || is_last_same)
-                        && (is_last_column && is_curr_equal)
+                    // println!("ikiki 2: {:?}", punc);
+                    if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_same)
+                    // && (is_last_COLON && is_curr_EQUAL)
                     {
-                        if (puncs.is_empty() || is_last_same) && (is_last_column && is_curr_equal) {
-                            action = Action::ToPuncs;
+                        action = Action::ToPuncCache;
+                        // println!("ikiki 1");
+                        if is_last_colon && is_curr_equal {
+                            // println!("ikiki 0");
+                            action = Action::ToPuncCache;
                         }
                     }
                 }
@@ -136,20 +149,20 @@ impl Lexer {
 
             match action {
                 Action::ToTokens => {
-                    if !puncs.is_empty() {
-                        tokens.push(cook_tokens(&puncs));
-                        puncs.clear();
+                    if !punc_cache.is_empty() {
+                        tokens.push(cook_tokens(&punc_cache));
+                        punc_cache.clear();
                     }
                     if !token.kind.is_to_skip() {
                         tokens.push(token);
                     }
                 }
-                Action::ToPuncs => puncs.push(token),
+                Action::ToPuncCache => punc_cache.push(token),
             }
         }
-        if !puncs.is_empty() {
-            tokens.push(cook_tokens(&puncs));
-            puncs.clear();
+        if !punc_cache.is_empty() {
+            tokens.push(cook_tokens(&punc_cache));
+            punc_cache.clear();
         }
 
         let token_eof = Token::new(
@@ -382,8 +395,7 @@ impl Lexer {
         use LiteralKind::*;
         use TokenKind::*;
 
-        // TODO: Floating point numbers can't be abbreviated like in some other languages.
-        // `.5`, `5.` are not possible short forms for `0.5` and `5.0` respectively.
+        // TODO: Try to make it possible that the lexer does not parse `foo.0.0` as a floating point
 
         let (number_base, has_base_prefix, is_in_number_base): (
             NumberBase,
@@ -437,7 +449,6 @@ impl Lexer {
                 }
                 // a '_' is not possible after a '.'. E.g. '1._3' is not a number, this is an integer followed by an identifier.
                 '_' if !is_after_dot => Ok(()),
-                '.' if is_floating => Err(LexerError::new(format!("multiple dots in number"))),
                 '.' if has_base_prefix => Err(LexerError::new(format!("dot after base prefix"))),
 
                 _ => break,
@@ -464,7 +475,6 @@ impl Lexer {
         Ok(lit)
     }
     fn lex_identifier(&mut self) -> Result<TokenKind, LexerError> {
-        use KeywordKind::*;
         use LiteralKind::*;
         use TokenKind::*;
 
@@ -479,29 +489,16 @@ impl Lexer {
         }
         // TODO: Here we are trying to do the above in a more functional way
         {
-            let peeked = self.peek(0).and_then(|x| Some(x.is_alphanumeric()));
+            let _peeked = self.peek(0).map(|x| x.is_alphanumeric());
             //println!("jnklsrnlkgn {:?}", s);
         }
 
         // Here we determine whether the identifier is a keyword or not.
 
         let token = match string_content.as_ref() {
-            "var" => Keyword(Var),
-            "fn" => Keyword(Fn),
-            "type" => Keyword(Type),
-            "struct" => Keyword(Struct),
-
-            "if" => Keyword(If),
-            "else" => Keyword(Else),
-            "while" => Keyword(While),
-            "for" => Keyword(For),
-
-            "print" => Keyword(Print),
-            "println" => Keyword(Println),
-
             "true" => Literal(Boolean(true)),
             "false" => Literal(Boolean(false)),
-            _ => Identifier(string_content),
+            kw => KeywordKind::from_str(kw).map_or_else(Identifier, Keyword),
         };
         match &token {
             Keyword(kw) => self.cursor.column += (kw.len() - 1) as u32,
@@ -518,10 +515,10 @@ impl Lexer {
 ///
 ///
 impl Lexer {
-    fn move_by(&mut self, offset: isize) {
-        //let s: usize = self.index + offset.try_into().unwrap();
-        //self.index += self.calc_offset(n);
-    }
+    // fn move_by(&mut self, offset: isize) {
+    //     //let s: usize = self.index + offset.try_into().unwrap();
+    //     //self.index += self.calc_offset(n);
+    // }
     fn advance(&mut self) {
         self.index += 1;
     }
@@ -598,7 +595,6 @@ impl Lexer {
         if c.is_ok() {
             self.advance();
         }
-        let i32 = 3;
         c
     }
 

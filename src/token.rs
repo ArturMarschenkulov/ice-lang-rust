@@ -11,8 +11,8 @@ impl TokenKind {
     pub fn as_str(&self) -> String {
         use TokenKind::*;
         match &self {
-            Punctuator(p) => p.as_str(),
-            Literal(l) => todo!("it's not yet implemented for literals"), //l.as_str(),
+            Punctuator(p) => p.to_string(),
+            Literal(..) => todo!("it's not yet implemented for literals"), //l.as_str(),
             Identifier(s) => s.to_string(),
             Keyword(k) => k.as_str().to_owned(),
             SpecialKeyword(k) => k.as_str().to_owned(),
@@ -47,12 +47,9 @@ impl TokenKind {
         matches!(self, TokenKind::Identifier(_))
     }
     pub fn starts_item(&self) -> bool {
-        use TokenKind::*;
         use KeywordKind::*;
-        match self {
-            Keyword(Fn) | Keyword(Type) => true,
-            _ => false,
-        }
+        use TokenKind::*;
+        matches!(self, Keyword(Fn) | Keyword(Type))
     }
     // pub fn simplify(self) -> TokenKind {
     //     use TokenKind::*;
@@ -185,6 +182,11 @@ impl PunctuatorKind {
             _ => None,
         }
     }
+    // fn from_self_slice(slice: &[Self]) -> Self {
+    //     assert!(slice.len() > 0, "PunctuatorKind::from_self_slice: slice must have at least length 1");
+
+    //     let c = PunctuatorKind::Complex(slice.to_vec());
+    // }
     // 'fuses' simple complex tokens into fused complex tokens, if possible. Otherwise it does nothing.
     fn fuse(self) -> PunctuatorKind {
         use PunctuatorKind::*;
@@ -304,7 +306,14 @@ impl PunctuatorKind {
         }
     }
 
-    fn as_str(&self) -> String {
+    fn to_string(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl std::fmt::Display for PunctuatorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // write!(f, "{}", self.as_str())
         use PunctuatorKind::*;
         let s = match self {
             Plus => "+",
@@ -347,16 +356,18 @@ impl PunctuatorKind {
             MinusEqual => "-=",
             StarEqual => "*=",
             SlashEqual => "/=",
+            
             _ => "",
         };
-        if s.is_empty() {
+        let s = if s.is_empty() {
             match self {
-                Complex(complex) => complex.iter().map(|t| t.as_str()).collect::<String>(),
+                Complex(complex) => complex.iter().map(|t| t.to_string()).collect::<String>(),
                 _ => unreachable!(),
             }
         } else {
             s.to_string()
-        }
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -372,10 +383,25 @@ pub enum KeywordKind {
     While,
     For,
 
-    Print,
-    Println,
+    // Ret,
 }
 impl KeywordKind {
+    pub fn from_str(s: &str) -> Result<KeywordKind, String> {
+        use KeywordKind::*;
+        match s {
+            "var" => Ok(Var),
+            "fn" => Ok(Fn),
+            "type" => Ok(Type),
+            "struct" => Ok(Struct),
+
+            "if" => Ok(If),
+            "else" => Ok(Else),
+            "while" => Ok(While),
+            "for" => Ok(For),
+            //"ret" => Ok(Ret),
+            ident => Err(ident.to_owned()),
+        }
+    }
     fn as_str(&self) -> &str {
         use KeywordKind::*;
         match self {
@@ -389,15 +415,32 @@ impl KeywordKind {
             While => "while",
             For => "for",
 
-            Print => "print",
-            Println => "println",
+            //Ret => "ret",
         }
     }
     pub fn len(&self) -> usize {
         self.as_str().len()
     }
 }
+impl std::fmt::Display for KeywordKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use KeywordKind::*;
+        let s = match self {
+            Var => "'var'",
+            Fn => "'fn'",
+            Type => "'type'",
+            Struct => "'struct'",
 
+            If => "'if'",
+            Else => "'else'",
+            While => "'while'",
+            For => "'for'",
+
+            //Ret => "ret",
+        };
+        write!(f, "{}", s)
+    }
+}
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CommentKind {
     Line,
@@ -578,6 +621,39 @@ impl Token {
             kind,
             span,
             whitespace,
+        }
+    }
+    pub fn from_self_slice(slice: &[Token]) -> Self {
+        use TokenKind::*;
+        // TODO: Maybe consider to move this logic somewhere else, where it is guaranteed
+        // that the kind is a punctuator. Since guaranteeing it at runtime is expensive.
+        let _ = slice
+            .iter()
+            .map(|t| assert!(t.kind.is_punctuator()))
+            .collect::<Vec<_>>();
+
+        let toks = slice
+            .iter()
+            .map(|t| {
+                if let Punctuator(punc) = t.kind.clone() {
+                    punc
+                } else {
+                    unreachable!()
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let c = PunctuatorKind::Complex(toks);
+
+        let left = slice.first().unwrap();
+        let right = slice.last().unwrap();
+        Token {
+            kind: Punctuator(c),
+            span: Span::new(left.span.start, right.span.end),
+            whitespace: Whitespace::from((
+                left.whitespace.as_bools().0,
+                right.whitespace.as_bools().1,
+            )),
         }
     }
 }
