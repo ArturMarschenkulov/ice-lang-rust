@@ -23,6 +23,7 @@ pub enum ExprKind {
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     While(Box<Expr>, Box<Expr>),
     For(Box<Stmt>, Box<Expr>, Box<Expr>, Box<Expr>),
+    // Ret(Option<Box<Expr>>),
 
     FnCall(Box<Expr>, Vec<Expr>),
 }
@@ -114,17 +115,39 @@ pub struct Stmt {
     // pub span: Span,
 }
 
-pub fn print_ast(ast: &Vec<Item>) {
-    //debug_tree::add_branch!("Ast Tree");
-    for ast_s in ast {
-        //println!("{:#?}", ast_s);
-        debug_tree::defer_print!();
-        ast_s.print_debug_tree();
+pub trait DebugTreePrinter {
+    fn print_debug_tree(&self);
+}
+
+impl<T> DebugTreePrinter for Vec<T>
+where
+    T: DebugTreePrinter,
+{
+    fn print_debug_tree(&self) {
+        for tree_s in self {
+            debug_tree::defer_print!();
+            tree_s.print_debug_tree();
+        }
     }
 }
 
-trait DebugTreePrinter {
-    fn print_debug_tree(&self);
+impl DebugTreePrinter for Project {
+    fn print_debug_tree(&self) {
+        debug_tree::defer_print!();
+        add_branch!("Project: ");
+        for module in &self.modules {
+            module.print_debug_tree();
+        }
+    }
+}
+impl DebugTreePrinter for Module {
+    fn print_debug_tree(&self) {
+        debug_tree::defer_print!();
+        add_branch!("Module: ");
+        for item in &self.items {
+            item.print_debug_tree();
+        }
+    }
 }
 
 impl DebugTreePrinter for Expr {
