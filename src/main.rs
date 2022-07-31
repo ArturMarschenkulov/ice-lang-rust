@@ -1,15 +1,15 @@
+#![allow(dead_code)]
 mod ast;
 mod compiler;
 mod error;
-mod evaluator;
 mod lexer;
 mod parser;
 mod token;
 
-use crate::ast::print_ast;
+use crate::ast::DebugTreePrinter;
 //use crate::evaluator::get_evaluation_from_ast;
 use crate::lexer::get_tokens_from_source;
-use crate::parser::get_ast_from_tokens;
+use crate::parser::parse_project_from_file;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
@@ -37,7 +37,7 @@ impl Ice {
                 if run_test_file {
                     // This is mainly for convenience
                     // The actual end product should not have this branch
-                    
+
                     let file = "tests\\test.ice";
                     self.run_file(&mut file.to_owned());
                 } else {
@@ -78,7 +78,6 @@ impl Ice {
 
         let lexer_str = ansi_term::Color::Cyan.paint("Lexer").to_string();
         let parser_str = ansi_term::Color::Cyan.paint("Parser").to_string();
-    
 
         if show_stages {
             println!();
@@ -93,7 +92,10 @@ impl Ice {
         if show_token_stream {
             println!("----Token Stream----");
             for token in &tokens {
-                println!("retat: {:?} {:?} {:?}", &token.kind, &token.whitespace, &token.span);
+                println!(
+                    "retat: {:?} {:?} {:?}",
+                    &token.kind, &token.whitespace, &token.span
+                );
             }
             println!("~~~~Token Stream~~~~");
         }
@@ -107,8 +109,11 @@ impl Ice {
             let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
             let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
             let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
-            
-            println!("{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec", stage, nano_t, micro_t, mili_t, sec_t);
+
+            println!(
+                "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
+                stage, nano_t, micro_t, mili_t, sec_t
+            );
         }
 
         if show_stages {
@@ -116,13 +121,14 @@ impl Ice {
             println!("{} Stage:", parser_str);
             println!();
         }
-        
+
         let now = Instant::now();
-        let ast = get_ast_from_tokens(tokens);
+        let ast = parse_project_from_file(tokens);
         time_vec.push(("Parser", now.elapsed()));
 
         if show_ast_tree {
-            print_ast(&ast);
+            // print_ast(&ast);
+            ast.print_debug_tree()
         }
 
         for (stage, time) in &time_vec {
@@ -134,14 +140,18 @@ impl Ice {
             let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
             let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
             let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
-            
-            println!("{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec", stage, nano_t, micro_t, mili_t, sec_t);
+
+            println!(
+                "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
+                stage, nano_t, micro_t, mili_t, sec_t
+            );
         }
 
         println!("{:?} milliseconds have passed", now.elapsed().as_nanos());
     }
 }
 fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
     println!("------------------------------------------------------------");
     let mut ice = Ice {};
     ice.main();
