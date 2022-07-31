@@ -83,13 +83,15 @@ enum Delimiter {
     Bracket,     // [ ]
 }
 
-pub fn get_ast_from_tokens(tokens: Vec<Token>) -> Vec<Item> {
+pub fn get_ast_from_tokens(tokens: Vec<Token>) -> Project {
     Parser::from_tokens(tokens).parse()
 }
-pub fn parse_file(tokens: Vec<Token>) -> Project {
+/// Parses a `Project` from a file.
+/// It's most likely a temporary function, because we can only parse one file, meaning a file would be the whole project.
+/// In the future of course this would not be a thing.
+pub fn parse_project_from_file(tokens: Vec<Token>) -> Project {
     let mut parser = Parser::from_tokens(tokens);
-
-    todo!()
+    parser.parse()
 }
 
 fn get_unary_operator_precedence(token: &Token) -> i32 {
@@ -199,6 +201,7 @@ struct Parser {
     current: usize,
 }
 
+/// This impl block is the entry block
 impl Parser {
     fn new() -> Self {
         Self {
@@ -209,7 +212,7 @@ impl Parser {
     fn from_tokens(tokens: Vec<Token>) -> Self {
         Self { tokens, current: 0 }
     }
-    fn parse(&mut self) -> Vec<Item> {
+    fn parse_(&mut self) -> Vec<Item> {
         let mut items: Vec<Item> = Vec::new();
 
         while !self.is_at_end() {
@@ -218,15 +221,21 @@ impl Parser {
         }
         items
     }
-    fn parse_items_entry(&mut self, tokens: Vec<Token>) -> Vec<ItemKind> {
-        self.tokens = tokens;
-        let mut items: Vec<ItemKind> = Vec::new();
-
+    fn parse(&mut self) -> Project {
+        let mut items: Vec<Item> = Vec::new();
         while !self.is_at_end() {
-            //items.push(*self.parse_items());
+            let item = self.parse_item();
+            items.push(*item);
         }
-        items
+        let module = Module { items };
+        Project {
+            modules: vec![module],
+        }
     }
+}
+
+/// This impl block is for parsing items.
+impl Parser {
     fn parse_item_type_struct(&mut self) -> Box<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
@@ -267,7 +276,7 @@ impl Parser {
         //       This function only finds one to which function to dispatch to
 
         self.check(&Keyword(Type), 0).unwrap();
-        let name = self
+        let _ = self
             .check_with(1, &TokenKind::is_identifier)
             .unwrap()
             .clone();
@@ -281,25 +290,13 @@ impl Parser {
     }
     fn parse_item(&mut self) -> Box<Item> {
         use KeywordKind::*;
-        use PunctuatorKind::*;
         use TokenKind::*;
 
-        let s = match &self.peek(0).unwrap().kind {
-            // Keyword(Var) => self.parse_stmt_var(),
+        match &self.peek(0).unwrap().kind {
             Keyword(Fn) => self.parse_item_fn(),
             Keyword(Type) => self.parse_item_type(),
             _ => panic!("unexpected token"),
-            // _ => self.parse_stmt(),
-        };
-
-        match *s {
-            // StmtKind::Var { .. } => {
-            //     let tok = self.eat(&Punctuator(Semicolon)).unwrap();
-            // }
-            // ref stmt@Stmt::NoOperation => println!("{:?}", stmt),
-            _ => (),
         }
-        s
     }
 
     /// There 3 variable declaration types.
@@ -319,8 +316,7 @@ impl Parser {
             .clone();
 
         self.eat(&Punctuator(Colon)).unwrap();
-        let ty = self.eat_identifier().cloned().ok();
-        let ty = ty.map(|ty| Ty {
+        let ty = self.eat_identifier().cloned().ok().map(|ty| Ty {
             kind: TyKind::Simple(ty),
         });
 
@@ -332,7 +328,7 @@ impl Parser {
 
         let var_decl = StmtKind::Var {
             var: name,
-            ty: ty,
+            ty,
             init: expr,
         };
 
@@ -358,17 +354,21 @@ impl Parser {
                 .eat_identifier()
                 .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.1))
                 .clone();
-            self.eat(&Punctuator(Colon))
+            let _ = self
+                .eat(&Punctuator(Colon))
                 .unwrap_or_else(|_| panic!("Expected ':' after {} {}", s.0, s.1));
             let ty = self
                 .eat_identifier()
                 .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.2))
                 .clone();
-            let eaten_sep = self.eat(sep);
-            if eaten_sep.is_err() {
-                self.check(end, 0).unwrap_or_else(|_| {
-                    panic!("Expected '{}' after {} {}", end.as_str(), s.0, s.1)
-                });
+
+            match self.eat(sep) {
+                Ok(..) => (),
+                Err(..) => {
+                    let _ = self.check(end, 0).unwrap_or_else(|_| {
+                        panic!("Expected '{}' after {} {}", end.as_str(), s.0, s.1)
+                    });
+                }
             }
             result.push((name, ty));
         }
@@ -388,13 +388,13 @@ impl Parser {
             .expect("Expected function name")
             .clone();
 
-        let parameters = self.parse_delim_seq(
-            &Punctuator(LeftParen),
-            &Punctuator(RightParen),
-            &Punctuator(Comma),
-            ("parameter", "name", "type"),
-        );
-        let parameters = parameters
+        let parameters = self
+            .parse_delim_seq(
+                &Punctuator(LeftParen),
+                &Punctuator(RightParen),
+                &Punctuator(Comma),
+                ("parameter", "name", "type"),
+            )
             .iter()
             .map(|(name, ty)| Parameter {
                 name: name.clone(),
@@ -402,29 +402,55 @@ impl Parser {
             })
             .collect::<Vec<Parameter>>();
 
-        let ret_symbol = self.peek(0).unwrap().clone().kind;
-        if [Punctuator(Colon)].contains(&ret_symbol) {
-            let _ = self.eat(&ret_symbol);
-        }
-        let ret_type = self.eat_identifier().cloned().ok();
-        let ret_type = ret_type.map(|ty| Ty {
-            kind: TyKind::Simple(ty),
-        });
+        let ret_type = self
+            .eat(&Punctuator(Colon))
+            .ok()
+            .cloned()
+            .map(|_t| {
+                self.eat_identifier().cloned().ok().unwrap_or_else(|| {
+                    let l_paren = self.eat(&Punctuator(LeftParen)).unwrap().clone();
+                    let r_paren = self.eat(&Punctuator(RightParen)).unwrap().clone();
+                    Token::from_self_slice(&[l_paren, r_paren])
+                })
+            })
+            .map(|i| Ty {
+                kind: TyKind::Simple(i),
+            });
 
-        self.check(&Punctuator(LeftBrace), 0)
-            .expect("Expected '{' after function name");
-        let block = self.parse_expr_block();
-        self.eat(&Punctuator(RightBrace))
-            .expect("Expected '}' after function body");
+        let body = self
+            .check(&Punctuator(LeftBrace), 0)
+            .ok()
+            .or_else(|| {
+                panic!("{}", "Expected '{' after function name");
+            })
+            .cloned()
+            .map(|_t| {
+                let b = self.parse_expr_block();
+                self.eat(&Punctuator(RightBrace))
+                    .expect("Expected '}' after function body");
+
+                b
+            })
+            .unwrap();
+
+        // self.check(&Punctuator(LeftBrace), 0)
+        //     .expect("Expected '{' after function name");
+        // let block = self.parse_expr_block();
+        // self.eat(&Punctuator(RightBrace))
+        //     .expect("Expected '}' after function body");
         Box::from(Item {
             kind: ItemKind::Fn {
                 name,
                 params: parameters,
                 ret: ret_type,
-                body: block,
+                body,
             },
         })
     }
+}
+
+/// This impl block is for parsing statements
+impl Parser {
     fn parse_stmt(&mut self) -> Box<Stmt> {
         use KeywordKind::*;
         use PunctuatorKind::*;
@@ -492,6 +518,10 @@ impl Parser {
 
         Box::from(Stmt { kind: s })
     }
+}
+
+/// This impl block is for parsing expressions
+impl Parser {
     fn parse_expr(&mut self) -> Box<Expr> {
         self.parse_expr_binary(0.0)
     }
@@ -726,6 +756,8 @@ impl Parser {
         })
     }
 }
+
+/// This impl block is for the cursor functionality
 impl Parser {
     fn peek(&self, offset: isize) -> Option<&Token> {
         let new_offset = if offset.is_negative() {
