@@ -4,25 +4,27 @@ use crate::token::*;
 
 /// This impl block is for parsing items.
 impl Parser {
-    pub fn parse_item_type_struct(&mut self) -> Item {
+    pub fn parse_item_type_struct(&mut self) -> PResult<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         //use TokenKind::*;
 
         self.eat(&TokenKind::Keyword(Type)).unwrap();
-        let name = self.eat_with(&TokenKind::is_identifier).unwrap().clone();
+        let name = self.parse_identifier();
 
         let _eq_sign = self.eat(&TokenKind::Punctuator(Equal)).unwrap();
 
         self.eat(&TokenKind::Keyword(Struct)).unwrap();
         self.eat(&TokenKind::Punctuator(LeftBrace)).unwrap();
 
-        let fields = self.parse_delim_seq(
-            &TokenKind::Punctuator(LeftBrace),
-            &TokenKind::Punctuator(RightBrace),
-            &TokenKind::Punctuator(Comma),
-            ("field", "name", "type"),
-        );
+        let fields = self
+            .parse_delim_seq(
+                &TokenKind::Punctuator(LeftBrace),
+                &TokenKind::Punctuator(RightBrace),
+                &TokenKind::Punctuator(Comma),
+                ("field", "name", "type"),
+            )
+            .unwrap();
         let fields = fields
             .iter()
             .map(|(name, ty)| Field {
@@ -31,13 +33,11 @@ impl Parser {
             })
             .collect::<Vec<_>>();
 
-        let strct = ItemKind::Struct {
-            name: Identifier::from_token(name),
-            fields,
-        };
-        Item { kind: strct }
+        let strct = ItemKind::Struct { name: name, fields };
+        let item = Item { kind: strct };
+        Ok(item)
     }
-    pub fn parse_item_type(&mut self) -> Item {
+    pub fn parse_item_type(&mut self) -> PResult<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -55,7 +55,7 @@ impl Parser {
             _ => (todo!()),
         }
     }
-    pub fn parse_item(&mut self) -> Item {
+    pub fn parse_item(&mut self) -> PResult<Item> {
         use KeywordKind::*;
         use TokenKind::*;
 
@@ -71,7 +71,7 @@ impl Parser {
     /// 1. var <ident> := <expr>;
     /// 2. var <ident> : <type> = <expr>;
     /// 3. var <ident> : <type>;
-    pub fn parse_stmt_var(&mut self) -> Stmt {
+    pub fn parse_stmt_var(&mut self) -> PResult<Stmt> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         // use TokenKind::*;
@@ -89,7 +89,7 @@ impl Parser {
         });
 
         let expr = match self.eat(&TokenKind::Punctuator(Equal)) {
-            Ok(_) => Some(Box::new(self.parse_expr())),
+            Ok(_) => Some(Box::new(self.parse_expr().unwrap())),
             Err(_) if ty.is_some() => None,
             Err(_) => panic!("Expected equal sign"),
         };
@@ -103,7 +103,8 @@ impl Parser {
         self.check(&TokenKind::Punctuator(Semicolon), 0)
             .expect("Expected ';' after variable declaration");
 
-        Stmt { kind: var_decl }
+        let stmt = Stmt { kind: var_decl };
+        Ok(stmt)
     }
     fn parse_delim_seq(
         &mut self,
@@ -111,7 +112,7 @@ impl Parser {
         end: &TokenKind,
         sep: &TokenKind,
         s: (&str, &str, &str),
-    ) -> Vec<(Identifier, Ty)> {
+    ) -> PResult<Vec<(Identifier, Ty)>> {
         use PunctuatorKind::*;
         //use TokenKind::*;
 
@@ -126,7 +127,7 @@ impl Parser {
             let _ = self
                 .eat(&TokenKind::Punctuator(Colon))
                 .unwrap_or_else(|_| panic!("Expected ':' after {} {}", s.0, s.1));
-            let ty = self.parse_ty();
+            let ty = self.parse_ty().unwrap();
 
             match self.eat(sep) {
                 Ok(..) => (),
@@ -140,9 +141,9 @@ impl Parser {
         }
         self.eat(end)
             .unwrap_or_else(|_| panic!("Expected '{}' after {} parameters", end.as_str(), s.0));
-        result
+        Ok(result)
     }
-    pub fn parse_item_fn(&mut self) -> Item {
+    pub fn parse_item_fn(&mut self) -> PResult<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
         //use TokenKind::*;
@@ -161,6 +162,7 @@ impl Parser {
                 &TokenKind::Punctuator(Comma),
                 ("parameter", "name", "type"),
             )
+            .unwrap()
             .iter()
             .map(|(name, ty)| Parameter {
                 name: name.clone(),
@@ -172,7 +174,7 @@ impl Parser {
             .eat(&TokenKind::Punctuator(Colon))
             .ok()
             .cloned()
-            .map(|_x| self.parse_ty());
+            .map(|_x| self.parse_ty().unwrap());
 
         let body = self
             .check(&TokenKind::Punctuator(LeftBrace), 0)
@@ -188,6 +190,7 @@ impl Parser {
 
                 b
             })
+            .unwrap()
             .unwrap();
 
         // self.check(&Punctuator(LeftBrace), 0)
@@ -195,13 +198,14 @@ impl Parser {
         // let block = self.parse_expr_block();
         // self.eat(&Punctuator(RightBrace))
         //     .expect("Expected '}' after function body");
-        Item {
+        let item = Item {
             kind: ItemKind::Fn {
                 name: Identifier::from_token(name),
                 params: parameters,
                 ret: ret_type,
                 body: Box::new(body),
             },
-        }
+        };
+        Ok(item)
     }
 }

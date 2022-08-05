@@ -148,7 +148,7 @@ impl Ice {
                 print_stage(&parser_str);
             }
             let now = Instant::now();
-            let ast = parse_project_from_file(tokens);
+            let ast = parse_project_from_file(tokens).unwrap();
             time_vec.push(("Parser", now.elapsed()));
 
             if show_ast_tree {

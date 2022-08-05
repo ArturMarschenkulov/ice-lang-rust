@@ -88,13 +88,13 @@ enum Delimiter {
     Bracket,     // [ ]
 }
 
-pub fn get_ast_from_tokens(tokens: Vec<Token>) -> Project {
+pub fn get_ast_from_tokens(tokens: Vec<Token>) -> PResult<Project> {
     Parser::from_tokens(tokens).parse()
 }
 /// Parses a `Project` from a file.
 /// It's most likely a temporary function, because we can only parse one file, meaning a file would be the whole project.
 /// In the future of course this would not be a thing.
-pub fn parse_project_from_file(tokens: Vec<Token>) -> Project {
+pub fn parse_project_from_file(tokens: Vec<Token>) -> PResult<Project> {
     let mut parser = Parser::from_tokens(tokens);
     parser.parse()
 }
@@ -118,31 +118,32 @@ impl Parser {
             infix_bp: expr::set_infix_binding_power(),
         }
     }
-    fn parse_(&mut self) -> Vec<Item> {
+    fn parse_(&mut self) -> PResult<Vec<Item>> {
         let mut items: Vec<Item> = Vec::new();
 
         while !self.is_at_end() {
-            let item = self.parse_item();
+            let item = self.parse_item().unwrap();
             items.push(item);
         }
-        items
+        Ok(items)
     }
-    fn parse(&mut self) -> Project {
+    fn parse(&mut self) -> PResult<Project> {
         let mut items: Vec<Item> = Vec::new();
         while !self.is_at_end() {
-            let item = self.parse_item();
+            let item = self.parse_item().unwrap();
             items.push(item);
         }
         let module = Module { items };
-        Project {
+        let project = Project {
             modules: vec![module],
-        }
+        };
+        Ok(project)
     }
 }
 
 /// This impl block is for parsing the types
 impl Parser {
-    pub fn parse_ty(&mut self) -> Ty {
+    pub fn parse_ty(&mut self) -> PResult<Ty> {
         let token = self.eat_just().unwrap();
         let ty = match &token.kind {
             TokenKind::Identifier(..) => {
@@ -161,7 +162,7 @@ impl Parser {
             _ => todo!(),
         };
 
-        ty
+        Ok(ty)
     }
 }
 
