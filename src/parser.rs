@@ -1,4 +1,5 @@
 use crate::ast::{Identifier, Item, Module, Project, Ty, TyKind};
+use crate::error::ParserError;
 
 use crate::token::*;
 
@@ -80,6 +81,7 @@ expr_primary := ident | 'true' | 'false' | expr_group | string | number
     Vec{u8}::with_capacity(1024);
 */
 
+type PResult<T> = Result<T, ParserError>;
 enum Delimiter {
     Parenthesis, // ( )
     Brace,       // { }
@@ -121,7 +123,7 @@ impl Parser {
 
         while !self.is_at_end() {
             let item = self.parse_item();
-            items.push(*item);
+            items.push(item);
         }
         items
     }
@@ -129,7 +131,7 @@ impl Parser {
         let mut items: Vec<Item> = Vec::new();
         while !self.is_at_end() {
             let item = self.parse_item();
-            items.push(*item);
+            items.push(item);
         }
         let module = Module { items };
         Project {

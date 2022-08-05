@@ -1,10 +1,10 @@
-use super::Parser;
+use super::{PResult, Parser};
 use crate::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty, TyKind};
 use crate::token::*;
 
 /// This impl block is for parsing items.
 impl Parser {
-    pub fn parse_item_type_struct(&mut self) -> Box<Item> {
+    pub fn parse_item_type_struct(&mut self) -> Item {
         use KeywordKind::*;
         use PunctuatorKind::*;
         //use TokenKind::*;
@@ -26,8 +26,8 @@ impl Parser {
         let fields = fields
             .iter()
             .map(|(name, ty)| Field {
-                name: Identifier::from_token(name.clone()),
-                ty: TyKind::Simple(Identifier::from_token(ty.clone())),
+                name: name.clone(),
+                ty: ty.clone(),
             })
             .collect::<Vec<_>>();
 
@@ -35,9 +35,9 @@ impl Parser {
             name: Identifier::from_token(name),
             fields,
         };
-        Box::from(Item { kind: strct })
+        Item { kind: strct }
     }
-    pub fn parse_item_type(&mut self) -> Box<Item> {
+    pub fn parse_item_type(&mut self) -> Item {
         use KeywordKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
@@ -55,22 +55,23 @@ impl Parser {
             _ => (todo!()),
         }
     }
-    pub fn parse_item(&mut self) -> Box<Item> {
+    pub fn parse_item(&mut self) -> Item {
         use KeywordKind::*;
         use TokenKind::*;
 
-        match &self.peek(0).unwrap().kind {
+        let item = match &self.peek(0).unwrap().kind {
             Keyword(Fn) => self.parse_item_fn(),
             Keyword(Type) => self.parse_item_type(),
             _ => panic!("unexpected token"),
-        }
+        };
+        item
     }
 
     /// There 3 variable declaration types.
     /// 1. var <ident> := <expr>;
     /// 2. var <ident> : <type> = <expr>;
     /// 3. var <ident> : <type>;
-    pub fn parse_stmt_var(&mut self) -> Box<Stmt> {
+    pub fn parse_stmt_var(&mut self) -> Stmt {
         use KeywordKind::*;
         use PunctuatorKind::*;
         // use TokenKind::*;
@@ -88,7 +89,7 @@ impl Parser {
         });
 
         let expr = match self.eat(&TokenKind::Punctuator(Equal)) {
-            Ok(_) => Some(self.parse_expr()),
+            Ok(_) => Some(Box::new(self.parse_expr())),
             Err(_) if ty.is_some() => None,
             Err(_) => panic!("Expected equal sign"),
         };
@@ -102,7 +103,7 @@ impl Parser {
         self.check(&TokenKind::Punctuator(Semicolon), 0)
             .expect("Expected ';' after variable declaration");
 
-        Box::from(Stmt { kind: var_decl })
+        Stmt { kind: var_decl }
     }
     fn parse_delim_seq(
         &mut self,
@@ -110,9 +111,9 @@ impl Parser {
         end: &TokenKind,
         sep: &TokenKind,
         s: (&str, &str, &str),
-    ) -> Vec<(Token, Token)> {
+    ) -> Vec<(Identifier, Ty)> {
         use PunctuatorKind::*;
-        use TokenKind::*;
+        //use TokenKind::*;
 
         let mut result = Vec::new();
         self.eat(start).unwrap();
@@ -121,13 +122,11 @@ impl Parser {
                 .eat_identifier()
                 .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.1))
                 .clone();
+            let name = Identifier::from_token(name);
             let _ = self
-                .eat(&Punctuator(Colon))
+                .eat(&TokenKind::Punctuator(Colon))
                 .unwrap_or_else(|_| panic!("Expected ':' after {} {}", s.0, s.1));
-            let ty = self
-                .eat_identifier()
-                .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.2))
-                .clone();
+            let ty = self.parse_ty();
 
             match self.eat(sep) {
                 Ok(..) => (),
@@ -143,7 +142,7 @@ impl Parser {
             .unwrap_or_else(|_| panic!("Expected '{}' after {} parameters", end.as_str(), s.0));
         result
     }
-    pub fn parse_item_fn(&mut self) -> Box<Item> {
+    pub fn parse_item_fn(&mut self) -> Item {
         use KeywordKind::*;
         use PunctuatorKind::*;
         //use TokenKind::*;
@@ -164,8 +163,8 @@ impl Parser {
             )
             .iter()
             .map(|(name, ty)| Parameter {
-                name: Identifier::from_token(name.clone()),
-                ty: TyKind::Simple(Identifier::from_token(ty.clone())),
+                name: name.clone(),
+                ty: ty.clone(),
             })
             .collect::<Vec<Parameter>>();
 
@@ -196,13 +195,13 @@ impl Parser {
         // let block = self.parse_expr_block();
         // self.eat(&Punctuator(RightBrace))
         //     .expect("Expected '}' after function body");
-        Box::from(Item {
+        Item {
             kind: ItemKind::Fn {
                 name: Identifier::from_token(name),
                 params: parameters,
                 ret: ret_type,
-                body,
+                body: Box::new(body),
             },
-        })
+        }
     }
 }
