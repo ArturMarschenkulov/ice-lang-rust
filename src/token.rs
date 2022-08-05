@@ -306,9 +306,9 @@ impl PunctuatorKind {
         }
     }
 
-    fn to_string(&self) -> String {
-        format!("{}", self)
-    }
+    // fn to_string(&self) -> String {
+    //     format!("{}", self)
+    // }
 }
 
 impl std::fmt::Display for PunctuatorKind {
@@ -356,7 +356,7 @@ impl std::fmt::Display for PunctuatorKind {
             MinusEqual => "-=",
             StarEqual => "*=",
             SlashEqual => "/=",
-            
+
             _ => "",
         };
         let s = if s.is_empty() {
@@ -382,7 +382,6 @@ pub enum KeywordKind {
     Else,
     While,
     For,
-
     // Ret,
 }
 impl KeywordKind {
@@ -414,7 +413,6 @@ impl KeywordKind {
             Else => "else",
             While => "while",
             For => "for",
-
             //Ret => "ret",
         }
     }
@@ -435,7 +433,6 @@ impl std::fmt::Display for KeywordKind {
             Else => "'else'",
             While => "'while'",
             For => "'for'",
-
             //Ret => "ret",
         };
         write!(f, "{}", s)
@@ -533,12 +530,35 @@ impl NumberBase {
             Hexadecimal => 16,
         }
     }
+    pub fn as_str(&self) -> &str {
+        use NumberBase::*;
+        match self {
+            Binary => "0b",
+            Octal => "0o",
+            Decimal => "0d",
+            Hexadecimal => "0x",
+        }
+    }
 }
 
+// TODO: Combine `Integer`and `Floating` into `Number`?
 #[derive(Clone, Debug, PartialEq)]
 pub enum LiteralKind {
-    Integer { content: String, base: NumberBase },
-    Floating { content: String },
+    Integer {
+        content: String,
+        base: Option<NumberBase>,
+        suffix: Option<String>,
+    },
+    Floating {
+        content: String,
+        suffix: Option<String>,
+    },
+    // Number {
+    //     content: String,
+    //     prefix: Option<NumberBase>,
+    //     suffix: Option<String>,
+    //     is_float: bool,
+    // },
     Boolean(bool),
     Char(char),
     Str(String),
@@ -623,6 +643,27 @@ impl Token {
             whitespace,
         }
     }
+
+    /// creats a dummy token.
+    /// It's mainly used for temporary stuff.
+    pub fn dummy() -> Self {
+        Token {
+            kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
+            span: Span::from_tuples((0, 0), (0, 0)),
+            whitespace: Whitespace::None,
+        }
+    }
+
+    // pub fn from_kw_to_ident(&self) -> Token {
+    //     use TokenKind::*;
+    //     match self.kind {
+    //         Keyword(kw) => Token {
+    //             kind: Identifier(kw.as_str().to_string()),
+    //             ..*self
+    //         },
+    //         _ => unreachable!(),
+    //     }
+    // }
     pub fn from_self_slice(slice: &[Token]) -> Self {
         use TokenKind::*;
         // TODO: Maybe consider to move this logic somewhere else, where it is guaranteed

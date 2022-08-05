@@ -11,6 +11,8 @@ use crate::error::*;
 use crate::token;
 use crate::token::*;
 
+type PResult<T> = Result<T, LexerError>;
+
 fn is_digit(c: &char) -> bool {
     ('0'..='9').contains(c)
 }
@@ -86,10 +88,10 @@ impl Lexer {
 
             // In this part we combine simple punctuator tokens to complex ones, if possible
 
-            // We have a `puncs`, where copies of the previous punctuators lie,
+            // We have a `punc_cache`, where copies of the previous punctuators lie,
             // which could be combined to a complex token.
 
-            // If the scanned token is not a punctuator, we flush the `puncs`.
+            // If the scanned token is not a punctuator, we flush the `punc_cache`.
 
             // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
             // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.
@@ -100,7 +102,7 @@ impl Lexer {
             // - invalid examples: `:=:`
             // `=`: It can't form a complex token with a preceding `:`.
 
-            // If it goes to `puncs` it is meant that it is cached to be potentially used for a complex token
+            // If it goes to `punc_cache` it is meant that it is cached to be potentially used for a complex token
             // To the `tokens` simply means it goes to the token stream.
             enum Action {
                 ToTokens,
@@ -109,38 +111,24 @@ impl Lexer {
             let mut action = Action::ToTokens;
 
             let last_puncs_kind = punc_cache.last().map(|p| p.kind.clone());
-            let is_last_colon_ = last_puncs_kind == Some(Punctuator(Colon));
-            let is_last_colon = last_puncs_kind
-                .as_ref()
-                .map(|p| p == &Punctuator(Colon))
-                .unwrap_or(false);
 
             if let Punctuator(punc) = &token.kind {
                 action = Action::ToPuncCache;
 
-                let is_last_same_ = last_puncs_kind == Some(Punctuator(punc.clone()));
-                let is_last_same = last_puncs_kind
-                    .as_ref()
-                    .map(|p| p == &Punctuator(punc.clone()))
-                    .unwrap_or(false);
-
-                // This is temporary
-                assert_eq!(is_last_same, is_last_same_);
-                assert_eq!(is_last_colon, is_last_colon_);
-
-                let is_curr_equal = punc == &Equal;
-                // `puncs.is_empty()` basically means that it is the first token of the potential complex token
-
                 if punc.is_structural() {
                     action = Action::ToTokens;
-                    // println!("ikiki 2: {:?}", punc);
-                    if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_same)
-                    // && (is_last_COLON && is_curr_EQUAL)
-                    {
+                    let is_last_p_same = last_puncs_kind
+                        .as_ref()
+                        .map(|p| p == &Punctuator(punc.clone()))
+                        .unwrap_or(false);
+                    if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_p_same) {
                         action = Action::ToPuncCache;
-                        // println!("ikiki 1");
-                        if is_last_colon && is_curr_equal {
-                            // println!("ikiki 0");
+
+                        let is_last_p_colonequal = last_puncs_kind
+                            .as_ref()
+                            .map(|p| p == &Punctuator(Colon) && punc == &Equal)
+                            .unwrap_or(false);
+                        if is_last_p_colonequal {
                             action = Action::ToPuncCache;
                         }
                     }
@@ -395,53 +383,61 @@ impl Lexer {
         use LiteralKind::*;
         use TokenKind::*;
 
-        // TODO: Try to make it possible that the lexer does not parse `foo.0.0` as a floating point
+        // A number literal can be divided up into three parts.
+        // An optional prefix, a number base: It shows which radix the number is in.
+        // A number body: The actual number.
+        // An optional suffix: It shows the type of the number, like f32, u8, etc.
 
-        let (number_base, has_base_prefix, is_in_number_base): (
-            NumberBase,
-            bool,
-            fn(&char) -> bool,
-        ) = match self.peek_into_str(1).unwrap().as_str() {
-            "0b" => (NumberBase::Binary, true, is_binary),
-            "0o" => (NumberBase::Octal, true, is_octal),
-            "0d" => (NumberBase::Decimal, true, is_digit),
-            "0x" => (NumberBase::Hexadecimal, true, is_hexadecimal),
-            _ => (NumberBase::Decimal, false, is_digit),
+        // The idea is to at first parse those three parts and then look wether they match the rules.
+
+        // TODO: Try to make it possible that the lexer does not parse `foo.0.0` as a floating point
+        // TODO: Maybe do not make the number base hard coded similar how suffixes are not? Only a consideration.
+
+        // Prefix Part
+        // let first_two_chars = self.peek_into_str(1).unwrap().clone();
+
+        let prefix = match self.peek_into_str(1) {
+            Some(c) if ["0b", "0o", "0d", "0x"].contains(&c.as_str()) => {
+                self.advance();
+                self.advance();
+                self.cursor.column += 2;
+                Some(c.clone())
+            }
+            _ => None,
         };
-        if has_base_prefix {
-            self.advance();
-            self.advance();
-            self.cursor.column += 1;
-            self.cursor.column += 1;
-        }
+        let (number_base, is_in_number_base): (Option<NumberBase>, fn(&char) -> bool) =
+            match prefix.as_ref().map(|ref s| s.as_str()) {
+                Some("0b") => (Some(NumberBase::Binary), is_binary),
+                Some("0o") => (Some(NumberBase::Octal), is_octal),
+                Some("0d") => (Some(NumberBase::Decimal), is_digit),
+                Some("0x") => (Some(NumberBase::Hexadecimal), is_hexadecimal),
+                None => (None, is_digit),
+                _ => unreachable!(),
+            };
+
+        // Number Body Part
         let mut is_after_dot = false;
         let mut is_floating = false;
-
+        let mut mode_parse_suffix = false;
         let mut string = String::new();
+        let allow_letters = number_base == Some(NumberBase::Hexadecimal);
         while let Some(c) = self.peek(0) {
             let res: Result<(), LexerError> = match c {
                 // checks whether it is a possible digit at all.
-                c if is_hexadecimal(&c) => {
-                    if is_in_number_base(&c) {
-                        string.push(c);
-                        if is_after_dot {
-                            is_after_dot = false;
-                        }
-                        Ok(())
-                    } else {
-                        Err(LexerError::new(format!(
-                            "invalid digit for base {} literal",
-                            number_base.as_num()
-                        )))
+                c if (allow_letters && is_hexadecimal(&c)) || (!allow_letters && is_digit(&c)) => {
+                    string.push(c);
+                    if is_after_dot {
+                        is_after_dot = false;
                     }
+                    Ok(())
+                }
+                // this parses a potential suffix
+                c if is_alpha(&c) => {
+                    mode_parse_suffix = true;
+                    break;
                 }
                 // in a number there can be only one dot
-                // it can't be in a number which has a prefix, because floating points don't have a base prefix
-                '.' if !is_floating
-                    && !has_base_prefix
-                    && self.check('.', 1).ok().is_none()
-                    && self.peek(1).filter(is_in_number_base).is_some() =>
-                {
+                '.' if !is_floating && self.check('.', 1).ok().is_none() => {
                     string.push(c);
                     is_floating = true;
                     is_after_dot = true;
@@ -449,8 +445,6 @@ impl Lexer {
                 }
                 // a '_' is not possible after a '.'. E.g. '1._3' is not a number, this is an integer followed by an identifier.
                 '_' if !is_after_dot => Ok(()),
-                '.' if has_base_prefix => Err(LexerError::new(format!("dot after base prefix"))),
-
                 _ => break,
             };
             if let Err(e) = res {
@@ -459,17 +453,58 @@ impl Lexer {
                 self.advance()
             }
         }
+        // Suffix part
+        let suffix = if mode_parse_suffix {
+            let mut suffix: String = String::new();
+            while self.peek(0).unwrap().is_alphanumeric() {
+                suffix.push(self.peek(0).unwrap());
+                self.advance();
+            }
+            Some(suffix)
+        } else {
+            None
+        };
 
+        // Cursor part
         let _starts_with_dot = string.starts_with('.');
         let _ends_with_dot = string.ends_with('.');
-        self.cursor.column += (string.len() - 1) as u32;
+        self.cursor.column +=
+            (string.len() + suffix.clone().unwrap_or(String::new()).len() - 1) as u32;
+
+        // Error handling
+        if prefix.is_some() && is_floating {
+            return Err(LexerError::new(format!(
+                "floating point literals are not allowed to have a base prefix (`{}`)",
+                number_base.unwrap_or(NumberBase::Decimal).as_num()
+            )));
+        }
+        if !string.chars().all(|c| is_in_number_base(&c)) {
+            return Err(LexerError::new(format!(
+                "invalid digit for base {} literal",
+                number_base.unwrap_or(NumberBase::Decimal).as_num()
+            )));
+        }
+
+        let possible_suffixes = [
+            "", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
+        ];
+        if !possible_suffixes.contains(&suffix.clone().unwrap_or("".to_string()).as_str()) {
+            return Err(LexerError::new(format!(
+                "invalid suffix `{}` for numeric literal",
+                suffix.unwrap_or("".to_string())
+            )));
+        }
 
         let lit = if is_floating {
-            Literal(Floating { content: string })
+            Literal(Floating {
+                content: string,
+                suffix,
+            })
         } else {
             Literal(Integer {
                 content: string,
                 base: number_base,
+                suffix,
             })
         };
         Ok(lit)
@@ -629,25 +664,88 @@ mod test {
     use crate::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
 
     #[test]
-    fn test_0() {
-        let source = "var a = 2222;";
+    fn num_0_() {
+        let txt = "0";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+
+    #[test]
+    #[should_panic]
+    fn num_0() {
+        let txt = "0x0.0";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+    #[test]
+    #[should_panic]
+    fn num_1() {
+        let txt = "0b444";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+    #[test]
+    #[should_panic]
+    fn num_2() {
+        let txt = "0o99";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+
+    #[test]
+    #[should_panic]
+    fn num_3() {
+        let txt = "0.";
+        let t = Lexer::new_from_str(txt).scan_tokens();
+        assert_ne!(t.len() - 1, 1);
+    }
+
+    #[test]
+    fn num_4() {
+        use KeywordKind::*;
+        use LiteralKind::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
+        let txt = ".0";
+        let t = Lexer::new_from_str(txt).scan_tokens();
+        assert_eq!(t.len() - 1, 2);
+        assert_eq!(t[0].kind, Punctuator(Dot));
+    }
+    #[test]
+    fn init_colonequal() {
+        use KeywordKind::*;
+        use LiteralKind::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
+        let source = "var a := 2222;";
 
         let mut lexer = Lexer::new_from_str(source);
         let tokens = lexer.scan_tokens();
 
-        assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Var));
-        assert_eq!(tokens[1].kind, TokenKind::Identifier(String::from("a")));
-        assert_eq!(tokens[2].kind, TokenKind::Punctuator(PunctuatorKind::Equal));
-        assert_eq!(
-            tokens[3].kind,
-            TokenKind::Literal(LiteralKind::Integer {
-                content: "2222".to_owned(),
-                base: NumberBase::Decimal,
-            })
-        );
+        assert_eq!(tokens[0].kind, Keyword(Var));
+        assert_eq!(tokens[1].kind, Identifier(String::from("a")));
+        assert_eq!(tokens[2].kind, Punctuator(Colon));
+        assert_eq!(tokens[3].kind, Punctuator(Equal));
         assert_eq!(
             tokens[4].kind,
-            TokenKind::Punctuator(PunctuatorKind::Semicolon)
+            Literal(Integer {
+                content: "2222".to_owned(),
+                base: None,
+                suffix: None
+            })
         );
+        assert_eq!(tokens[5].kind, Punctuator(Semicolon));
+    }
+    #[test]
+    fn coloncolon() {
+        use PunctuatorKind::*;
+        use TokenKind::*;
+
+        let source = "std::io::str;";
+        let mut lexer = Lexer::new_from_str(source);
+        let tokens = lexer.scan_tokens();
+        assert_eq!(tokens[0].kind, Identifier(String::from("std")));
+        assert_eq!(tokens[1].kind, Punctuator(ColonColon));
+        assert_eq!(tokens[2].kind, Identifier(String::from("io")));
+        assert_eq!(tokens[3].kind, Punctuator(ColonColon));
+        assert_eq!(tokens[4].kind, Identifier(String::from("str")));
+        assert_eq!(tokens[5].kind, Punctuator(Semicolon));
     }
 }

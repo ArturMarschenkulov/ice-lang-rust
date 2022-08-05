@@ -1,5 +1,5 @@
-use crate::ast::{Expr, ExprKind, Stmt};
-use crate::parser::Parser;
+use super::Parser;
+use crate::ast::{Expr, ExprKind, Identifier, Stmt};
 use crate::token::*;
 
 fn get_unary_operator_precedence(token: &Token) -> i32 {
@@ -34,42 +34,39 @@ enum Associativity {
     None,
 }
 #[derive(Clone)]
-struct BindingPower {
+pub struct BindingPower {
     left: f32,
     right: f32,
 }
 impl BindingPower {
     fn new(precedence: u32, associativity: Associativity) -> Self {
+        use Associativity::*;
         let prec = precedence as f32;
         match associativity {
-            Associativity::Left => BindingPower {
+            Left => BindingPower {
                 left: prec + 0.1,
                 right: prec - 0.1,
             },
-            Associativity::Right => BindingPower {
+            Right => BindingPower {
                 left: prec - 0.1,
                 right: prec + 0.1,
             },
-            Associativity::None => BindingPower {
+            None => BindingPower {
                 left: prec,
                 right: prec,
             },
         }
     }
-    fn is_zero(&self) -> bool {
-        self.left == 0.0 && self.right == 0.0
-    }
+    // fn is_zero(&self) -> bool {
+    //     self.left == 0.0 && self.right == 0.0
+    // }
 }
-fn get_infix_binding_power(token: &Token) -> BindingPower {
+
+pub fn set_infix_binding_power() -> std::collections::HashMap<String, BindingPower> {
     use std::collections::HashMap;
     use Associativity::*;
     use PunctuatorKind::*;
     use TokenKind::*;
-
-    // Right now this is inefficeint. But the point is to slowly extract that logic to a more global scope
-    // This location for this logic is temporary anyway, since custom operators will be supported,
-    // meaning that the one has to collect the map for that in the typechecker anyway.
-
     let arr = [
         //
         (Punctuator(Asterisk), 7, Left),
@@ -91,18 +88,22 @@ fn get_infix_binding_power(token: &Token) -> BindingPower {
         //
         (Punctuator(Equal), 1, Right),
     ];
-
-    // let s = |tk: &TokenKind| format!("{:?}", tk);
     // Workaround, so that we don't have to implement stuff only for the HashMap.
-    fn s(tk: &TokenKind) -> String {
+    fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
     arr.iter()
-        .map(|(tk, prec, asso)| (s(tk), BindingPower::new(*prec, *asso)))
+        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::new(*prec, *asso)))
         .collect::<HashMap<String, BindingPower>>()
-        .get(&s(&token.kind))
-        .unwrap_or(&BindingPower::new(0, None))
-        .clone()
+}
+
+fn get_infix_binding_power(token: &Token, p: &Parser) -> Option<BindingPower> {
+    // // Workaround, so that we don't have to implement stuff only for the HashMap.
+    fn stringify(tk: &TokenKind) -> String {
+        format!("{:?}", tk)
+    }
+
+    p.infix_bp.get(&stringify(&token.kind)).cloned()
 }
 
 /// This impl block is for parsing expressions
@@ -214,8 +215,7 @@ impl Parser {
     fn parse_expr_binary(&mut self, prev_bp: f32) -> Box<Expr> {
         let un_op_prec = get_unary_operator_precedence(self.peek(0).unwrap());
         let mut left = if un_op_prec != 0 && un_op_prec >= prev_bp as i32 {
-            let op = self.peek(0).unwrap().clone();
-            self.advance();
+            let op = self.eat_punctuator().unwrap().clone();
             let right = self.parse_expr_binary(un_op_prec as f32);
             Box::from(Expr {
                 kind: ExprKind::Unary(op, right),
@@ -225,56 +225,58 @@ impl Parser {
         };
 
         loop {
-            let binding_power = get_infix_binding_power(self.peek(0).unwrap());
-            if binding_power.is_zero() || binding_power.left < prev_bp {
-                break;
-            } else if binding_power.left == prev_bp {
-                // TODO: This is an error. The operators have the same precedence and are non-associative.
-                //       We should probably handle this.
-                panic!(
+            match get_infix_binding_power(self.peek(0).unwrap(), &self) {
+                None => break,
+                Some(bp) if bp.left < prev_bp => break,
+                Some(bp) if bp.left == prev_bp => panic!(
                     "Operators have the same precedence and are non-associative. This is not {:?}",
                     self.peek(0)
-                );
+                ),
+                Some(bp) => {
+                    let operator = self.eat_punctuator().unwrap().clone();
+                    let right = self.parse_expr_binary(bp.right);
+                    left = Box::from(Expr {
+                        kind: ExprKind::Binary(left, operator.clone(), right),
+                    });
+                }
             }
-
-            let operator = self.peek(0).unwrap().clone();
-            self.advance();
-            let right = self.parse_expr_binary(binding_power.right);
-            left = Box::from(Expr {
-                kind: ExprKind::Binary(left, operator.clone(), right),
-            });
         }
         left
     }
     fn parse_expr_primary(&mut self) -> Box<Expr> {
         use KeywordKind::*;
         use PunctuatorKind::*;
-        use TokenKind::*;
+        // use TokenKind::*;
         let token = self.peek(0).unwrap().clone();
 
         let expr = match token.kind {
-            Literal(lit) => {
+            TokenKind::Literal(lit) => {
                 self.advance();
                 Expr {
                     kind: ExprKind::Literal(lit),
                 }
             }
-            Identifier(_) => {
-                if self.check(&Punctuator(LeftParen), 1).is_ok() {
+            TokenKind::Identifier(_) => {
+                if self.check(&TokenKind::Punctuator(LeftParen), 1).is_ok() {
                     *self.parse_expr_fn_call()
                 } else {
                     let mut ids = Vec::new();
-                    let i = self.eat_identifier().unwrap().clone();
-                    ids.push(i);
+                    ids.push(self.eat_identifier().unwrap().clone());
 
-                    while self.eat(&Punctuator(Colon)).is_ok() {
-                        self.eat(&Punctuator(Colon)).unwrap();
-                        let i = self.eat_identifier().unwrap().clone();
-                        ids.push(i);
+                    while self.eat(&TokenKind::Punctuator(ColonColon)).is_ok() {
+                        ids.push(self.eat_identifier().unwrap().clone());
                     }
 
-                    let actual_id = ids.pop().unwrap();
-                    let actual_path = if ids.is_empty() { None } else { Some(ids) };
+                    let actual_id = Identifier::from_token(ids.pop().unwrap());
+                    let actual_path = if ids.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            ids.iter()
+                                .map(|x| Identifier::from_token(x.clone()))
+                                .collect::<Vec<_>>(),
+                        )
+                    };
 
                     Expr {
                         kind: ExprKind::Symbol {
@@ -285,21 +287,21 @@ impl Parser {
                 }
             }
 
-            Keyword(If) => *self.parse_expr_if(),
-            Keyword(While) => *self.parse_expr_while(),
-            Keyword(For) => *self.parse_expr_for(),
-            Punctuator(LeftParen) => {
+            TokenKind::Keyword(If) => *self.parse_expr_if(),
+            TokenKind::Keyword(While) => *self.parse_expr_while(),
+            TokenKind::Keyword(For) => *self.parse_expr_for(),
+            TokenKind::Punctuator(LeftParen) => {
                 self.advance(); //skip the (
                 let left = self.parse_expr();
-                self.eat(&Punctuator(RightParen))
+                self.eat(&TokenKind::Punctuator(RightParen))
                     .expect("Expected ')' after expression");
                 Expr {
                     kind: ExprKind::Grouping(left),
                 }
             }
-            Punctuator(LeftBrace) => {
+            TokenKind::Punctuator(LeftBrace) => {
                 let stmts = self.parse_expr_block();
-                self.eat(&Punctuator(RightBrace))
+                self.eat(&TokenKind::Punctuator(RightBrace))
                     .expect("Expected '}' after expression");
                 *stmts
             }
@@ -311,9 +313,10 @@ impl Parser {
     }
     fn parse_expr_fn_call(&mut self) -> Box<Expr> {
         use PunctuatorKind::*;
-        use TokenKind::*;
+        //use TokenKind::*;
 
         let callee_name = self.eat_identifier().cloned().unwrap();
+        let callee_name = Identifier::from_token(callee_name);
 
         let callee = Box::from(Expr {
             kind: ExprKind::Symbol {
@@ -321,19 +324,19 @@ impl Parser {
                 path: None,
             },
         });
-        self.eat(&Punctuator(LeftParen))
+        self.eat(&TokenKind::Punctuator(LeftParen))
             .expect("Expected '(' after function name");
 
         let mut arguments: Vec<Expr> = Vec::new();
-        while self.peek(0).unwrap().kind != Punctuator(RightParen) {
+        while self.peek(0).unwrap().kind != TokenKind::Punctuator(RightParen) {
             arguments.push(*self.parse_expr());
-            if self.peek(0).unwrap().kind != Punctuator(RightParen) {
-                self.eat(&Punctuator(Comma))
+            if self.peek(0).unwrap().kind != TokenKind::Punctuator(RightParen) {
+                self.eat(&TokenKind::Punctuator(Comma))
                     .expect("Expected ',' after argument");
             }
         }
 
-        self.eat(&Punctuator(RightParen))
+        self.eat(&TokenKind::Punctuator(RightParen))
             .expect("Expected ')' after arguments");
 
         Box::from(Expr {

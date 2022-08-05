@@ -22,8 +22,61 @@ var stur := "This\n is a string\n";
 // THis is a comment at the end
 "#;
 
+fn print_stage(stage: &str) {
+    println!();
+    println!("{} Stage:", stage);
+    println!();
+}
+
+fn print_time(vec: &Vec<(&str, std::time::Duration)>) {
+    let ansi_cyan = ansi_term::Color::Cyan;
+    let ansi_red = ansi_term::Color::Red;
+
+    for (stage, time) in vec {
+        let stage = ansi_cyan.paint(*stage).to_string();
+        
+        let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
+        let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
+        let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
+        let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
+
+        println!(
+            "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
+            stage, nano_t, micro_t, mili_t, sec_t
+        );
+    }
+    let s = vec.clone().iter().map(|(_, t)| t).sum::<std::time::Duration>();
+    let stage = ansi_cyan.paint("all").to_string();
+    let nano_t = ansi_red.paint(format!("{}", s.as_nanos())).to_string();
+    let micro_t = ansi_red.paint(format!("{}", s.as_micros())).to_string();
+    let mili_t = ansi_red.paint(format!("{}", s.as_millis())).to_string();
+    let sec_t = ansi_red.paint(format!("{}", s.as_secs())).to_string();
+
+    println!(
+        "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
+        stage, nano_t, micro_t, mili_t, sec_t
+    );
+}
+fn print_token_stream(tokens: &Vec<token::Token>) {
+    println!("----Token Stream----");
+    for token in tokens {
+        println!(
+            "retat: {:?} {:?} {:?}",
+            &token.kind, &token.whitespace, &token.span
+        );
+    }
+    println!("~~~~Token Stream~~~~");
+}
+fn print_source_code(source: &str) {
+    println!();
+    println!("----Source Code----");
+    println!("{}", source);
+    println!("~~~~Source Code~~~~");
+    println!();
+}
 struct Ice {}
 impl Ice {
+    // the entry point to the `Ice` instance
     fn main(&mut self) {
         let num_arg = std::env::args().count() == 2;
         match num_arg {
@@ -66,90 +119,51 @@ impl Ice {
     fn run(&mut self, text: &str) {
         let mut time_vec = Vec::<(&str, std::time::Duration)>::new();
 
-        println!();
-        println!("Source code start:");
-        println!("{}", text.to_owned());
-        println!("Source code end.");
-        println!();
+        print_source_code(text);
 
         let show_stages = true;
         let show_token_stream = true;
         let show_ast_tree = true;
 
-        let lexer_str = ansi_term::Color::Cyan.paint("Lexer").to_string();
-        let parser_str = ansi_term::Color::Cyan.paint("Parser").to_string();
-
-        if show_stages {
-            println!();
-            println!("{} Stage:", lexer_str);
-            println!();
-        }
-
-        let now = Instant::now();
-        let tokens = get_tokens_from_source(text);
-        time_vec.push(("Lexer", now.elapsed()));
-
-        if show_token_stream {
-            println!("----Token Stream----");
-            for token in &tokens {
-                println!(
-                    "retat: {:?} {:?} {:?}",
-                    &token.kind, &token.whitespace, &token.span
-                );
+        // The lexer part
+        let tokens = {
+            if show_stages {
+                let lexer_str = ansi_term::Color::Cyan.paint("Lexer").to_string();
+                print_stage(&lexer_str);
             }
-            println!("~~~~Token Stream~~~~");
-        }
+            let now = Instant::now();
+            let tokens = get_tokens_from_source(text);
+            time_vec.push(("Lexer", now.elapsed()));
 
-        for (stage, time) in &time_vec {
-            let ansi_cyan = ansi_term::Color::Cyan;
-            let ansi_red = ansi_term::Color::Red;
+            if show_token_stream {
+                print_token_stream(&tokens)
+            }
+            tokens
+        };
 
-            let stage = ansi_cyan.paint(*stage).to_string();
-            let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
-            let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
-            let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
-            let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
+        // The parser part
+        let _ast = {
+            if show_stages {
+                let parser_str = ansi_term::Color::Cyan.paint("Parser").to_string();
+                print_stage(&parser_str);
+            }
+            let now = Instant::now();
+            let ast = parse_project_from_file(tokens);
+            time_vec.push(("Parser", now.elapsed()));
 
-            println!(
-                "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
-                stage, nano_t, micro_t, mili_t, sec_t
-            );
-        }
+            if show_ast_tree {
+                ast.print_debug_tree()
+            }
+            ast
+        };
 
-        if show_stages {
-            println!();
-            println!("{} Stage:", parser_str);
-            println!();
-        }
+        print_time(&time_vec);
 
-        let now = Instant::now();
-        let ast = parse_project_from_file(tokens);
-        time_vec.push(("Parser", now.elapsed()));
-
-        if show_ast_tree {
-            // print_ast(&ast);
-            ast.print_debug_tree()
-        }
-
-        for (stage, time) in &time_vec {
-            let ansi_cyan = ansi_term::Color::Cyan;
-            let ansi_red = ansi_term::Color::Red;
-
-            let stage = ansi_cyan.paint(*stage).to_string();
-            let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
-            let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
-            let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
-            let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
-
-            println!(
-                "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
-                stage, nano_t, micro_t, mili_t, sec_t
-            );
-        }
-
-        println!("{:?} milliseconds have passed", now.elapsed().as_nanos());
+        //println!("{:?} milliseconds have passed", now.elapsed().as_nanos());
     }
 }
+
+/// Main entry point to the whole project/compiler
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
     println!("------------------------------------------------------------");

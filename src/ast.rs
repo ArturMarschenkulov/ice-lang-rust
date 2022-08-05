@@ -1,22 +1,42 @@
-use crate::token::{LiteralKind, Token, TokenKind};
 use debug_tree::*;
 
-// struct Program {
-//     pub statements: Vec<Statement>,
-// }
+struct Typed<T> {
+    expr: T,
+    ty: Ty,
+}
+
+#[derive(Clone, Debug)]
+pub struct Identifier {
+    pub name: crate::token::Token,
+}
+
+impl Identifier {
+    pub fn from_token(token: crate::token::Token) -> Self {
+        println!("ioioio {:?}", token.kind);
+        // assert!(token.kind.is_identifier());
+        Identifier { name: token }
+    }
+}
 #[derive(Clone, Debug)]
 pub enum ExprKind {
-    Literal(LiteralKind),
+    Literal(crate::token::LiteralKind),
     Grouping(Box<Expr>),
-    Binary(Box<Expr>, Token, Box<Expr>),
-    Unary(Token, Box<Expr>),
+    Binary(Box<Expr>, crate::token::Token, Box<Expr>),
+    Unary(crate::token::Token, Box<Expr>),
+    // Symbol {
+    //     name: crate::token::Token,
+    //     /// `None` means there is no path to this symbol (`x`)
+    //     /// `Some` means there is a path to this symbol (`x::y::z`),
+    //     /// however it can be also empty (`::x`)
+    //     path: Option<Vec<crate::token::Token>>,
+    // },
     Symbol {
-        name: Token,
+        name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
         /// `Some` means there is a path to this symbol (`x::y::z`),
         /// however it can be also empty (`::x`)
-        path: Option<Vec<Token>>,
-    }, // symbol, path
+        path: Option<Vec<Identifier>>,
+    },
     // Block(Vec<StmtKind>, Option<Box<ExprKind>>),
     Block(Vec<Stmt>),
 
@@ -24,7 +44,6 @@ pub enum ExprKind {
     While(Box<Expr>, Box<Expr>),
     For(Box<Stmt>, Box<Expr>, Box<Expr>, Box<Expr>),
     // Ret(Option<Box<Expr>>),
-
     FnCall(Box<Expr>, Vec<Expr>),
 }
 #[derive(Clone, Debug)]
@@ -35,7 +54,7 @@ pub struct Expr {
 
 #[derive(Clone, Debug)]
 pub struct Parameter {
-    pub name: Token,
+    pub name: Identifier,
     pub ty: TyKind,
 }
 
@@ -50,7 +69,34 @@ pub struct Module {
 }
 #[derive(Clone, Debug)]
 pub enum TyKind {
-    Simple(Token),
+    /// A simple type `A`. It can be either custom or builtin/primitive.
+    Simple(Identifier),
+    /// A tuple type `(A, B, C)`. If empty it also represents the unit type `()`.
+    Tuple(Vec<Ty>),
+}
+impl TyKind {
+    /// Returns `true`, if the type is a buildin type.
+    ///
+    /// This includes `i32`, `f32`, `bool`, `char`, `str`, `()`.
+    pub fn is_buildin(&self) -> bool {
+        match self {
+            TyKind::Simple(Identifier {
+                name:
+                    crate::token::Token {
+                        kind: crate::token::TokenKind::Identifier(ty),
+                        ..
+                    },
+            }) => {
+                match ty {
+                    ty if ty == "bool" => true,
+                    ty if ["i", "u", "f"].contains(&ty.get(..0).unwrap()) => true,
+                    _ => false,
+                };
+                true
+            }
+            _ => false,
+        }
+    }
 }
 #[derive(Clone, Debug)]
 pub struct Ty {
@@ -58,20 +104,23 @@ pub struct Ty {
 }
 #[derive(Clone, Debug)]
 pub struct Field {
-    pub name: Token,
+    pub name: Identifier,
     pub ty: TyKind,
 }
 #[derive(Clone, Debug)]
 pub enum ItemKind {
     /// fn foo(x: i32) {...}
     Fn {
-        name: Token,
+        name: Identifier,
         params: Vec<Parameter>,
         ret: Option<Ty>,
         body: Box<Expr>,
     },
     /// type Foo = struct { x: i32 }
-    Struct { name: Token, fields: Vec<Field> },
+    Struct {
+        name: Identifier,
+        fields: Vec<Field>,
+    },
     // /// type Foo = enum { A, B }
     // Enum {
     //     name: Token,
@@ -95,7 +144,7 @@ pub struct Item {
 pub enum StmtKind {
     /// let a: i32 = 4,
     Var {
-        var: Token,
+        var: Identifier,
         ty: Option<Ty>,
         init: Option<Box<Expr>>,
     },
@@ -176,7 +225,7 @@ impl DebugTreePrinter for Expr {
                         .unwrap()
                         .iter()
                         .map(|t| {
-                            if let TokenKind::Identifier(id) = &t.kind {
+                            if let crate::token::TokenKind::Identifier(id) = &t.name.kind {
                                 id.clone()
                             } else {
                                 panic!("Expected identifier")
@@ -187,23 +236,13 @@ impl DebugTreePrinter for Expr {
                 } else {
                     None
                 };
-                add_branch!("Symbol: {}, {:?}", name.kind.as_str(), s);
+                add_branch!("Symbol: {}, {:?}", name.name.kind.as_str(), s);
             }
-            // Expr::Assign(_t0, _t1, _be) => {
-            //     add_branch!("Assign: {:?}", _t0.kind);
-            //     _be.print();
-            // }
             ExprKind::Block(stmts) => {
                 add_branch!("Block: ");
-                //print_ast(_vbs);
                 for ast_s in stmts {
-                    //println!("{:#?}", ast_s);
-                    //debug_tree::defer_print!();
                     ast_s.print_debug_tree();
                 }
-                // if let Some(expr) = last_expr {
-                //     expr.print();
-                // }
             }
             ExprKind::If(comp, then_branch, else_branch) => {
                 add_branch!("If: ");
@@ -244,7 +283,7 @@ impl DebugTreePrinter for Stmt {
         match &self.kind {
             StmtKind::Var { var, ty, init } => {
                 add_branch!("SVarDeclaration: ");
-                add_leaf!("T: {:?}", var.kind);
+                add_leaf!("T: {:?}", var.name.kind);
                 add_leaf!("T: {:?}", ty);
                 match init.as_ref() {
                     Some(i) => i.print_debug_tree(),
@@ -279,7 +318,7 @@ impl DebugTreePrinter for Item {
                 body,
             } => {
                 add_branch!("SFnDeclaration: ");
-                add_leaf!("T: {:?}", name.kind);
+                add_leaf!("T: {:?}", name.name.kind);
                 {
                     add_branch!("parameters: ");
 
@@ -290,7 +329,11 @@ impl DebugTreePrinter for Item {
                             None
                         }
                         .unwrap();
-                        add_leaf!("T: {}: {}", param.name.kind.as_str(), st.kind.as_str());
+                        add_leaf!(
+                            "T: {}: {}",
+                            param.name.name.kind.as_str(),
+                            st.name.kind.as_str()
+                        );
                         //_t.print();
                     }
                 }
@@ -301,9 +344,9 @@ impl DebugTreePrinter for Item {
                         } else {
                             None
                         }
-                        .unwrap()
+                        .unwrap_or(Identifier::from_token(crate::token::Token::dummy()))
                     };
-                    let s = ret.clone().map(|t| f(t).kind.as_str());
+                    let s = ret.clone().map(|t| f(t).name.kind.as_str());
                     add_branch!("ret: ");
                     add_leaf!("T: {:?}", s);
                 }
@@ -311,7 +354,7 @@ impl DebugTreePrinter for Item {
             }
             ItemKind::Struct { name, fields } => {
                 add_branch!("SStructDeclaration: ");
-                add_leaf!("T: {:?}", name.kind);
+                add_leaf!("T: {:?}", name.name.kind);
                 {
                     add_branch!("fields: ");
                     for field in fields {
@@ -321,7 +364,11 @@ impl DebugTreePrinter for Item {
                             None
                         }
                         .unwrap();
-                        add_leaf!("T: {}: {}", field.name.kind.as_str(), st.kind.as_str());
+                        add_leaf!(
+                            "T: {}: {}",
+                            field.name.name.kind.as_str(),
+                            st.name.kind.as_str()
+                        );
                         //_t.print();
                     }
                 }

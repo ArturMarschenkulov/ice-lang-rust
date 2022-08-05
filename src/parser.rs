@@ -1,10 +1,9 @@
-use crate::ast::{
-    Item, Module, Project,
-};
+use crate::ast::{Identifier, Item, Module, Project, Ty, TyKind};
 
 use crate::token::*;
-mod item;
+
 mod expr;
+mod item;
 mod stmt;
 
 #[allow(unused_macros)]
@@ -98,22 +97,24 @@ pub fn parse_project_from_file(tokens: Vec<Token>) -> Project {
     parser.parse()
 }
 
-
 struct Parser {
     tokens: Vec<Token>,
     current: usize,
+
+    infix_bp: std::collections::HashMap<String, expr::BindingPower>,
 }
 
 /// This impl block is the entry block
 impl Parser {
     fn new() -> Self {
-        Self {
-            tokens: Vec::new(),
-            current: 0,
-        }
+        Parser::from_tokens(Vec::new())
     }
     fn from_tokens(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+        Self {
+            tokens,
+            current: 0,
+            infix_bp: expr::set_infix_binding_power(),
+        }
     }
     fn parse_(&mut self) -> Vec<Item> {
         let mut items: Vec<Item> = Vec::new();
@@ -137,6 +138,30 @@ impl Parser {
     }
 }
 
+/// This impl block is for parsing the types
+impl Parser {
+    pub fn parse_ty(&mut self) -> Ty {
+        let token = self.eat_just().unwrap();
+        let ty = match &token.kind {
+            TokenKind::Identifier(..) => {
+                let ty = Ty {
+                    kind: TyKind::Simple(Identifier::from_token(token.clone())),
+                };
+                ty
+            }
+            TokenKind::Punctuator(PunctuatorKind::LeftParen) => {
+                let _ = self.eat(&TokenKind::Punctuator(PunctuatorKind::RightParen)).unwrap();
+                let ty = Ty {
+                    kind: TyKind::Tuple(Vec::new()),
+                };
+                ty
+            }
+            _ => todo!(),
+        };
+
+        ty
+    }
+}
 
 /// This impl block is for the cursor functionality
 impl Parser {
@@ -158,9 +183,6 @@ impl Parser {
     fn check(&self, kind: &TokenKind, offset: isize) -> Result<&Token, Option<&Token>> {
         self.check_with(offset, |tk| tk == kind)
     }
-    // fn check__(&self, kind: &TokenKind) -> Result<&Token, Option<&Token>> {
-    //     self.check(kind, 0)
-    // }
     fn check_with<F>(&self, offset: isize, func: F) -> Result<&Token, Option<&Token>>
     where
         Self: Sized,
@@ -187,6 +209,9 @@ impl Parser {
     }
     fn eat_literal(&mut self) -> Result<&Token, Option<&Token>> {
         self.eat_with(&TokenKind::is_literal)
+    }
+    fn eat_just(&mut self) -> Result<&Token, Option<&Token>> {
+        self.eat_with(|_| true)
     }
     fn eat_with<F>(&mut self, func: F) -> Result<&Token, Option<&Token>>
     where

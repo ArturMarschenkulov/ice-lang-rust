@@ -1,5 +1,5 @@
-use crate::ast::{Stmt, StmtKind, ExprKind};
-use crate::parser::Parser;
+use super::Parser;
+use crate::ast::{ExprKind, Stmt, StmtKind};
 use crate::token::*;
 
 /// This impl block is for parsing statements
@@ -10,7 +10,6 @@ impl Parser {
         use TokenKind::*;
 
         let token = self.peek(0);
-        println!("parse_stmt 0 {:?}", self.peek(0));
         let sk = match &token.unwrap().kind {
             Keyword(Var) => self.parse_stmt_var(),
             s if s.starts_item() => Box::from(Stmt {
@@ -24,7 +23,6 @@ impl Parser {
             }
             _ => self.parse_stmt_expression(),
         };
-        // println!("parse_stmt 1 {:?}", self.peek(0));
         match sk.kind {
             StmtKind::Var { .. } => {
                 let _ = self.eat(&Punctuator(Semicolon));
@@ -51,9 +49,7 @@ impl Parser {
     pub fn parse_stmt_expression(&mut self) -> Box<Stmt> {
         use PunctuatorKind::*;
         use TokenKind::*;
-        println!("parse_stmt_expression 0 {:?}", self.peek(0));
         let expr = self.parse_expr();
-        println!("parse_stmt_expression 1 {:?}", self.peek(0));
 
         let s = match expr.kind {
             ExprKind::Block(..) | ExprKind::If(..) | ExprKind::While(..) | ExprKind::For(..) => {
