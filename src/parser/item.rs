@@ -1,5 +1,5 @@
 use super::{PResult, Parser};
-use crate::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty, TyKind};
+use crate::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
 use crate::token::*;
 
 /// This impl block is for parsing items.
@@ -10,9 +10,9 @@ impl Parser {
         //use TokenKind::*;
 
         self.eat(&TokenKind::Keyword(Type)).unwrap();
-        let name = self.parse_identifier();
+        let name = self.parse_identifier().unwrap();
 
-        let _eq_sign = self.eat(&TokenKind::Punctuator(Equal)).unwrap();
+        let _ = self.eat(&TokenKind::Punctuator(Equal)).unwrap();
 
         self.eat(&TokenKind::Keyword(Struct)).unwrap();
         self.eat(&TokenKind::Punctuator(LeftBrace)).unwrap();
@@ -33,7 +33,7 @@ impl Parser {
             })
             .collect::<Vec<_>>();
 
-        let strct = ItemKind::Struct { name: name, fields };
+        let strct = ItemKind::Struct { name, fields };
         let item = Item { kind: strct };
         Ok(item)
     }
@@ -62,7 +62,7 @@ impl Parser {
         let item = match &self.peek(0).unwrap().kind {
             Keyword(Fn) => self.parse_item_fn(),
             Keyword(Type) => self.parse_item_type(),
-            _ => panic!("unexpected token"),
+            ut => panic!("unexpected token {:?}", ut),
         };
         item
     }
@@ -84,9 +84,7 @@ impl Parser {
             .clone();
 
         self.eat(&TokenKind::Punctuator(Colon)).unwrap();
-        let ty = self.eat_identifier().cloned().ok().map(|ty| Ty {
-            kind: TyKind::Simple(Identifier::from_token(ty)),
-        });
+        let ty = self.parse_ty().ok();
 
         let expr = match self.eat(&TokenKind::Punctuator(Equal)) {
             Ok(_) => Some(Box::new(self.parse_expr().unwrap())),
@@ -120,12 +118,10 @@ impl Parser {
         self.eat(start).unwrap();
         while self.check(end, 0).is_err() {
             let name = self
-                .eat_identifier()
-                .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.1))
-                .clone();
-            let name = Identifier::from_token(name);
-            let _ = self
-                .eat(&TokenKind::Punctuator(Colon))
+                .parse_identifier()
+                .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.1));
+
+            self.eat(&TokenKind::Punctuator(Colon))
                 .unwrap_or_else(|_| panic!("Expected ':' after {} {}", s.0, s.1));
             let ty = self.parse_ty().unwrap();
 
@@ -146,14 +142,11 @@ impl Parser {
     pub fn parse_item_fn(&mut self) -> PResult<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;
-        //use TokenKind::*;
+        use TokenKind::*;
 
         self.eat(&TokenKind::Keyword(Fn)).unwrap();
 
-        let name = self
-            .eat_identifier()
-            .expect("Expected function name")
-            .clone();
+        let name = self.parse_identifier().expect("Expected function name");
 
         let parameters = self
             .parse_delim_seq(
@@ -170,40 +163,27 @@ impl Parser {
             })
             .collect::<Vec<Parameter>>();
 
-        let ret_type = self
-            .eat(&TokenKind::Punctuator(Colon))
-            .ok()
-            .cloned()
-            .map(|_x| self.parse_ty().unwrap());
+        let ret_type = if self.eat(&Punctuator(Colon)).is_ok() {
+            Some(self.parse_ty().unwrap())
+        } else {
+            None
+        };
 
-        let body = self
-            .check(&TokenKind::Punctuator(LeftBrace), 0)
-            .ok()
-            .or_else(|| {
-                panic!("{}", "Expected '{' after function name");
-            })
-            .cloned()
-            .map(|_t| {
-                let b = self.parse_expr_block();
-                self.eat(&TokenKind::Punctuator(RightBrace))
-                    .expect("Expected '}' after function body");
+        self.check(&Punctuator(LeftBrace), 0).ok().or_else(|| {
+            panic!("{}", "Expected '{' after function name");
+        });
 
-                b
-            })
-            .unwrap()
-            .unwrap();
+        let body = Box::new(self.parse_expr_block().unwrap());
 
-        // self.check(&Punctuator(LeftBrace), 0)
-        //     .expect("Expected '{' after function name");
-        // let block = self.parse_expr_block();
-        // self.eat(&Punctuator(RightBrace))
-        //     .expect("Expected '}' after function body");
+        self.eat(&Punctuator(RightBrace))
+            .expect("Expected '}' after function body");
+
         let item = Item {
             kind: ItemKind::Fn {
-                name: Identifier::from_token(name),
+                name,
                 params: parameters,
                 ret: ret_type,
-                body: Box::new(body),
+                body,
             },
         };
         Ok(item)

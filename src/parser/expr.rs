@@ -240,7 +240,7 @@ impl Parser {
         };
 
         loop {
-            match get_infix_binding_power(self.peek(0).unwrap(), &self) {
+            match get_infix_binding_power(self.peek(0).unwrap(), self) {
                 None => break,
                 Some(bp) if bp.left < prev_bp => break,
                 Some(bp) if bp.left == prev_bp => panic!(
@@ -259,25 +259,22 @@ impl Parser {
         Ok(left)
     }
 
-    pub fn parse_identifier(&mut self) -> Identifier {
+    pub fn parse_identifier(&mut self) -> PResult<Identifier> {
         let token = self.eat_identifier().unwrap().clone();
-        Identifier::from_token(token)
+        let identifier = Identifier::from_token(token);
+        Ok(identifier)
     }
     fn parse_symbol(&mut self) -> PResult<Expr> {
         use PunctuatorKind::*;
         let mut ids = Vec::new();
-        ids.push(self.parse_identifier());
+        ids.push(self.parse_identifier().unwrap());
 
         while self.eat(&TokenKind::Punctuator(ColonColon)).is_ok() {
-            ids.push(self.parse_identifier());
+            ids.push(self.parse_identifier().unwrap());
         }
 
         let actual_id = ids.pop().unwrap();
-        let actual_path = if ids.is_empty() {
-            None
-        } else {
-            Some(ids.iter().map(|x| x.clone()).collect::<Vec<_>>())
-        };
+        let actual_path = if ids.is_empty() { None } else { Some(ids) };
 
         let expr = Expr {
             kind: ExprKind::Symbol {
@@ -336,7 +333,7 @@ impl Parser {
         use PunctuatorKind::*;
         //use TokenKind::*;
 
-        let callee_name = self.parse_identifier();
+        let callee_name = self.parse_identifier().unwrap();
 
         let callee = Box::from(Expr {
             kind: ExprKind::Symbol {

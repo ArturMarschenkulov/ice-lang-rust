@@ -144,24 +144,30 @@ impl Parser {
 /// This impl block is for parsing the types
 impl Parser {
     pub fn parse_ty(&mut self) -> PResult<Ty> {
-        let token = self.eat_just().unwrap();
+        let token = self.peek(0).unwrap();
         let ty = match &token.kind {
             TokenKind::Identifier(..) => {
                 let ty = Ty {
                     kind: TyKind::Simple(Identifier::from_token(token.clone())),
                 };
+
+                self.advance();
                 ty
             }
             TokenKind::Punctuator(PunctuatorKind::LeftParen) => {
-                let _ = self.eat(&TokenKind::Punctuator(PunctuatorKind::RightParen)).unwrap();
-                let ty = Ty {
+                self.advance();
+                let _ = self
+                    .eat(&TokenKind::Punctuator(PunctuatorKind::RightParen))
+                    .unwrap();
+                Ty {
                     kind: TyKind::Tuple(Vec::new()),
-                };
-                ty
+                }
             }
-            _ => todo!(),
+            _ => Err(ParserError::new(format!(
+                "Expected a type, got {:?}",
+                token
+            )))?,
         };
-
         Ok(ty)
     }
 }

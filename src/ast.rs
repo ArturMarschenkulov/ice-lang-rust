@@ -12,7 +12,6 @@ pub struct Identifier {
 
 impl Identifier {
     pub fn from_token(token: crate::token::Token) -> Self {
-        println!("ioioio {:?}", token.kind);
         // assert!(token.kind.is_identifier());
         Identifier { name: token }
     }
@@ -23,13 +22,6 @@ pub enum ExprKind {
     Grouping(Box<Expr>),
     Binary(Box<Expr>, crate::token::Token, Box<Expr>),
     Unary(crate::token::Token, Box<Expr>),
-    // Symbol {
-    //     name: crate::token::Token,
-    //     /// `None` means there is no path to this symbol (`x`)
-    //     /// `Some` means there is a path to this symbol (`x::y::z`),
-    //     /// however it can be also empty (`::x`)
-    //     path: Option<Vec<crate::token::Token>>,
-    // },
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
@@ -37,7 +29,6 @@ pub enum ExprKind {
         /// however it can be also empty (`::x`)
         path: Option<Vec<Identifier>>,
     },
-    // Block(Vec<StmtKind>, Option<Box<ExprKind>>),
     Block(Vec<Stmt>),
 
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
@@ -55,7 +46,7 @@ pub struct Expr {
 #[derive(Clone, Debug)]
 pub struct Parameter {
     pub name: Identifier,
-    pub ty: TyKind,
+    pub ty: Ty,
 }
 
 // NOTE: This is a placeholder name, since right now, we can only parse one file, so a whole project will always be a file.
@@ -105,7 +96,7 @@ pub struct Ty {
 #[derive(Clone, Debug)]
 pub struct Field {
     pub name: Identifier,
-    pub ty: TyKind,
+    pub ty: Ty,
 }
 #[derive(Clone, Debug)]
 pub enum ItemKind {
@@ -142,7 +133,7 @@ pub struct Item {
 // in the language itself it's an expression.
 #[derive(Clone, Debug)]
 pub enum StmtKind {
-    /// let a: i32 = 4,
+    /// var a: i32 = 4,
     Var {
         var: Identifier,
         ty: Option<Ty>,
@@ -152,7 +143,6 @@ pub enum StmtKind {
     Expression(Box<Expr>),
     /// Expression without a trailing semicolon
     ExpressionWithoutSemicolon(Box<Expr>),
-    // TODO: Rename it into `Item`
     /// An item declaration/definition
     Item(Item),
     /// Only a trailing semicolon
@@ -308,6 +298,22 @@ impl DebugTreePrinter for Stmt {
         }
     }
 }
+
+impl DebugTreePrinter for Ty {
+    fn print_debug_tree(&self) {
+        match &self.kind {
+            TyKind::Simple(s) => {
+                add_branch!("Simple: {:?}", s.name.kind);
+            }
+            TyKind::Tuple(tup) => {
+                add_branch!("Tuple: ");
+                for ty in tup {
+                    ty.print_debug_tree();
+                }
+            },
+        }
+    }
+}
 impl DebugTreePrinter for Item {
     fn print_debug_tree(&self) {
         match &self.kind {
@@ -318,37 +324,20 @@ impl DebugTreePrinter for Item {
                 body,
             } => {
                 add_branch!("SFnDeclaration: ");
-                add_leaf!("T: {:?}", name.name.kind);
+                add_leaf!("name: {:?}", name.name.kind);
                 {
                     add_branch!("parameters: ");
 
                     for param in params {
-                        let st = if let TyKind::Simple(st) = &param.ty {
-                            Some(st)
-                        } else {
-                            None
-                        }
-                        .unwrap();
-                        add_leaf!(
-                            "T: {}: {}",
-                            param.name.name.kind.as_str(),
-                            st.name.kind.as_str()
-                        );
-                        //_t.print();
+                        param.ty.print_debug_tree();
                     }
                 }
                 {
-                    let f = |t: Ty| {
-                        if let TyKind::Simple(st) = t.kind {
-                            Some(st)
-                        } else {
-                            None
-                        }
-                        .unwrap_or(Identifier::from_token(crate::token::Token::dummy()))
-                    };
-                    let s = ret.clone().map(|t| f(t).name.kind.as_str());
-                    add_branch!("ret: ");
-                    add_leaf!("T: {:?}", s);
+                    add_branch!("return type: ");
+                    match ret {
+                        Some(r) => r.print_debug_tree(),
+                        None => (),
+                    }
                 }
                 body.print_debug_tree();
             }
@@ -358,18 +347,7 @@ impl DebugTreePrinter for Item {
                 {
                     add_branch!("fields: ");
                     for field in fields {
-                        let st = if let TyKind::Simple(st) = &field.ty {
-                            Some(st)
-                        } else {
-                            None
-                        }
-                        .unwrap();
-                        add_leaf!(
-                            "T: {}: {}",
-                            field.name.name.kind.as_str(),
-                            st.name.kind.as_str()
-                        );
-                        //_t.print();
+                        field.ty.print_debug_tree();
                     }
                 }
             }
