@@ -8,7 +8,7 @@ mod token;
 
 use crate::ast::DebugTreePrinter;
 //use crate::evaluator::get_evaluation_from_ast;
-use crate::lexer::get_tokens_from_source;
+use crate::lexer::lex_tokens_from_file;
 use crate::parser::parse_project_from_file;
 use std::fs::File;
 use std::io::Read;
@@ -34,7 +34,7 @@ fn print_time(vec: &Vec<(&str, std::time::Duration)>) {
 
     for (stage, time) in vec {
         let stage = ansi_cyan.paint(*stage).to_string();
-        
+
         let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
         let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
         let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
@@ -45,7 +45,11 @@ fn print_time(vec: &Vec<(&str, std::time::Duration)>) {
             stage, nano_t, micro_t, mili_t, sec_t
         );
     }
-    let s = vec.clone().iter().map(|(_, t)| t).sum::<std::time::Duration>();
+    let s = vec
+        .clone()
+        .iter()
+        .map(|(_, t)| t)
+        .sum::<std::time::Duration>();
     let stage = ansi_cyan.paint("all").to_string();
     let nano_t = ansi_red.paint(format!("{}", s.as_nanos())).to_string();
     let micro_t = ansi_red.paint(format!("{}", s.as_micros())).to_string();
@@ -78,31 +82,31 @@ struct Ice {}
 impl Ice {
     // the entry point to the `Ice` instance
     fn main(&mut self) {
-        let num_arg = std::env::args().count() == 2;
-        match num_arg {
-            true => {
+        let num_arg = std::env::args().count();
+        let source = match num_arg {
+            2 => {
                 println!("from file");
                 let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
-                self.run_file(text_from_file)
+                Ice::read_file(text_from_file)
             }
-            false => {
+            1 => {
                 let run_test_file = true;
                 if run_test_file {
                     // This is mainly for convenience
                     // The actual end product should not have this branch
 
                     let file = "tests\\test.ice";
-                    self.run_file(&mut file.to_owned());
+                    Ice::read_file(&mut file.to_owned())
                 } else {
                     println!("from memory");
-                    let text_from_memoroy = TEXT;
-                    self.run(text_from_memoroy);
+                    String::from(TEXT)
                 }
             }
-        }
+            _ => unreachable!(),
+        };
+        self.run(&source);
     }
-
-    fn run_file(&mut self, path: &mut String) {
+    fn read_file(path: &mut String) -> String {
         let error_string = path.to_string();
 
         let mut contents = String::new();
@@ -113,9 +117,32 @@ impl Ice {
         if contents.is_empty() {
             ::std::process::exit(0)
         }
-        self.run(&contents);
+        String::from(contents)
     }
+    fn format<T, E, F>(
+        name: &str,
+        show_stage: bool,
+        show_structure: bool,
+        f: F,
+        f2: fn(&T) -> (),
+    ) -> (Result<T, E>, std::time::Duration)
+    where
+        F: Fn() -> Result<T, E>,
+        E: std::fmt::Debug,
+    {
+        if show_stage {
+            let lexer_str = ansi_term::Color::Cyan.paint(name).to_string();
+            print_stage(&lexer_str);
+        }
+        let now = Instant::now();
+        let res = f();
+        let time = now.elapsed();
 
+        if show_structure {
+            f2(&res.as_ref().unwrap())
+        }
+        (res, time)
+    }
     fn run(&mut self, text: &str) {
         let mut time_vec = Vec::<(&str, std::time::Duration)>::new();
 
@@ -125,37 +152,25 @@ impl Ice {
         let show_token_stream = true;
         let show_ast_tree = true;
 
-        // The lexer part
-        let tokens = {
-            if show_stages {
-                let lexer_str = ansi_term::Color::Cyan.paint("Lexer").to_string();
-                print_stage(&lexer_str);
-            }
-            let now = Instant::now();
-            let tokens = get_tokens_from_source(text);
-            time_vec.push(("Lexer", now.elapsed()));
+        let (tokens, lexer_time) = Ice::format(
+            "Lexer",
+            show_stages,
+            show_token_stream,
+            || lex_tokens_from_file(text),
+            print_token_stream,
+        );
+        time_vec.push(("Lexer", lexer_time));
+        let tokens = tokens.unwrap();
 
-            if show_token_stream {
-                print_token_stream(&tokens)
-            }
-            tokens
-        };
-
-        // The parser part
-        let _ast = {
-            if show_stages {
-                let parser_str = ansi_term::Color::Cyan.paint("Parser").to_string();
-                print_stage(&parser_str);
-            }
-            let now = Instant::now();
-            let ast = parse_project_from_file(tokens).unwrap();
-            time_vec.push(("Parser", now.elapsed()));
-
-            if show_ast_tree {
-                ast.print_debug_tree()
-            }
-            ast
-        };
+        let (_ast, parser_time) = Ice::format(
+            "Parser",
+            show_stages,
+            show_ast_tree,
+            || parse_project_from_file(tokens.clone()),
+            ast::Project::print_debug_tree,
+        );
+        time_vec.push(("Parser", parser_time));
+        let _ast = _ast.unwrap();
 
         print_time(&time_vec);
 
@@ -171,36 +186,3 @@ fn main() {
     ice.main();
     println!("------------------------------------------------------------");
 }
-
-/*
-   Languages for inspiration:
-       C/C++, Rust, Swift, Odin, Zig, Python, Pascal
-
-       compiled, statically typed, strongly typed
-
-
-
-       Arrays:
-           let arr = [0..n];
-           let arr = [1, 2, 3];
-
-
-
-       prodtype ProdType {};
-       sumtype SumType {};
-
-
-
-
-       var a = 2;
-       a = 3; // Error
-
-
-       Ideas:
-           Junction:
-               if foo == 1 | 2 | {
-
-               }
-
-
-*/

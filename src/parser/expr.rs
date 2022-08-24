@@ -1,32 +1,7 @@
 use super::{PResult, Parser};
 use crate::ast::{Expr, ExprKind, Identifier, Stmt};
-use crate::token::*;
+use crate::token::{KeywordKind, PunctuatorKind, Token, TokenKind};
 
-fn get_unary_operator_precedence(token: &Token) -> i32 {
-    use PunctuatorKind::*;
-    use TokenKind::*;
-    match token.kind {
-        Punctuator(Plus) | Punctuator(Minus) | Punctuator(Exclamation) => 6,
-        _ => 0,
-    }
-}
-fn get_binary_operator_precedence(token: &Token) -> i32 {
-    use PunctuatorKind::*;
-    use TokenKind::*;
-    match token.kind {
-        Punctuator(Asterisk) | Punctuator(Slash) | Punctuator(Percent) => 5,
-        Punctuator(Plus) | Punctuator(Minus) => 4,
-        Punctuator(Less)
-        | Punctuator(LessEqual)
-        | Punctuator(Greater)
-        | Punctuator(GreaterEqual)
-        | Punctuator(EqualEqual)
-        | Punctuator(BangEqual) => 3,
-        Punctuator(Ampersand) | Punctuator(AmpersandAmpersand) => 2,
-        Punctuator(VerticalBar) | Punctuator(PipePipe) => 1,
-        _ => 0,
-    }
-}
 #[derive(Clone, Copy)]
 enum Associativity {
     Left,
@@ -39,7 +14,13 @@ pub struct BindingPower {
     right: f32,
 }
 impl BindingPower {
-    fn new(precedence: u32, associativity: Associativity) -> Self {
+    fn new() -> Self {
+        Self {
+            left: 0.0,
+            right: 0.0,
+        }
+    }
+    fn from(precedence: u32, associativity: Associativity) -> Self {
         use Associativity::*;
         let prec = precedence as f32;
         match associativity {
@@ -62,7 +43,7 @@ impl BindingPower {
     // }
 }
 
-pub fn set_infix_binding_power() -> std::collections::HashMap<String, BindingPower> {
+pub fn set_binding_power_bin_infix() -> std::collections::HashMap<String, BindingPower> {
     use std::collections::HashMap;
     use Associativity::*;
     use PunctuatorKind::*;
@@ -93,23 +74,62 @@ pub fn set_infix_binding_power() -> std::collections::HashMap<String, BindingPow
         format!("{:?}", tk)
     }
     arr.iter()
-        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::new(*prec, *asso)))
+        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
         .collect::<HashMap<String, BindingPower>>()
 }
 
-fn get_infix_binding_power(token: &Token, p: &Parser) -> Option<BindingPower> {
-    // // Workaround, so that we don't have to implement stuff only for the HashMap.
+pub fn set_binding_power_un_postfix() -> std::collections::HashMap<String, BindingPower> {
+    use std::collections::HashMap;
+
     fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
+    let arr: [(TokenKind, u32, Associativity); 0] = [];
+    arr.iter()
+        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+        .collect::<HashMap<String, BindingPower>>()
+}
+pub fn set_binding_power_un_prefix() -> std::collections::HashMap<String, BindingPower> {
+    use std::collections::HashMap;
+    use Associativity::*;
+    use PunctuatorKind::*;
+    use TokenKind::*;
+    fn stringify(tk: &TokenKind) -> String {
+        format!("{:?}", tk)
+    }
+    let arr = [(Punctuator(Plus), 6, Right), (Punctuator(Minus), 6, Right)];
+    arr.iter()
+        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+        .collect::<HashMap<String, BindingPower>>()
+}
 
+fn get_binding_power_bin_infix(p: &Parser, token: &Token) -> Option<BindingPower> {
+    fn stringify(tk: &TokenKind) -> String {
+        format!("{:?}", tk)
+    }
     p.infix_bp.get(&stringify(&token.kind)).cloned()
+}
+fn get_binding_power_un_postfix(_p: &Parser, token: &Token) -> Option<BindingPower> {
+    fn stringify(tk: &TokenKind) -> String {
+        format!("{:?}", tk)
+    }
+    set_binding_power_un_postfix()
+        .get(&stringify(&token.kind))
+        .cloned()
+}
+fn get_binding_power_un_prefix(_p: &Parser, token: &Token) -> Option<BindingPower> {
+    fn stringify(tk: &TokenKind) -> String {
+        format!("{:?}", tk)
+    }
+    set_binding_power_un_prefix()
+        .get(&stringify(&token.kind))
+        .cloned()
 }
 
 /// This impl block is for parsing expressions
 impl Parser {
     pub fn parse_expr(&mut self) -> PResult<Expr> {
-        self.parse_expr_binary(0.0)
+        self.parse_expr_binary(BindingPower::new())
     }
 }
 
@@ -125,7 +145,7 @@ impl Parser {
         self.check(&Punctuator(LeftBrace), 0)
             .expect("Expected '{' after if condition");
         let then_branch = self.parse_expr_block().unwrap();
-        self.eat(&Punctuator(RightBrace))
+        self.check(&Punctuator(RightBrace), -1)
             .expect("Expected '}' after if body");
 
         let else_branch = match self.peek(0).unwrap().kind {
@@ -151,7 +171,7 @@ impl Parser {
                 self.check(&Punctuator(LeftBrace), 0)
                     .expect("Expected '{' after else");
                 let e = self.parse_expr_block();
-                self.eat(&Punctuator(RightBrace))
+                self.check(&Punctuator(RightBrace), -1)
                     .expect("Expected '}' after else body");
                 e
             }
@@ -166,7 +186,7 @@ impl Parser {
         self.check(&Punctuator(LeftBrace), 0)
             .expect("Expect '{' after while condition.");
         let while_body = self.parse_expr_block().unwrap();
-        self.eat(&Punctuator(RightBrace))
+        self.check(&Punctuator(RightBrace), -1)
             .expect("Expect '}' after while body.");
         let expr = Expr {
             kind: ExprKind::While(Box::new(condition), Box::new(while_body)),
@@ -197,7 +217,7 @@ impl Parser {
             .expect("Expected '{' after for iterator expression");
 
         let while_body = self.parse_expr_block().unwrap();
-        self.eat(&Punctuator(RightBrace))
+        self.check(&Punctuator(RightBrace), -1)
             .expect("Expected '}' after for body");
         let expr = Expr {
             kind: ExprKind::For(
@@ -222,36 +242,44 @@ impl Parser {
             statements.push(self.parse_stmt().unwrap());
         }
 
+        self.eat(&Punctuator(RightBrace)).unwrap();
+
         let expr = Expr {
             kind: ExprKind::Block(statements),
         };
         Ok(expr)
     }
-    fn parse_expr_binary(&mut self, prev_bp: f32) -> PResult<Expr> {
-        let un_op_prec = get_unary_operator_precedence(self.peek(0).unwrap());
-        let mut left = if un_op_prec != 0 && un_op_prec >= prev_bp as i32 {
-            let op = self.eat_punctuator().unwrap().clone();
-            let right = self.parse_expr_binary(un_op_prec as f32).unwrap();
-            Expr {
-                kind: ExprKind::Unary(op, Box::new(right)),
+    fn parse_expr_binary(&mut self, prev_bp: BindingPower) -> PResult<Expr> {
+        let un_prefix = self.peek(0).unwrap();
+        let mut left = match get_binding_power_un_prefix(self, un_prefix) {
+            Some(bp) if bp.left >= prev_bp.right => {
+                let op = self.eat_punctuator().unwrap().clone();
+                let right = self.parse_expr_binary(bp).unwrap();
+                Expr {
+                    kind: ExprKind::UnaryPrefix(op, Box::new(right)),
+                }
             }
-        } else {
-            self.parse_expr_primary().unwrap()
+            Some(_) | None => self.parse_expr_primary().unwrap(),
         };
 
         loop {
-            match get_infix_binding_power(self.peek(0).unwrap(), self) {
+            let bin_infix = self.peek(0).unwrap();
+            match get_binding_power_bin_infix(self, bin_infix) {
                 None => break,
-                Some(bp) if bp.left < prev_bp => break,
-                Some(bp) if bp.left == prev_bp => panic!(
+                Some(bp) if bp.left < prev_bp.right => break,
+                Some(bp) if bp.left == prev_bp.right => panic!(
                     "Operators have the same precedence and are non-associative. This is not {:?}",
                     self.peek(0)
                 ),
                 Some(bp) => {
                     let operator = self.eat_punctuator().unwrap().clone();
-                    let right = self.parse_expr_binary(bp.right).unwrap();
+                    let right = self.parse_expr_binary(bp).unwrap();
                     left = Expr {
-                        kind: ExprKind::Binary(Box::new(left), operator.clone(), Box::new(right)),
+                        kind: ExprKind::BinaryInfix(
+                            Box::new(left),
+                            operator.clone(),
+                            Box::new(right),
+                        ),
                     };
                 }
             }
@@ -309,7 +337,8 @@ impl Parser {
             TokenKind::Keyword(While) => self.parse_expr_while().unwrap(),
             TokenKind::Keyword(For) => self.parse_expr_for().unwrap(),
             TokenKind::Punctuator(LeftParen) => {
-                self.advance(); //skip the (
+                self.eat(&TokenKind::Punctuator(LeftParen))
+                    .expect("Expected '(' before expression");
                 let left = self.parse_expr().unwrap();
                 self.eat(&TokenKind::Punctuator(RightParen))
                     .expect("Expected ')' after expression");
@@ -319,7 +348,7 @@ impl Parser {
             }
             TokenKind::Punctuator(LeftBrace) => {
                 let stmts = self.parse_expr_block().unwrap();
-                self.eat(&TokenKind::Punctuator(RightBrace))
+                self.check(&TokenKind::Punctuator(RightBrace), -1)
                     .expect("Expected '}' after expression");
                 stmts
             }
@@ -331,7 +360,6 @@ impl Parser {
     }
     fn parse_expr_fn_call(&mut self) -> PResult<Expr> {
         use PunctuatorKind::*;
-        //use TokenKind::*;
 
         let callee_name = self.parse_identifier().unwrap();
 
@@ -345,9 +373,9 @@ impl Parser {
             .expect("Expected '(' after function name");
 
         let mut arguments: Vec<Expr> = Vec::new();
-        while self.peek(0).unwrap().kind != TokenKind::Punctuator(RightParen) {
+        while self.check(&TokenKind::Punctuator(RightParen), 0).is_err() {
             arguments.push(self.parse_expr().unwrap());
-            if self.peek(0).unwrap().kind != TokenKind::Punctuator(RightParen) {
+            if self.check(&TokenKind::Punctuator(RightParen), 0).is_ok() {
                 self.eat(&TokenKind::Punctuator(Comma))
                     .expect("Expected ',' after argument");
             }

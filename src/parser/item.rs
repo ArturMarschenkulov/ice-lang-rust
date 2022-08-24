@@ -1,6 +1,6 @@
 use super::{PResult, Parser};
 use crate::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
-use crate::token::*;
+use crate::token::{TokenKind, KeywordKind, PunctuatorKind};
 
 /// This impl block is for parsing items.
 impl Parser {

@@ -1,14 +1,26 @@
-use debug_tree::*;
+
+#[derive(Clone, Debug)]
+pub struct Identifier {
+    pub name: crate::token::Token,
+}
+
+pub struct Operator {
+    pub name: crate::token::Token,
+}
+
+// enum Delimiter {
+//     Parenthesis, // ( )
+//     Brace,       // { }
+//     Bracket,     // [ ]
+// }
 
 struct Typed<T> {
     expr: T,
     ty: Ty,
 }
 
-#[derive(Clone, Debug)]
-pub struct Identifier {
-    pub name: crate::token::Token,
-}
+
+
 
 impl Identifier {
     pub fn from_token(token: crate::token::Token) -> Self {
@@ -20,8 +32,8 @@ impl Identifier {
 pub enum ExprKind {
     Literal(crate::token::LiteralKind),
     Grouping(Box<Expr>),
-    Binary(Box<Expr>, crate::token::Token, Box<Expr>),
-    Unary(crate::token::Token, Box<Expr>),
+    BinaryInfix(Box<Expr>, crate::token::Token, Box<Expr>),
+    UnaryPrefix(crate::token::Token, Box<Expr>),
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
@@ -173,7 +185,7 @@ where
 impl DebugTreePrinter for Project {
     fn print_debug_tree(&self) {
         debug_tree::defer_print!();
-        add_branch!("Project: ");
+        debug_tree::add_branch!("Project: ");
         for module in &self.modules {
             module.print_debug_tree();
         }
@@ -182,7 +194,7 @@ impl DebugTreePrinter for Project {
 impl DebugTreePrinter for Module {
     fn print_debug_tree(&self) {
         debug_tree::defer_print!();
-        add_branch!("Module: ");
+        debug_tree::add_branch!("Module: ");
         for item in &self.items {
             item.print_debug_tree();
         }
@@ -193,19 +205,19 @@ impl DebugTreePrinter for Expr {
     fn print_debug_tree(&self) {
         match &self.kind {
             ExprKind::Literal(lit) => {
-                add_branch!("Lit {:?}", lit);
+                debug_tree::add_branch!("Lit {:?}", lit);
             }
             ExprKind::Grouping(expr) => {
-                add_branch!("Group: ");
+                debug_tree::add_branch!("Group: ");
                 expr.print_debug_tree();
             }
-            ExprKind::Binary(expr_l, op, expr_r) => {
-                add_branch!("Binary: {:?}", op.kind);
+            ExprKind::BinaryInfix(expr_l, op, expr_r) => {
+                debug_tree::add_branch!("Binary: {:?}", op.kind);
                 expr_l.print_debug_tree();
                 expr_r.print_debug_tree();
             }
-            ExprKind::Unary(op, expr) => {
-                add_branch!("Unary: {:?}", op.kind);
+            ExprKind::UnaryPrefix(op, expr) => {
+                debug_tree::add_branch!("Unary: {:?}", op.kind);
                 expr.print_debug_tree();
             }
             ExprKind::Symbol { name, path } => {
@@ -226,16 +238,16 @@ impl DebugTreePrinter for Expr {
                 } else {
                     None
                 };
-                add_branch!("Symbol: {}, {:?}", name.name.kind.as_str(), s);
+                debug_tree::add_branch!("Symbol: {}, {:?}", name.name.kind.as_str(), s);
             }
             ExprKind::Block(stmts) => {
-                add_branch!("Block: ");
+                debug_tree::add_branch!("Block: ");
                 for ast_s in stmts {
                     ast_s.print_debug_tree();
                 }
             }
             ExprKind::If(comp, then_branch, else_branch) => {
-                add_branch!("If: ");
+                debug_tree::add_branch!("If: ");
                 comp.print_debug_tree();
                 then_branch.print_debug_tree();
                 if let Some(block) = else_branch {
@@ -243,22 +255,22 @@ impl DebugTreePrinter for Expr {
                 }
             }
             ExprKind::While(comp, body) => {
-                add_branch!("While: ");
+                debug_tree::add_branch!("While: ");
                 comp.print_debug_tree();
                 body.print_debug_tree();
             }
             ExprKind::For(init, comp, expr, body) => {
-                add_branch!("For: ");
+                debug_tree::add_branch!("For: ");
                 init.print_debug_tree();
                 comp.print_debug_tree();
                 expr.print_debug_tree();
                 body.print_debug_tree();
             }
             ExprKind::FnCall(callable, parameters) => {
-                add_branch!("FnCall: ");
+                debug_tree::add_branch!("FnCall: ");
                 callable.print_debug_tree();
                 {
-                    add_branch!("parameters: ");
+                    debug_tree::add_branch!("parameters: ");
                     for _be1 in parameters {
                         _be1.print_debug_tree();
                     }
@@ -272,28 +284,28 @@ impl DebugTreePrinter for Stmt {
     fn print_debug_tree(&self) {
         match &self.kind {
             StmtKind::Var { var, ty, init } => {
-                add_branch!("SVarDeclaration: ");
-                add_leaf!("T: {:?}", var.name.kind);
-                add_leaf!("T: {:?}", ty);
+                debug_tree::add_branch!("SVarDeclaration: ");
+                debug_tree::add_leaf!("T: {:?}", var.name.kind);
+                debug_tree::add_leaf!("T: {:?}", ty);
                 match init.as_ref() {
                     Some(i) => i.print_debug_tree(),
-                    None => add_leaf!("T: {:?}", init),
+                    None => debug_tree::add_leaf!("T: {:?}", init),
                 }
                 // init.as_ref().unwrap().print();
             }
             StmtKind::Expression(expr) => {
-                add_branch!("SExpression: ");
+                debug_tree::add_branch!("SExpression: ");
                 expr.print_debug_tree();
             }
             StmtKind::ExpressionWithoutSemicolon(expr) => {
-                add_branch!("SExpressionWithoutSemicolon: ");
+                debug_tree::add_branch!("SExpressionWithoutSemicolon: ");
                 expr.print_debug_tree();
             }
             StmtKind::Item(item) => {
                 item.print_debug_tree();
             }
             StmtKind::NoOperation => {
-                add_branch!("SNoOp");
+                debug_tree::add_branch!("SNoOp");
             }
         }
     }
@@ -303,10 +315,10 @@ impl DebugTreePrinter for Ty {
     fn print_debug_tree(&self) {
         match &self.kind {
             TyKind::Simple(s) => {
-                add_branch!("Simple: {:?}", s.name.kind);
+                debug_tree::add_branch!("Simple: {:?}", s.name.kind);
             }
             TyKind::Tuple(tup) => {
-                add_branch!("Tuple: ");
+                debug_tree::add_branch!("Tuple: ");
                 for ty in tup {
                     ty.print_debug_tree();
                 }
@@ -323,17 +335,17 @@ impl DebugTreePrinter for Item {
                 ret,
                 body,
             } => {
-                add_branch!("SFnDeclaration: ");
-                add_leaf!("name: {:?}", name.name.kind);
+                debug_tree::add_branch!("SFnDeclaration: ");
+                debug_tree::add_leaf!("name: {:?}", name.name.kind);
                 {
-                    add_branch!("parameters: ");
+                    debug_tree::add_branch!("parameters: ");
 
                     for param in params {
                         param.ty.print_debug_tree();
                     }
                 }
                 {
-                    add_branch!("return type: ");
+                    debug_tree::add_branch!("return type: ");
                     match ret {
                         Some(r) => r.print_debug_tree(),
                         None => (),
@@ -342,10 +354,10 @@ impl DebugTreePrinter for Item {
                 body.print_debug_tree();
             }
             ItemKind::Struct { name, fields } => {
-                add_branch!("SStructDeclaration: ");
-                add_leaf!("T: {:?}", name.name.kind);
+                debug_tree::add_branch!("SStructDeclaration: ");
+                debug_tree::add_leaf!("T: {:?}", name.name.kind);
                 {
-                    add_branch!("fields: ");
+                    debug_tree::add_branch!("fields: ");
                     for field in fields {
                         field.ty.print_debug_tree();
                     }

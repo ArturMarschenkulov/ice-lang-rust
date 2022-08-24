@@ -7,11 +7,14 @@
 //! - [ ] Implement nested comments.
 //! - [ ] Consider adding different comment styles.
 
-use crate::error::*;
+use crate::error::LexerError;
 use crate::token;
-use crate::token::*;
+use crate::token::{
+    cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind,
+    SpecialKeywordKind, Token, TokenKind,
+};
 
-type PResult<T> = Result<T, LexerError>;
+type LResult<T> = Result<T, LexerError>;
 
 fn is_digit(c: &char) -> bool {
     ('0'..='9').contains(c)
@@ -55,16 +58,16 @@ fn is_right_whitespace(c: &char) -> bool {
     c == &' '
 }
 
-#[allow(dead_code)]
-pub fn get_tokens_from_source(source: &str) -> Vec<Token> {
-    Lexer::new_from_str(source).scan_tokens()
+pub fn lex_tokens_from_file(source: &str) -> LResult<Vec<Token>> {
+    let tokens = Lexer::new_from_str(source).scan_tokens();
+    Ok(tokens)
 }
 
 struct Lexer {
     chars: Vec<char>,
 
     index: usize,
-    cursor: Position,
+    cursor: token::Position,
 }
 
 impl Lexer {
@@ -72,7 +75,7 @@ impl Lexer {
         Self {
             chars: source.chars().collect(),
             index: 0,
-            cursor: Position::new(1, 1),
+            cursor: token::Position::new(1, 1),
         }
     }
     fn scan_tokens(&mut self) -> Vec<Token> {
@@ -80,11 +83,11 @@ impl Lexer {
         use SpecialKeywordKind::*;
         use TokenKind::*;
 
-        //let mut puncs: Vec<Token> = Vec::new();
+        // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
         let mut punc_cache: Vec<Token> = Vec::with_capacity(5);
         let mut tokens = Vec::new();
         while let Some(ch) = self.peek(0) {
-            let token = self.scan_token(ch);
+            let token = self.scan_token(ch).unwrap();
 
             // In this part we combine simple punctuator tokens to complex ones, if possible
 
@@ -110,24 +113,24 @@ impl Lexer {
             }
             let mut action = Action::ToTokens;
 
-            let last_puncs_kind = punc_cache.last().map(|p| p.kind.clone());
+            let punc_last_kind = punc_cache.last().map(|p| p.kind.clone());
 
             if let Punctuator(punc) = &token.kind {
                 action = Action::ToPuncCache;
 
                 if punc.is_structural() {
                     action = Action::ToTokens;
-                    let is_last_p_same = last_puncs_kind
+                    let (is_last_p_same, is_last_p_colonequal) = punc_last_kind
                         .as_ref()
-                        .map(|p| p == &Punctuator(punc.clone()))
-                        .unwrap_or(false);
+                        .map(|p| {
+                            (
+                                p == &Punctuator(punc.clone()),
+                                p == &Punctuator(Colon) && punc == &Equal,
+                            )
+                        })
+                        .unwrap_or((false, false));
                     if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_p_same) {
                         action = Action::ToPuncCache;
-
-                        let is_last_p_colonequal = last_puncs_kind
-                            .as_ref()
-                            .map(|p| p == &Punctuator(Colon) && punc == &Equal)
-                            .unwrap_or(false);
                         if is_last_p_colonequal {
                             action = Action::ToPuncCache;
                         }
@@ -155,14 +158,14 @@ impl Lexer {
 
         let token_eof = Token::new(
             SpecialKeyword(Eof),
-            Span::from_tuples((1, 1), (1, 1)),
+            token::Span::from_tuples((1, 1), (1, 1)),
             token::Whitespace::None,
         );
         tokens.push(token_eof);
         tokens
     }
 
-    fn scan_token_kind(&mut self, c: char) -> Result<(TokenKind, Position, usize), LexerError> {
+    fn scan_token_kind(&mut self, c: char) -> LResult<(TokenKind, token::Position, usize)> {
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -176,6 +179,7 @@ impl Lexer {
             },
             '"' => self.lex_string(),
             '\'' => self.lex_char(),
+            // TODO: Once if let guards are available rewrite it as such
             p if PunctuatorKind::from_char(p).is_some() => {
                 Ok(Punctuator(PunctuatorKind::from_char(p).unwrap()))
             }
@@ -218,7 +222,7 @@ impl Lexer {
 
     /// Scans a token
     /// Returns the token which was lexed. It also moves the 'cursor' to the next character, so that one can lex the next token.
-    fn scan_token(&mut self, c: char) -> Token {
+    fn scan_token(&mut self, c: char) -> LResult<Token> {
         let start_pos = self.cursor;
         let start_index = self.index;
 
@@ -237,9 +241,10 @@ impl Lexer {
             token::Whitespace::from((ws_left, ws_right))
         };
 
-        Token::new(token_kind, Span::new(start_pos, end_pos), whitespace)
+        let token = Token::new(token_kind, token::Span::new(start_pos, end_pos), whitespace);
+        Ok(token)
     }
-    fn lex_escape_char(&mut self) -> Result<char, LexerError> {
+    fn lex_escape_char(&mut self) -> LResult<char> {
         self.eat('\\').unwrap();
         self.cursor.column += 1;
 
@@ -260,7 +265,7 @@ impl Lexer {
 
         escaped_char
     }
-    fn lex_char(&mut self) -> Result<TokenKind, LexerError> {
+    fn lex_char(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
         self.eat('\'').unwrap();
@@ -291,7 +296,7 @@ impl Lexer {
         };
         Ok(Literal(Char(c.unwrap())))
     }
-    fn lex_string(&mut self) -> Result<TokenKind, LexerError> {
+    fn lex_string(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
         self.eat('\"').unwrap();
@@ -339,7 +344,7 @@ impl Lexer {
         }
         Ok(Literal(Str(string_content)))
     }
-    fn lex_comment_line(&mut self) -> Result<TokenKind, LexerError> {
+    fn lex_comment_line(&mut self) -> LResult<TokenKind> {
         use SpecialKeywordKind::*;
         use TokenKind::*;
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
@@ -353,7 +358,7 @@ impl Lexer {
         //assert!(self.peek(0) == Some('\n'));
         Ok(SpecialKeyword(Comment(CommentKind::Line)))
     }
-    fn lex_comment_block(&mut self) -> Result<TokenKind, LexerError> {
+    fn lex_comment_block(&mut self) -> LResult<TokenKind> {
         use SpecialKeywordKind::*;
         use TokenKind::*;
         // TODO: Implement nested block comments
@@ -379,7 +384,7 @@ impl Lexer {
         Ok(SpecialKeyword(Comment(CommentKind::Block)))
     }
 
-    fn lex_number(&mut self) -> Result<TokenKind, LexerError> {
+    fn lex_number(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
 
@@ -422,7 +427,7 @@ impl Lexer {
         let mut string = String::new();
         let allow_letters = number_base == Some(NumberBase::Hexadecimal);
         while let Some(c) = self.peek(0) {
-            let res: Result<(), LexerError> = match c {
+            let res: LResult<()> = match c {
                 // checks whether it is a possible digit at all.
                 c if (allow_letters && is_hexadecimal(&c)) || (!allow_letters && is_digit(&c)) => {
                     string.push(c);
@@ -509,7 +514,7 @@ impl Lexer {
         };
         Ok(lit)
     }
-    fn lex_identifier(&mut self) -> Result<TokenKind, LexerError> {
+    fn lex_identifier(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
 
@@ -520,6 +525,15 @@ impl Lexer {
                 self.advance();
             } else {
                 break;
+            }
+        }
+        loop {
+            match self.peek(0) {
+                Some(ch) if is_alpha_numeric(&ch) => {
+                    string_content.push(ch);
+                    self.advance();
+                }
+                _ => break,
             }
         }
         // TODO: Here we are trying to do the above in a more functional way
@@ -661,7 +675,7 @@ impl Lexer {
 #[cfg(test)]
 mod test {
     use crate::lexer::Lexer;
-    use crate::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
+    use crate::token::{KeywordKind, LiteralKind, PunctuatorKind, TokenKind};
 
     #[test]
     fn num_0_() {
@@ -698,8 +712,6 @@ mod test {
 
     #[test]
     fn num_4() {
-        use KeywordKind::*;
-        use LiteralKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
         let txt = ".0";

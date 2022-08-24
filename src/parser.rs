@@ -1,11 +1,12 @@
-use crate::ast::{Identifier, Item, Module, Project, Ty, TyKind};
+use crate::ast::{Item, Module, Project};
 use crate::error::ParserError;
 
-use crate::token::*;
+use crate::token::{Token, TokenKind, SpecialKeywordKind};
 
 mod expr;
 mod item;
 mod stmt;
+mod ty;
 
 #[allow(unused_macros)]
 macro_rules! get_function_name {
@@ -65,28 +66,7 @@ expr_primary := ident | 'true' | 'false' | expr_group | string | number
 
  */
 
-/*
-   prodtype, sumtype, subtype
-
-*/
-
-/*
-    (0..10).collect::<Vec<_>>();
-    Vec::<u8>::with_capacity(1024);
-
-    (0..10).collect<Vec<_>>();
-    Vec<u8>::with_capacity(1024);
-
-    (0..10).collect{Vec{_}}();
-    Vec{u8}::with_capacity(1024);
-*/
-
 type PResult<T> = Result<T, ParserError>;
-enum Delimiter {
-    Parenthesis, // ( )
-    Brace,       // { }
-    Bracket,     // [ ]
-}
 
 pub fn get_ast_from_tokens(tokens: Vec<Token>) -> PResult<Project> {
     Parser::from_tokens(tokens).parse()
@@ -115,7 +95,7 @@ impl Parser {
         Self {
             tokens,
             current: 0,
-            infix_bp: expr::set_infix_binding_power(),
+            infix_bp: expr::set_binding_power_bin_infix(),
         }
     }
     fn parse_(&mut self) -> PResult<Vec<Item>> {
@@ -138,37 +118,6 @@ impl Parser {
             modules: vec![module],
         };
         Ok(project)
-    }
-}
-
-/// This impl block is for parsing the types
-impl Parser {
-    pub fn parse_ty(&mut self) -> PResult<Ty> {
-        let token = self.peek(0).unwrap();
-        let ty = match &token.kind {
-            TokenKind::Identifier(..) => {
-                let ty = Ty {
-                    kind: TyKind::Simple(Identifier::from_token(token.clone())),
-                };
-
-                self.advance();
-                ty
-            }
-            TokenKind::Punctuator(PunctuatorKind::LeftParen) => {
-                self.advance();
-                let _ = self
-                    .eat(&TokenKind::Punctuator(PunctuatorKind::RightParen))
-                    .unwrap();
-                Ty {
-                    kind: TyKind::Tuple(Vec::new()),
-                }
-            }
-            _ => Err(ParserError::new(format!(
-                "Expected a type, got {:?}",
-                token
-            )))?,
-        };
-        Ok(ty)
     }
 }
 
