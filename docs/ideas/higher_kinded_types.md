@@ -47,31 +47,183 @@ class Applicative m => Monad m where
 
 ```rust
 
-fn id<A>(a: A) -> A {
+fn id<T>(a: T): T {
     a
 }
-fn const<A, B>(a: A, b: B) -> A {
+fn const<T, U>(a: T, b: U): T {
     a
 }
 type Functor<T<_>> = trait {
-    fn fmap<A, B>(fa: Self<A>, f: A -> B) -> T<B>;
-    fn (<$)<A, B>(fb: Self<B>, a: A) -> T<A> {
-        fb.fmap(|_| a)
+    type Self = T<_>;
+    fn map<A, B>(self: Self<A>, f: fn(A): B): Self<B>;
+
+    // <$
+    fn replace_with<A, B>(self: Self<A>, a: A): Self<B> {
+        self.map(|_| a)
     }
 }
-type Applicative<T<_>: Functor<F<_>>>: = trait {
-    fn pure<A>(a: A) -> T<A>;
-    fn (<*>)<A, B>(fa: T<A>, f: T<A -> B>) -> T<B>;
-    fn liftA2<A, B, C>(f: A -> B -> C, fa: T<A>, fb: T<B>) -> T<C>;
-    fn (*>)<A, B>(fa: T<A>, fb: T<B>) -> T<B>;
-    fn (<*)<A, B>(fa: T<A>, fb: T<B>) -> T<A>;
+type Applicative<T<_>> = trait
+where T<_>: Functor<T<_>> {
+    type Self = T<_>;
+
+    fn pure<A>(a: A) -> Self<A>;
+
+    // (<*>) :: f (a -> b) -> f a -> f b
+    // f <*> x = liftA2 id f x
+    fn apply<A, B>(self: Self<A>, func: Self<fn(A): B>): Self<B> {
+        self.lift_two(func, |a, f| f(a))
+    }
+
+    // liftA2 func right self = (<*>) (fmap func right) self
+    fn lift_two<A, B, C>(self: Self<A>, right: Self<B>, func: fn(A, B): C): Self<C> {
+        self.apply(right.map(func))
+    }
+    // *>
+    fn discard_left<A, B>(self: Self<A>, right: Self<B>): T<B> {
+        // self.lift_two(right, |_, b| b)
+        self.replace_with(right)
+    }
+    // <*
+    fn discard_right<A, B>(self: Self<A>, right: Self<B>): T<A> {
+        self.lift_two(right, |a, _| a)
+    }
 }
 
-type Monad<T<_>: Applicative<F<_>>> = trait {
-    fn (>>=)<A, B>(fa: T<A>, f: A -> T<B>) -> T<B>;
-    fn (>>) <A, B>(fa: T<A>, fb: T<B>) -> T<B>;
-    fn return<A>(a: A) -> T<A>;
+type Monad<T<_>> = trait
+where T<_>: Applicative<T<_>> {
+    type Self = T<_>;
+
+    // (>>=) :: m a -> (a -> m b) -> m b
+    fn bind<A, B>(self: Self<A>, f: fn(A): Self<B>): Self<B>;
+    
+    // (>>) :: m a -> m b -> m b
+    fn then<A, B>(self: Self<A>, right: Self<B>): Self<B>  {
+        self.bind(|_| right)
+    }
+
+    // return :: a -> m a
+    fn return<A>(a: A): T<A> {
+        T::pure(a)
+    }
 }
+```
+
+So now let's implement those basics on the type Option.
+
+```rust
+type Option<T> = enum {
+    None,
+    Some(T),
+}
+impl Functor<Option<_>> for Option<_> {
+    // Some(1).map(|x| x + 1) == Some(2)
+    // None.map(|x| x + 1) == None
+    fn map<A, B>(self: Self<A>, func: fn(A): B): Self<B> {
+        match self {
+            Some(a) => Some(func(a)),
+            None => None,
+        }
+    }
+
+    // Some(1).replace_with(2) == Some(2)
+    // None.replace_with(2) == None
+    fn replace_with<A, B>(self: Self<A>, other: A) -> Self<B> {
+        self.fmap(|_| other)
+    }
+
+    // Some(1) <$> 2 == Some(2)
+    // None <$> 2 == None
+    fn (<$)<A, B>(self: Self<A>, other: A) -> Self<B> {
+        self.replace_with(other)
+    }
+
+}
+
+impl Applicative<Option<_>> for Option<_> {
+    // Option::pure(1) == Option::Some(1)
+    fn pure<A>(a: A) -> Option<A> {
+        Some(a)
+    }
+
+    // Some(1).apply(Some(|x| x + 1)) == Some(2)
+    // None.apply(Some(|x| x + 1)) == None
+    // Some(1).apply(None) == None
+    // None.apply(None) == None
+    fn apply<A, B>(self: Self<A>, func: Self<fn(A): B>) -> Self<B> {
+        match (self, func) {
+            (Some(s), Some(f)) => s.map(f),
+            (_, _) => None,
+        }
+    }
+
+    // Some(1).lift_two(Some(2), |x, y| x + y) == Some(3)
+    // None.lift_two(Some(2), |x, y| x + y) == None
+    // Some(1).lift_two(None, |x, y| x + y) == None
+    // None.lift_two(None, |x, y| x + y) == None
+    fn lift_two<A, B, C>(self: Self<A>, other: Self<B>, func: fn(A, B): C) -> Self<C> {
+        match (self, other) {
+            (Some(a), Some(b)) => Some(func(a, b)),
+            (_, _) => None,
+        }
+    }
+
+    // Some(1).discard_left(Some(2)) == Some(2)
+    // None.discard_left(Some(2)) == None
+    // Some(1).discard_left(None) == None
+    // None.discard_left(None) == None
+    fn discard_left<A, B>(self: Self<A>, right: Self<B>) -> Self<B> {
+        match (self, right) {
+            (Some(_), Some(b)) => Some(b),
+            (_, _) => None,
+        }
+    }
+
+    // Some(1).discard_right(Some(2)) == Some(1)
+    // None.discard_right(Some(2)) == None
+    // Some(1).discard_right(None) == None
+    // None.discard_right(None) == None
+    fn discard_right<A, B>(self: Self<A>, right: Self<B>) -> Self<A> {
+        match (self, right) {
+            (Some(a), Some(_)) => Some(a),
+            (_, _) => None,
+        }
+    }
+}
+// fn map<A, B>(self: Self<A>, func: fn(A): B) -> Self<B>;
+// fn app<A, B>(self: Self<A>, func: Self<fn(A): B>) -> Self<B>;
+// fn bin<A, B>(self: Self<A>, func: fn(A): Self<B>): Self<B>; 
+
+impl Monad<Option<_>> for Option {
+    // Some(1).bind(|x| Some(x + 1)) == Some(2)
+    // None.bind(|x| Some(x + 1)) == None
+    // Some(1).bind(|x| None) == None
+    // None.bind(|x| None) == None
+    // (>>=)       :: forall a b. m a -> (a -> m b) -> m b
+    fn bind<A, B>(self: Self<A>, func: fn(A): Self<B>): Self<B> {
+        match self {
+            Some(a) => self.map(func),
+            None => None,
+        }
+    }
+
+    // Some(1).then(Some(2)) == Some(2)
+    // None.then(Some(2)) == None
+    // Some(1).then(None) == None
+    // None.then(None) == None
+    fn then<A, B>(self: Self<A>, func: fn(A): Self<B>) -> Self<B> {
+        self.discard_left(func)
+    }
+
+    // Some(1) >> Some(2) == Some(2)
+    // None >> Some(2) == None
+    // Some(1) >> None == None
+    // None >> None == None
+    fn return<A>(a: A) -> Self<A> {
+        Some(a)
+    }
+    // Option::return(1) == Some(1)
+}
+
 ```
 Rust:
 
