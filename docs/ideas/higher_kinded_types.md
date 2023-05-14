@@ -7,6 +7,72 @@ As an inspiration as to how it could look like, it would be interesting to look 
 Probably we will come up with syntax which is basically like a "rustified" Scala. For now, I plan on using Haskell's naming convention.
 
 Here are some articles which could be relevant to work this out.
+
+Haskell:
+
+```haskell
+class Functor f where
+    fmap        :: (a -> b) -> f a -> f b
+
+    (<$)        :: a -> f b -> f a
+    (<$)        =  fmap . const
+
+
+class Functor f => Applicative f where
+    pure :: a -> f a
+
+    (<*>) :: f (a -> b) -> f a -> f b
+    (<*>) = liftA2 id
+
+    liftA2 :: (a -> b -> c) -> f a -> f b -> f c
+    liftA2 f x = (<*>) (fmap f x)
+
+    (*>) :: f a -> f b -> f b
+    a1 *> a2 = (id <$ a1) <*> a2
+
+    (<*) :: f a -> f b -> f a
+    (<*) = liftA2 const
+
+
+class Applicative m => Monad m where
+ 
+    (>>=)       :: forall a b. m a -> (a -> m b) -> m b
+
+    (>>)        :: forall a b. m a -> m b -> m b
+    m >> k = m >>= \_ -> k
+
+    return      :: a -> m a
+    return      = pure
+```
+
+```rust
+
+fn id<A>(a: A) -> A {
+    a
+}
+fn const<A, B>(a: A, b: B) -> A {
+    a
+}
+type Functor<T<_>> = trait {
+    fn fmap<A, B>(fa: Self<A>, f: A -> B) -> T<B>;
+    fn (<$)<A, B>(fb: Self<B>, a: A) -> T<A> {
+        fb.fmap(|_| a)
+    }
+}
+type Applicative<T<_>: Functor<F<_>>>: = trait {
+    fn pure<A>(a: A) -> T<A>;
+    fn (<*>)<A, B>(fa: T<A>, f: T<A -> B>) -> T<B>;
+    fn liftA2<A, B, C>(f: A -> B -> C, fa: T<A>, fb: T<B>) -> T<C>;
+    fn (*>)<A, B>(fa: T<A>, fb: T<B>) -> T<B>;
+    fn (<*)<A, B>(fa: T<A>, fb: T<B>) -> T<A>;
+}
+
+type Monad<T<_>: Applicative<F<_>>> = trait {
+    fn (>>=)<A, B>(fa: T<A>, f: A -> T<B>) -> T<B>;
+    fn (>>) <A, B>(fa: T<A>, fb: T<B>) -> T<B>;
+    fn return<A>(a: A) -> T<A>;
+}
+```
 Rust:
 
 - [hugopeters article](https://hugopeters.me/posts/14/)
@@ -77,4 +143,22 @@ type Monad<F<_>> = trait
 {
 
 }
+```
+
+```rust
+
+fn tuple<A, B>(x: List<A>, y: List: <B>): List<(A, B)> {
+    x.flat_map(|a| y.map((a, _)))
+}
+fn tuple<A, B>(x: Option<A>, y: Option: <B>): Option<(A, B)> {
+    x.flat_map(|a| y.map((a, _)))
+}
+fn tuple<S, A, B>(x: State<S, A>, y: State<S, B>): State<S, (A, B)> {
+    x.flat_map(|a| y.map((a, _)))
+}
+
+fn tuple<F<_>, A, B>(x: F<A>, y: F<B>): F<(A, B)> {
+
+}
+
 ```

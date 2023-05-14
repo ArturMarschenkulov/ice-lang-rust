@@ -35,6 +35,8 @@ Here are interesting languages and interesting links to them.
 - [github](https://github.com/ziglang/zig), 
 ## Odin
 - [github](https://github.com/odin-lang/Odin),
+- [docs](https://odin-lang.org/docs/)
+- [overview](https://odin-lang.org/docs/overview/)
 ## Jai
 - Jai
 ## Nim
@@ -53,3 +55,7 @@ Since this language is writtein in Rust, projects of languages written in Rust a
 - jakt
 - [swc(typescript)](https://github.com/alilleybrinker/langs-in-rust)
 - [rustcc(C)](https://github.com/ClementTsang/rustcc)
+- [gleam](https://github.com/gleam-lang/gleam)
+- [inko](https://github.com/YorickPeterse/inko)
+- [crunch-lang](https://github.com/Kixiron/crunch-lang)
+

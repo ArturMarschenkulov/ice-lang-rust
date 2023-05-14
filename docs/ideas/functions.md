@@ -2,10 +2,10 @@
 
 ```rust
 fn add(x: i32, y: i32): i32 {
-    x + y +1
+    x + y + 1
 }
 fn add(x: i32, y: i32) -> i32 {
-    x + y +1
+    x + y + 1
 }
 fn twice(
     f: fn(i32, i32) i32, 
@@ -19,7 +19,7 @@ fn twice(
 ): i32 {
     f(f(x))
 }
-fn twice(f: fn(i32, i32) -> i32, x: i32) -> i32 {
+fn twice(f: fn(i32) -> i32, x: i32) -> i32 {
     f(f(x))
 }
 
