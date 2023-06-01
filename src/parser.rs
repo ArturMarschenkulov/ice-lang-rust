@@ -1,7 +1,7 @@
 use crate::ast::{Item, Module, Project};
 use crate::error::ParserError;
 
-use crate::token::{Token, TokenKind, SpecialKeywordKind};
+use crate::token::{SpecialKeywordKind, Token, TokenKind};
 
 mod expr;
 mod item;
@@ -146,10 +146,9 @@ impl Parser {
         Self: Sized,
         F: Fn(&TokenKind) -> bool,
     {
-        let peeked = self.peek(offset);
-        match peeked {
+        match self.peek(offset) {
             Some(token) if func(&token.kind) => Ok(token),
-            Some(_) => Err(peeked),
+            peeked @ Some(_) => Err(peeked),
             None => Err(None),
         }
     }
@@ -157,16 +156,16 @@ impl Parser {
         self.eat_with(|t| t == kind)
     }
     fn eat_identifier(&mut self) -> Result<&Token, Option<&Token>> {
-        self.eat_with(&TokenKind::is_identifier)
+        self.eat_with(TokenKind::is_identifier)
     }
     fn eat_punctuator(&mut self) -> Result<&Token, Option<&Token>> {
-        self.eat_with(&TokenKind::is_punctuator)
+        self.eat_with(TokenKind::is_punctuator)
     }
     fn eat_keyword(&mut self) -> Result<&Token, Option<&Token>> {
-        self.eat_with(&TokenKind::is_keyword)
+        self.eat_with(TokenKind::is_keyword)
     }
     fn eat_literal(&mut self) -> Result<&Token, Option<&Token>> {
-        self.eat_with(&TokenKind::is_literal)
+        self.eat_with(TokenKind::is_literal)
     }
     fn eat_just(&mut self) -> Result<&Token, Option<&Token>> {
         self.eat_with(|_| true)
