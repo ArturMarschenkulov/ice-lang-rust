@@ -1,6 +1,6 @@
 use super::{PResult, Parser};
 use crate::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
-use crate::token::{TokenKind, KeywordKind, PunctuatorKind};
+use crate::token::{KeywordKind, PunctuatorKind, TokenKind};
 
 /// This impl block is for parsing items.
 impl Parser {
@@ -47,12 +47,12 @@ impl Parser {
         //       This function only finds one to which function to dispatch to
 
         let _ = self.check(&Keyword(Type), 0).unwrap();
-        let _ = self.check_with(1, &TokenKind::is_identifier).unwrap();
+        let _ = self.check_with(1, TokenKind::is_identifier).unwrap();
         let _ = self.check(&Punctuator(Equal), 2).unwrap();
 
         match self.peek(3).unwrap().kind {
             Keyword(Struct) => self.parse_item_type_struct(),
-            _ => (todo!()),
+            _ => todo!(),
         }
     }
     pub fn parse_item(&mut self) -> PResult<Item> {

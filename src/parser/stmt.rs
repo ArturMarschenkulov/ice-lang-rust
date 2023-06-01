@@ -56,12 +56,11 @@ impl Parser {
                 StmtKind::Expression(Box::new(expr))
             }
             _ => {
-                let stmt = if self.eat(&Punctuator(Semicolon)).is_ok() {
+                if self.eat(&Punctuator(Semicolon)).is_ok() {
                     StmtKind::Expression(Box::new(expr))
                 } else {
                     StmtKind::ExpressionWithoutSemicolon(Box::new(expr))
-                };
-                stmt
+                }
             }
         };
 
