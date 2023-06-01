@@ -58,6 +58,10 @@ fn is_right_whitespace(c: &char) -> bool {
     c == &' '
 }
 
+fn is_lit_bool(s: &str) -> bool {
+    ["true", "false"].contains(&s)
+}
+
 pub fn lex_tokens_from_file(source: &str) -> LResult<Vec<Token>> {
     let tokens = Lexer::new_from_str(source).scan_tokens();
     Ok(tokens)
@@ -188,12 +192,7 @@ impl Lexer {
             }
             cc if is_digit(&cc) => self.lex_number(),
             cc if is_alpha(&cc) => self.lex_identifier(),
-            cc => match cc {
-                _ => Err(LexerError::new(format!(
-                    "Character '{}' is unknown. At '{}:{}'.",
-                    cc, self.cursor.line, self.cursor.column
-                ))),
-            },
+            cc => Err(LexerError::unknown_character(cc, self.cursor)),
         };
         let kind = kind?;
         let index_new = self.index;
@@ -232,11 +231,11 @@ impl Lexer {
             let index_start = 0 - (end_index - start_index) as isize;
             let index_end = -1_isize;
 
-            let index_start_left = self.peek(index_start - 1);
-            let index_end_right = self.peek(index_end + 1);
+            let index_start_left = self.peek(index_start - 1).unwrap_or(' ');
+            let index_end_right = self.peek(index_end + 1).unwrap_or(' ');
 
-            let ws_left = is_left_whitespace(&index_start_left.unwrap_or(' '));
-            let ws_right = is_right_whitespace(&index_end_right.unwrap_or(' '));
+            let ws_left = is_left_whitespace(&index_start_left);
+            let ws_right = is_right_whitespace(&index_end_right);
 
             token::Whitespace::from((ws_left, ws_right))
         };
@@ -256,7 +255,7 @@ impl Lexer {
             '\'' => Ok('\''),
             '"' => Ok('"'),
             '0' => Ok('\0'),
-            _ => Err(LexerError::new(format!("Unknown escape sequence"))),
+            c => Err(LexerError::unknown_escape_char(c)),
         };
         self.advance();
         self.cursor.column += 1;
@@ -273,8 +272,8 @@ impl Lexer {
         let c = if let Some(c) = self.peek(0) {
             let c = match c {
                 '\\' => self.lex_escape_char(),
-                '\'' => Err(LexerError::new(format!("empty character literal"))),
-                '\n' | '\r' => Err(LexerError::new(format!("newline in character literal"))),
+                '\'' => Err(LexerError::empty_char_literal()),
+                '\n' | '\r' => Err(LexerError::new_line_in_char_lit()),
                 _ => {
                     self.advance();
                     self.cursor.column += 1;
@@ -288,11 +287,7 @@ impl Lexer {
 
         match self.eat('\'') {
             Ok(..) => {}
-            Err(..) => {
-                return Err(LexerError::new(format!(
-                    "character literal may only contain one codepoint"
-                )))
-            }
+            Err(..) => return Err(LexerError::char_lit_contains_multiple_codepoints()),
         };
         Ok(Literal(Char(c.unwrap())))
     }
@@ -339,8 +334,8 @@ impl Lexer {
 
         self.cursor.column -= 1;
 
-        if self.peek(0) == None {
-            return Err(LexerError::new(format!("Unterminated string.")));
+        if self.peek(0).is_none() {
+            return Err(LexerError::unterminated_string());
         }
         Ok(Literal(Str(string_content)))
     }
@@ -350,7 +345,7 @@ impl Lexer {
         // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
         self.eat_str("//").unwrap();
         self.cursor.column += 2;
-        while self.peek(0) != Some('\n') && self.peek(0) != None {
+        while self.peek(0) != Some('\n') && self.peek(0).is_some() {
             self.advance();
             self.cursor.column += 1;
         }
@@ -388,46 +383,34 @@ impl Lexer {
         use LiteralKind::*;
         use TokenKind::*;
 
-        // A number literal can be divided up into three parts.
-        // An optional prefix, a number base: It shows which radix the number is in.
-        // A number body: The actual number.
-        // An optional suffix: It shows the type of the number, like f32, u8, etc.
-
-        // The idea is to at first parse those three parts and then look wether they match the rules.
-
-        // TODO: Try to make it possible that the lexer does not parse `foo.0.0` as a floating point
-        // TODO: Maybe do not make the number base hard coded similar how suffixes are not? Only a consideration.
-
-        // Prefix Part
-        // let first_two_chars = self.peek_into_str(1).unwrap().clone();
-
-        let prefix = match self.peek_into_str(1) {
-            Some(c) if ["0b", "0o", "0d", "0x"].contains(&c.as_str()) => {
-                self.advance();
-                self.advance();
-                self.cursor.column += 2;
-                Some(c.clone())
+        fn process_prefix(this: &mut Lexer) -> Option<String> {
+            match this.peek_into_str(1) {
+                Some(suf) => {
+                    let b_0 = (*suf.as_bytes().first().unwrap() as char) == '0';
+                    let b_1 = (*suf.as_bytes().get(1).unwrap() as char).is_alphabetic();
+                    if b_0 && b_1 {
+                        this.advance();
+                        this.advance();
+                        this.cursor.column += 2;
+                        Some(suf)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
             }
-            _ => None,
-        };
-        let (number_base, is_in_number_base): (Option<NumberBase>, fn(&char) -> bool) =
-            match prefix.as_ref().map(|ref s| s.as_str()) {
-                Some("0b") => (Some(NumberBase::Binary), is_binary),
-                Some("0o") => (Some(NumberBase::Octal), is_octal),
-                Some("0d") => (Some(NumberBase::Decimal), is_digit),
-                Some("0x") => (Some(NumberBase::Hexadecimal), is_hexadecimal),
-                None => (None, is_digit),
-                _ => unreachable!(),
-            };
+        }
+
+        let prefix = process_prefix(self);
 
         // Number Body Part
         let mut is_after_dot = false;
         let mut is_floating = false;
         let mut mode_parse_suffix = false;
         let mut string = String::new();
-        let allow_letters = number_base == Some(NumberBase::Hexadecimal);
-        while let Some(c) = self.peek(0) {
-            let res: LResult<()> = match c {
+        let allow_letters = prefix.is_some();
+        while let Some(peeked) = self.peek(0) {
+            let res: LResult<()> = match peeked {
                 // checks whether it is a possible digit at all.
                 c if (allow_letters && is_hexadecimal(&c)) || (!allow_letters && is_digit(&c)) => {
                     string.push(c);
@@ -443,7 +426,7 @@ impl Lexer {
                 }
                 // in a number there can be only one dot
                 '.' if !is_floating && self.check('.', 1).ok().is_none() => {
-                    string.push(c);
+                    string.push(peeked);
                     is_floating = true;
                     is_after_dot = true;
                     Ok(())
@@ -473,80 +456,53 @@ impl Lexer {
         // Cursor part
         let _starts_with_dot = string.starts_with('.');
         let _ends_with_dot = string.ends_with('.');
-        self.cursor.column +=
-            (string.len() + suffix.clone().unwrap_or(String::new()).len() - 1) as u32;
+        self.cursor.column += (string.len() + suffix.clone().unwrap_or_default().len() - 1) as u32;
 
         // Error handling
+        let (number_base, is_in_number_base): (Option<NumberBase>, fn(&char) -> bool) =
+            match prefix.as_deref() {
+                Some("0b") => (Some(NumberBase::Binary), is_binary),
+                Some("0o") => (Some(NumberBase::Octal), is_octal),
+                Some("0d") => (Some(NumberBase::Decimal), is_digit),
+                Some("0x") => (Some(NumberBase::Hexadecimal), is_hexadecimal),
+                None => (None, is_digit),
+                Some(pref) => return Err(LexerError::not_recognized_base_prefix(pref)),
+            };
         if prefix.is_some() && is_floating {
-            return Err(LexerError::new(format!(
-                "floating point literals are not allowed to have a base prefix (`{}`)",
-                number_base.unwrap_or(NumberBase::Decimal).as_num()
-            )));
+            return Err(LexerError::floats_dont_have_base_prefix(number_base));
         }
         if !string.chars().all(|c| is_in_number_base(&c)) {
-            return Err(LexerError::new(format!(
-                "invalid digit for base {} literal",
-                number_base.unwrap_or(NumberBase::Decimal).as_num()
-            )));
+            return Err(LexerError::invalid_digit_base_prefix(number_base));
         }
 
         let possible_suffixes = [
             "", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
         ];
-        if !possible_suffixes.contains(&suffix.clone().unwrap_or("".to_string()).as_str()) {
-            return Err(LexerError::new(format!(
-                "invalid suffix `{}` for numeric literal",
-                suffix.unwrap_or("".to_string())
-            )));
+        if !possible_suffixes.contains(&suffix.clone().unwrap_or_default().as_str()) {
+            return Err(LexerError::invalid_digit_type_suffix(suffix));
         }
+        assert_ne!(string.len(), 0);
 
-        let lit = if is_floating {
-            Literal(Floating {
-                content: string,
-                suffix,
-            })
-        } else {
-            Literal(Integer {
-                content: string,
-                base: number_base,
-                suffix,
-            })
-        };
+        let lit = Literal(Number {
+            content: string,
+            prefix: number_base,
+            suffix,
+            is_float: is_floating,
+        });
+
         Ok(lit)
     }
+
     fn lex_identifier(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
 
-        let mut string_content = String::new();
-        while let Some(ch) = self.peek(0) {
-            if is_alpha_numeric(&ch) {
-                string_content.push(ch);
-                self.advance();
-            } else {
-                break;
-            }
-        }
-        loop {
-            match self.peek(0) {
-                Some(ch) if is_alpha_numeric(&ch) => {
-                    string_content.push(ch);
-                    self.advance();
-                }
-                _ => break,
-            }
-        }
-        // TODO: Here we are trying to do the above in a more functional way
-        {
-            let _peeked = self.peek(0).map(|x| x.is_alphanumeric());
-            //println!("jnklsrnlkgn {:?}", s);
-        }
+        let string_content = self.eat_while(is_alpha_numeric);
 
         // Here we determine whether the identifier is a keyword or not.
 
         let token = match string_content.as_ref() {
-            "true" => Literal(Boolean(true)),
-            "false" => Literal(Boolean(false)),
+            lit if is_lit_bool(lit) => LiteralKind::from_str(lit).map_or_else(Identifier, Literal),
             kw => KeywordKind::from_str(kw).map_or_else(Identifier, Keyword),
         };
         match &token {
@@ -564,10 +520,6 @@ impl Lexer {
 ///
 ///
 impl Lexer {
-    // fn move_by(&mut self, offset: isize) {
-    //     //let s: usize = self.index + offset.try_into().unwrap();
-    //     //self.index += self.calc_offset(n);
-    // }
     fn advance(&mut self) {
         self.index += 1;
     }
@@ -577,41 +529,29 @@ impl Lexer {
         self.cursor.column = 1;
     }
 
-    fn calc_offset(&self, offset: isize) -> Option<usize> {
-        if offset.is_negative() {
-            self.index.checked_sub(-offset as usize)
-        } else if offset.is_positive() {
-            self.index.checked_add(offset as usize)
-        } else {
-            Some(self.index)
+    /// Tries to return the index of the current index plus the given offset.
+    ///
+    /// If the offset doesn't overflow or underflow the `self.index`, then it will return the new index in a `Some`.
+    fn try_index_plus(&self, offset: isize) -> Option<usize> {
+        match offset {
+            offset if offset.is_negative() => self.index.checked_sub(-offset as usize),
+            offset if offset.is_positive() => self.index.checked_add(offset as usize),
+            _ => Some(self.index),
         }
     }
-    /// This function peeks the current character at the current location of the cursor plus the given offset.
-    /// If the offset is negative, it will look at the previous character.
-    /// If the offset is positive, it will look at the next character.
-    /// If the offset is 0, it will look at the current character.
-    /// If resulting index is out of bounds, it will return None.
+
+    /// Peeks the character at the current index plus the given offset.
+    /// If the resulting location is valid, it returns the character wrapped in a `Some`, otherwise `None`.
     fn peek(&self, offset: isize) -> Option<char> {
-        match self.calc_offset(offset) {
-            Some(new_offset) => self.chars.get(new_offset).copied(),
+        match self.try_index_plus(offset) {
+            Some(index) => self.chars.get(index).copied(),
             None => None,
         }
     }
-    // fn peek(&self, offset: isize) -> Option<&char> {
-    //     match self.calc_offset(offset) {
-    //         Some(new_offset) => self.chars.get(new_offset),
-    //         None => None,
-    //     }
-    // }
-    fn is_inbounds(&self, offset: isize) -> bool {
-        match self.calc_offset(offset) {
-            Some(new_offset) => new_offset < self.chars.len(),
-            None => false,
-        }
-    }
-    /// peeks up to `n` consecutive chars and returns them as a string. If 'n == 0', refers to the current
+
+    /// peeks up to `n` consecutive chars and returns them as a string. If 'n == 0', refers to the current char as a string.
     fn peek_into_str(&self, n: usize) -> Option<String> {
-        if self.is_inbounds(n as isize) {
+        if self.peek(n as isize).is_some() {
             let mut str = String::new();
             for i in 0..=n {
                 let c = self.peek(i as isize).unwrap();
@@ -623,14 +563,38 @@ impl Lexer {
         }
     }
 
-    /// peeks at the offset `n`. If the peeked char is the same as `c`, it returns it wrapped in a `Some`, otherwise `None`.
-    fn check(&self, c: char, n: isize) -> Result<char, Option<char>> {
-        match self.peek(n) {
-            Some(ch) if c == ch => Ok(c),
-            Some(other) => Err(Some(other)),
+    /// Peeks at the offset `offset`. If the peeked char agrees with the given function, it returns it wrapped in a `Some`, otherwise `None`.
+    fn check_with<F>(&self, offset: isize, func: F) -> Result<char, Option<char>>
+    where
+        Self: Sized,
+        F: Fn(&char) -> bool,
+    {
+        match self.peek(offset) {
+            Some(c) if func(&c) => Ok(c),
+            peeked @ Some(_) => Err(peeked),
             None => Err(None),
         }
     }
+
+    /// Checks the next chars as long as the given function returns true.
+    fn check_while<F>(&mut self, func: F) -> String
+    where
+        F: Fn(&char) -> bool,
+    {
+        let mut res = String::new();
+        let mut offset = 0;
+        while let Ok(peeked) = self.check_with(offset, &func) {
+            res.push(peeked);
+            offset += 1;
+        }
+        res
+    }
+
+    /// Checks the 'n'th char ahead of the current index. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
+    fn check(&self, c: char, n: isize) -> Result<char, Option<char>> {
+        self.check_with(n, |x| x == &c)
+    }
+
     fn check_str(&self, s: &str) -> Option<String> {
         if self.peek_into_str(s.len() - 1) == Some(s.to_string()) {
             Some(s.to_string())
@@ -638,13 +602,34 @@ impl Lexer {
             None
         }
     }
+
     /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
     fn eat(&mut self, ch: char) -> Result<char, Option<char>> {
-        let c = self.check(ch, 0);
-        if c.is_ok() {
+        self.eat_with(|x| x == &ch)
+    }
+
+    /// Checks the charachter at the current index with a given function.
+    /// If the function returns true, the current char is "eaten" and returned wrapped in a `Some`, otherwise `None`.
+    fn eat_with<F>(&mut self, func: F) -> Result<char, Option<char>>
+    where
+        F: Fn(&char) -> bool,
+    {
+        let checked = self.check_with(0, func);
+        if checked.is_ok() {
             self.advance();
         }
-        c
+        checked
+    }
+
+    fn eat_while<F>(&mut self, func: F) -> String
+    where
+        F: Fn(&char) -> bool,
+    {
+        let s = self.check_while(func);
+        for _ in 0..s.len() {
+            self.advance();
+        }
+        s
     }
 
     fn eat_str(&mut self, str: &str) -> Option<String> {
@@ -676,6 +661,17 @@ impl Lexer {
 mod test {
     use crate::lexer::Lexer;
     use crate::token::{KeywordKind, LiteralKind, PunctuatorKind, TokenKind};
+
+    #[test]
+    fn check_str() {
+        let txt = "hello";
+        let lexer = Lexer::new_from_str(txt);
+        assert_eq!(lexer.check_str("hello"), Some("hello".to_string()));
+
+        let txt = "";
+        let lexer = Lexer::new_from_str(txt);
+        assert_eq!(lexer.check_str("hello"), None);
+    }
 
     #[test]
     fn num_0_() {
@@ -737,10 +733,11 @@ mod test {
         assert_eq!(tokens[3].kind, Punctuator(Equal));
         assert_eq!(
             tokens[4].kind,
-            Literal(Integer {
+            Literal(Number {
                 content: "2222".to_owned(),
-                base: None,
-                suffix: None
+                prefix: None,
+                suffix: None,
+                is_float: false,
             })
         );
         assert_eq!(tokens[5].kind, Punctuator(Semicolon));

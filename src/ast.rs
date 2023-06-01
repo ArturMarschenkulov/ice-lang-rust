@@ -1,4 +1,3 @@
-
 #[derive(Clone, Debug)]
 pub struct Identifier {
     pub name: crate::token::Token,
@@ -19,9 +18,6 @@ struct Typed<T> {
     ty: Ty,
 }
 
-
-
-
 impl Identifier {
     pub fn from_token(token: crate::token::Token) -> Self {
         // assert!(token.kind.is_identifier());
@@ -30,18 +26,18 @@ impl Identifier {
 }
 #[derive(Clone, Debug)]
 pub enum ExprKind {
-    Literal(crate::token::LiteralKind),
-    Grouping(Box<Expr>),
-    BinaryInfix(Box<Expr>, crate::token::Token, Box<Expr>),
-    UnaryPrefix(crate::token::Token, Box<Expr>),
+    Literal(crate::token::LiteralKind), // 3, 5.0, "hello", 'c', true, false
+    Grouping(Box<Expr>),                // (3, 5, 6)
+    BinaryInfix(Box<Expr>, crate::token::Token, Box<Expr>), // 3 + 5, 3 * 5, 3 / 5, 3 - 5
+    UnaryPrefix(crate::token::Token, Box<Expr>), // -3, !true
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
         /// `Some` means there is a path to this symbol (`x::y::z`),
         /// however it can be also empty (`::x`)
         path: Option<Vec<Identifier>>,
-    },
-    Block(Vec<Stmt>),
+    }, // x, x::y::z, ::x
+    Block(Vec<Stmt>),                   // { stmt; stmt; stmt; }
 
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     While(Box<Expr>, Box<Expr>),
@@ -73,6 +69,10 @@ pub struct Module {
 #[derive(Clone, Debug)]
 pub enum TyKind {
     /// A simple type `A`. It can be either custom or builtin/primitive.
+    ///
+    /// Some builtin types are `i32`, `f32`, `bool`, `char`, `str`, `()`. They usually start with a small letter.
+    ///
+    /// Custom types are usually written in `PascalCase` and start with a capital letter.
     Simple(Identifier),
     /// A tuple type `(A, B, C)`. If empty it also represents the unit type `()`.
     Tuple(Vec<Ty>),
@@ -343,7 +343,7 @@ impl DebugTreePrinter for Ty {
                 for ty in tup {
                     ty.print_debug_tree();
                 }
-            },
+            }
         }
     }
 }

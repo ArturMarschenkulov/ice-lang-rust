@@ -117,7 +117,7 @@ impl Ice {
         if contents.is_empty() {
             ::std::process::exit(0)
         }
-        String::from(contents)
+        contents
     }
     fn format<T, E, F>(
         name: &str,
@@ -139,7 +139,7 @@ impl Ice {
         let time = now.elapsed();
 
         if show_structure {
-            f2(&res.as_ref().unwrap())
+            f2(res.as_ref().unwrap())
         }
         (res, time)
     }
@@ -175,6 +175,19 @@ impl Ice {
         print_time(&time_vec);
 
         //println!("{:?} milliseconds have passed", now.elapsed().as_nanos());
+    }
+}
+
+fn apply<A, B>(this: Option<A>, func: Option<fn(A) -> B>) -> Option<B> {
+    // lift_two(this, func, |a, f| f(a))
+    // this.lift_two(func, |a, f| f(a))
+    lift_two(this, func, |a, f| f(a))
+}
+
+fn lift_two<A, B, C>(this: Option<A>, right: Option<B>, func: fn(A, B) -> C) -> Option<C> {
+    match (this, right) {
+        (Some(a), Some(b)) => Some(func(a, b)),
+        _ => None,
     }
 }
 

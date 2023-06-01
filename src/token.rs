@@ -371,7 +371,7 @@ impl std::fmt::Display for PunctuatorKind {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum KeywordKind {
     Var,
     Fn,
@@ -438,12 +438,12 @@ impl std::fmt::Display for KeywordKind {
         write!(f, "{}", s)
     }
 }
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CommentKind {
     Line,
     Block,
 }
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SpecialKeywordKind {
     Eof,
     Newline,
@@ -513,7 +513,7 @@ pub fn cook_tokens(tokens: &[Token]) -> Token {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NumberBase {
     Binary,      // 0b
     Octal,       // 0o
@@ -542,30 +542,30 @@ impl NumberBase {
 }
 
 // TODO: Combine `Integer`and `Floating` into `Number`?
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LiteralKind {
-    Integer {
+    Number {
         content: String,
-        base: Option<NumberBase>,
+        prefix: Option<NumberBase>,
         suffix: Option<String>,
+        is_float: bool,
     },
-    Floating {
-        content: String,
-        suffix: Option<String>,
-    },
-    // Number {
-    //     content: String,
-    //     prefix: Option<NumberBase>,
-    //     suffix: Option<String>,
-    //     is_float: bool,
-    // },
     Boolean(bool),
     Char(char),
     Str(String),
     //Unit,
 }
+impl LiteralKind {
+    pub fn from_str(s: &str) -> Result<LiteralKind, String> {
+        match s {
+            "true" => Ok(LiteralKind::Boolean(true)),
+            "false" => Ok(LiteralKind::Boolean(false)),
+            ident => Err(ident.to_owned()),
+        }
+    }
+}
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     pub line: u32,
     pub column: u32,
@@ -575,7 +575,7 @@ impl Position {
         Position { line, column }
     }
 }
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
@@ -601,7 +601,7 @@ impl std::fmt::Debug for Span {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Whitespace {
     None,
     Left,
