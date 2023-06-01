@@ -82,6 +82,33 @@ impl TyKind {
     ///
     /// This includes `i32`, `f32`, `bool`, `char`, `str`, `()`.
     pub fn is_buildin(&self) -> bool {
+        match self.name() {
+            Some(ty) => match ty {
+                ty if ty == "bool" => true,
+                ty if ["i", "u", "f"].contains(&ty.get(..0).unwrap()) => true,
+                ty if ty == "()" => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_unit(&self) -> bool {
+        match self {
+            TyKind::Tuple(tys) => tys.is_empty(),
+            _ => false,
+        }
+    }
+    /// Returns `true`, if the type is a tuple type.
+    pub fn is_tuple(&self) -> bool {
+        // NOTE: This assumes that there are no 1-tuples. If there will be this will have to be changed.
+        matches!(self, TyKind::Tuple(_))
+    }
+    /// Returns `true`, if the type is a simple type.
+    pub fn is_simple(&self) -> bool {
+        matches!(self, TyKind::Simple(_))
+    }
+    /// Returns the name of the type if it's a simple type.
+    pub fn name(&self) -> Option<&str> {
         match self {
             TyKind::Simple(Identifier {
                 name:
@@ -89,15 +116,9 @@ impl TyKind {
                         kind: crate::token::TokenKind::Identifier(ty),
                         ..
                     },
-            }) => {
-                match ty {
-                    ty if ty == "bool" => true,
-                    ty if ["i", "u", "f"].contains(&ty.get(..0).unwrap()) => true,
-                    _ => false,
-                };
-                true
-            }
-            _ => false,
+            }) => Some(ty),
+            _ if self.is_unit() => Some("()"),
+            _ => None,
         }
     }
 }
