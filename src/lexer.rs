@@ -599,11 +599,9 @@ impl Lexer {
         Self: Sized,
         F: Fn(&char) -> bool,
     {
-        match self.peek(offset) {
-            Some(c) if func(&c) => Ok(c),
-            peeked @ Some(_) => Err(peeked),
-            None => Err(None),
-        }
+        self.peek(offset)
+            .map(|c| if func(&c) { Ok(c) } else { Err(Some(c)) })
+            .unwrap_or(Err(None))
     }
 
     /// Checks the next chars as long as the given function returns true.
@@ -611,13 +609,11 @@ impl Lexer {
     where
         F: Fn(&char) -> bool,
     {
-        let mut res = String::new();
-        let mut offset = 0;
-        while let Ok(peeked) = self.check_with(offset, &func) {
-            res.push(peeked);
-            offset += 1;
-        }
-        res
+        (0..)
+            .map(|offset| self.check_with(offset, &func))
+            .take_while(Result::is_ok)
+            .filter_map(Result::ok)
+            .collect()
     }
 
     /// Checks the 'n'th char ahead of the current index. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
@@ -644,21 +640,18 @@ impl Lexer {
     where
         F: Fn(&char) -> bool,
     {
-        let checked = self.check_with(0, func);
-        if checked.is_ok() {
+        self.check_with(0, &func).map(|char| {
             self.advance();
-        }
-        checked
+            char
+        })
     }
 
     fn eat_while<F>(&mut self, func: F) -> String
     where
         F: Fn(&char) -> bool,
     {
-        let s = self.check_while(func);
-        for _ in 0..s.len() {
-            self.advance();
-        }
+        let s = self.check_while(&func);
+        let _ = (0..s.len()).map(|_| self.advance()).count();
         s
     }
 
