@@ -383,7 +383,20 @@ impl Lexer {
         use LiteralKind::*;
         use TokenKind::*;
 
-        fn process_prefix(this: &mut Lexer) -> Option<String> {
+        fn process_prefix(lexer: &mut Lexer) -> Option<String> {
+            let prefix = lexer.peek_into_str(1)?;
+
+            if prefix.starts_with('0') && prefix.chars().nth(1).map_or(false, |c| c.is_alphabetic())
+            {
+                lexer.advance();
+                lexer.advance();
+                lexer.cursor.column += 2;
+                Some(prefix)
+            } else {
+                None
+            }
+        }
+        fn process_prefix_(this: &mut Lexer) -> Option<String> {
             match this.peek_into_str(1) {
                 Some(suf) => {
                     let b_0 = (*suf.as_bytes().first().unwrap() as char) == '0';
@@ -400,58 +413,79 @@ impl Lexer {
                 _ => None,
             }
         }
+        fn process_number_body(
+            this: &mut Lexer,
+            allow_letters: bool,
+        ) -> Result<(String, bool, bool), LexerError> {
+            let mut is_after_dot = false;
+            let mut is_floating = false;
+            let mut mode_parse_suffix = false;
+            let mut string = String::new();
 
-        let prefix = process_prefix(self);
-
-        // Number Body Part
-        let mut is_after_dot = false;
-        let mut is_floating = false;
-        let mut mode_parse_suffix = false;
-        let mut string = String::new();
-        let allow_letters = prefix.is_some();
-        while let Some(peeked) = self.peek(0) {
-            let res: LResult<()> = match peeked {
-                // checks whether it is a possible digit at all.
-                c if (allow_letters && is_hexadecimal(&c)) || (!allow_letters && is_digit(&c)) => {
-                    string.push(c);
-                    if is_after_dot {
-                        is_after_dot = false;
+            while let Some(peeked) = this.peek(0) {
+                let res: LResult<()> = match peeked {
+                    // checks whether it is a possible digit at all.
+                    c if (allow_letters && is_hexadecimal(&c))
+                        || (!allow_letters && is_digit(&c)) =>
+                    {
+                        string.push(c);
+                        if is_after_dot {
+                            is_after_dot = false;
+                        }
+                        Ok(())
                     }
-                    Ok(())
+                    // this parses a potential suffix
+                    c if is_alpha(&c) => {
+                        mode_parse_suffix = true;
+                        break;
+                    }
+                    // in a number there can be only one dot
+                    '.' if !is_floating && this.check('.', 1).ok().is_none() => {
+                        string.push(peeked);
+                        is_floating = true;
+                        is_after_dot = true;
+                        Ok(())
+                    }
+                    // a '_' is not possible after a '.'. E.g. '1._3' is not a number, this is an integer followed by an identifier.
+                    '_' if !is_after_dot => Ok(()),
+                    _ => break,
+                };
+                if let Err(e) = res {
+                    return Err(e);
+                } else {
+                    this.advance()
                 }
-                // this parses a potential suffix
-                c if is_alpha(&c) => {
-                    mode_parse_suffix = true;
-                    break;
+            }
+            Ok((string, is_floating, mode_parse_suffix))
+        }
+
+        fn process_suffix(this: &mut Lexer, mode_parse_suffix: bool) -> Option<String> {
+            if mode_parse_suffix {
+                let mut suffix: String = String::new();
+                while this.peek(0).unwrap().is_alphanumeric() {
+                    suffix.push(this.peek(0).unwrap());
+                    this.advance();
                 }
-                // in a number there can be only one dot
-                '.' if !is_floating && self.check('.', 1).ok().is_none() => {
-                    string.push(peeked);
-                    is_floating = true;
-                    is_after_dot = true;
-                    Ok(())
-                }
-                // a '_' is not possible after a '.'. E.g. '1._3' is not a number, this is an integer followed by an identifier.
-                '_' if !is_after_dot => Ok(()),
-                _ => break,
-            };
-            if let Err(e) = res {
-                return Err(e);
+                Some(suffix)
             } else {
-                self.advance()
+                None
             }
         }
-        // Suffix part
-        let suffix = if mode_parse_suffix {
-            let mut suffix: String = String::new();
-            while self.peek(0).unwrap().is_alphanumeric() {
-                suffix.push(self.peek(0).unwrap());
-                self.advance();
-            }
-            Some(suffix)
-        } else {
-            None
-        };
+        type TempComplexType = Result<(Option<NumberBase>, fn(&char) -> bool), LexerError>;
+        fn determine_number_base(prefix: &Option<String>) -> TempComplexType {
+            Ok(match prefix.as_deref() {
+                Some("0b") => (Some(NumberBase::Binary), is_binary),
+                Some("0o") => (Some(NumberBase::Octal), is_octal),
+                Some("0d") => (Some(NumberBase::Decimal), is_digit),
+                Some("0x") => (Some(NumberBase::Hexadecimal), is_hexadecimal),
+                None => (None, is_digit),
+                Some(pref) => return Err(LexerError::not_recognized_base_prefix(pref)),
+            })
+        }
+
+        let prefix = process_prefix(self);
+        let (string, is_floating, mode_parse_suffix) = process_number_body(self, prefix.is_some())?;
+        let suffix = process_suffix(self, mode_parse_suffix);
 
         // Cursor part
         let _starts_with_dot = string.starts_with('.');
@@ -459,15 +493,8 @@ impl Lexer {
         self.cursor.column += (string.len() + suffix.clone().unwrap_or_default().len() - 1) as u32;
 
         // Error handling
-        let (number_base, is_in_number_base): (Option<NumberBase>, fn(&char) -> bool) =
-            match prefix.as_deref() {
-                Some("0b") => (Some(NumberBase::Binary), is_binary),
-                Some("0o") => (Some(NumberBase::Octal), is_octal),
-                Some("0d") => (Some(NumberBase::Decimal), is_digit),
-                Some("0x") => (Some(NumberBase::Hexadecimal), is_hexadecimal),
-                None => (None, is_digit),
-                Some(pref) => return Err(LexerError::not_recognized_base_prefix(pref)),
-            };
+        let (number_base, is_in_number_base) = determine_number_base(&prefix)?;
+
         if prefix.is_some() && is_floating {
             return Err(LexerError::floats_dont_have_base_prefix(number_base));
         }
