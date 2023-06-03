@@ -361,6 +361,9 @@ impl Lexer {
         self.cursor.column += 2;
 
         while self.check_str("*/").is_none() {
+            if self.is_eof() {
+                return Err(LexerError::unterminated_block_comment());
+            }
             self.advance();
 
             if self.peek(0) == Some('\n') {
