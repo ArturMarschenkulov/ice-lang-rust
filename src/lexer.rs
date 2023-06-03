@@ -579,6 +579,11 @@ impl Lexer {
         }
     }
 
+    fn is_eof(&self) -> bool {
+        self.index >= self.chars.len()
+        // self.peek(0).is_none()
+    }
+
     /// peeks up to `n` consecutive chars and returns them as a string. If 'n == 0', refers to the current char as a string.
     fn peek_into_str(&self, n: usize) -> Option<String> {
         if self.peek(n as isize).is_some() {
