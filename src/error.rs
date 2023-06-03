@@ -11,6 +11,9 @@ impl LexerError {
 }
 
 impl LexerError {
+    pub fn unterminated_block_comment() -> Self {
+        Self::new("Unterminated block comment".to_string())
+    }
     pub fn unknown_escape_char(c: char) -> Self {
         Self::new(format!("Unknown escape sequence `{}`", c))
     }
