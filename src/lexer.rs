@@ -691,6 +691,32 @@ mod test {
     use crate::token::{KeywordKind, LiteralKind, PunctuatorKind, TokenKind};
 
     #[test]
+    fn comment_line_0() {
+        let txt = "//";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+    #[test]
+    fn comment_line_1() {
+        let txt = "// This is a comment";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+    #[test]
+    fn comment_line_2() {
+        let txt = "// This is a comment\n// And this too\n";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+    #[test]
+    fn comment_block_0() {
+        let txt = "/* This is a line comment*/";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+    #[test]
+    #[should_panic]
+    fn comment_block_1() {
+        let txt = "/*";
+        let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+    #[test]
     fn check_str() {
         let txt = "hello";
         let lexer = Lexer::new_from_str(txt);
@@ -713,35 +739,40 @@ mod test {
         let txt = "0x0.0";
         let _ = Lexer::new_from_str(txt).scan_tokens();
     }
-    #[test]
-    #[should_panic]
-    fn num_1() {
-        let txt = "0b444";
-        let _ = Lexer::new_from_str(txt).scan_tokens();
-    }
-    #[test]
-    #[should_panic]
-    fn num_2() {
-        let txt = "0o99";
-        let _ = Lexer::new_from_str(txt).scan_tokens();
-    }
 
-    #[test]
-    #[should_panic]
-    fn num_3() {
-        let txt = "0.";
-        let t = Lexer::new_from_str(txt).scan_tokens();
-        assert_ne!(t.len() - 1, 1);
-    }
+    mod num {
+        use super::*;
 
-    #[test]
-    fn num_4() {
-        use PunctuatorKind::*;
-        use TokenKind::*;
-        let txt = ".0";
-        let t = Lexer::new_from_str(txt).scan_tokens();
-        assert_eq!(t.len() - 1, 2);
-        assert_eq!(t[0].kind, Punctuator(Dot));
+        #[test]
+        #[should_panic]
+        fn invalid_binary() {
+            let txt = "0b444";
+            let _ = Lexer::new_from_str(txt).scan_tokens();
+        }
+        #[test]
+        #[should_panic]
+        fn invalid_octal() {
+            let txt = "0o99";
+            let _ = Lexer::new_from_str(txt).scan_tokens();
+        }
+
+        #[test]
+        #[should_panic]
+        fn invalid_float() {
+            let txt = "0.";
+            let t = Lexer::new_from_str(txt).scan_tokens();
+            assert_ne!(t.len() - 1, 1);
+        }
+
+        #[test]
+        fn t1() {
+            use PunctuatorKind::*;
+            use TokenKind::*;
+            let txt = ".0";
+            let t = Lexer::new_from_str(txt).scan_tokens();
+            assert_eq!(t.len() - 1, 2);
+            assert_eq!(t[0].kind, Punctuator(Dot));
+        }
     }
     #[test]
     fn init_colonequal() {
