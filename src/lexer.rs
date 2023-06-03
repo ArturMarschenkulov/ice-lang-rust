@@ -95,10 +95,10 @@ impl Lexer {
 
             // In this part we combine simple punctuator tokens to complex ones, if possible
 
-            // We have a `punc_cache`, where copies of the previous punctuators lie,
+            // `punc_cache` is where copies of the previous punctuators lie,
             // which could be combined to a complex token.
 
-            // If the scanned token is not a punctuator, we flush the `punc_cache`.
+            // If the scanned token is not a punctuator the `punc_cache` is flushed.
 
             // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
             // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.

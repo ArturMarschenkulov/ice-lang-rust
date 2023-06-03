@@ -264,6 +264,7 @@ impl PunctuatorKind {
     }
 
     /// Returns `true`, if the token is a structural token.
+    /// 
     /// Those are tokens which are integral for the structure of the language.
     /// Because of that the parser treats them in a more special way.
     ///
