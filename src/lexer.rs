@@ -120,12 +120,15 @@ impl Lexer {
             // If the scanned token is not a punctuator the `punc_cache` is flushed.
 
             // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
+            //
             // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.
             // - valid examples: `.`, `.=`, `..`
             // - invalid examples: `=.`, `.=.`
+            //
             // `:`: Must be the first punctuator OR all the preceding punctuators must be `:`
             // - valid examples: `:`, `::`
             // - invalid examples: `:=:`
+            //
             // `=`: It can't form a complex token with a preceding `:`.
 
             // If it goes to `punc_cache` it is meant that it is cached to be potentially used for a complex token
