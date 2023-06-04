@@ -24,6 +24,10 @@ fn is_hexadecimal(c: &char) -> bool {
     // let is_lower_case = c.is_uppercase();
     // is_hd && is_lower_case
 
+    // [('0'..='9'), ('a'..='f'), ('A'..='F')]
+    //     .iter()
+    //     .any(|s| s.contains(c))
+
     let num = ('0'..='9').contains(c);
     let upper = ('A'..='F').contains(c);
     let lower = ('a'..='f').contains(c);
@@ -65,6 +69,21 @@ fn is_lit_bool(s: &str) -> bool {
 pub fn lex_tokens_from_file(source: &str) -> LResult<Vec<Token>> {
     let tokens = Lexer::new_from_str(source).scan_tokens();
     Ok(tokens)
+}
+
+/// A cursor for iterating over characters.
+///
+// TODO: Right now, this type is not used, but it should be integrated in the future,
+//     for better separation of concerns.
+struct CharCursor<'a> {
+    chars: &'a Vec<char>,
+    index: usize,
+    cursor: token::Position,
+}
+struct Lexer2<'a> {
+    chars: Vec<char>,
+
+    cursor: CharCursor<'a>, 
 }
 
 struct Lexer {
@@ -270,7 +289,7 @@ impl Lexer {
         self.eat('\'').unwrap();
 
         let c = if let Some(c) = self.peek(0) {
-            let c = match c {
+            match c {
                 '\\' => self.lex_escape_char(),
                 '\'' => Err(LexerError::empty_char_literal()),
                 '\n' | '\r' => Err(LexerError::new_line_in_char_lit()),
@@ -279,8 +298,8 @@ impl Lexer {
                     self.cursor.column += 1;
                     Ok(c)
                 }
-            };
-            c.ok()
+            }
+            .ok()
         } else {
             None
         };
