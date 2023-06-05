@@ -819,10 +819,20 @@ mod test {
     #[test]
     fn test_peek_into_str() {
         let txt = "abc";
-        let mut lexer = Lexer::new_from_str(txt);
-        assert_eq!(lexer.peek_into_str(2), Some("abc".to_string()));
-        assert_eq!(lexer.peek_into_str(1), Some("ab".to_string()));
-        assert_eq!(lexer.peek_into_str(0), Some("a".to_string()));
+        let lexer = Lexer::new_from_str(txt);
+        assert_eq!(lexer.peek_n_times_and_collect(2), Some("abc".to_string()));
+        assert_eq!(lexer.peek_n_times_and_collect(1), Some("ab".to_string()));
+        assert_eq!(lexer.peek_n_times_and_collect(0), Some("a".to_string()));
+        assert_eq!(lexer.peek_n_times_and_collect(4), None);
+    }
+    #[test]
+    fn test_peek_into_str_2() {
+        let txt = "abc";
+        let lexer = Lexer::new_from_str(txt);
+        assert_eq!(lexer.peek_into_str_2(2), Ok("abc".to_string()));
+        assert_eq!(lexer.peek_into_str_2(1), Ok("ab".to_string()));
+        assert_eq!(lexer.peek_into_str_2(0), Ok("a".to_string()));
+        assert_eq!(lexer.peek_into_str_2(4), Err("abc".to_string()));
     }
     #[test]
     fn comment_line_0() {
@@ -851,14 +861,15 @@ mod test {
         let _ = Lexer::new_from_str(txt).scan_tokens();
     }
     #[test]
-    fn check_str() {
+    fn test_check_str() {
         let txt = "hello";
         let lexer = Lexer::new_from_str(txt);
-        assert_eq!(lexer.check_str("hello"), Some("hello"));
+        assert_eq!(lexer.check_str("hello"), "hello".to_owned());
+        assert_eq!(lexer.check_str_("hEllo"), None);
 
         let txt = "";
         let lexer = Lexer::new_from_str(txt);
-        assert_eq!(lexer.check_str("hello"), None);
+        assert_eq!(lexer.check_str("hello"), "".to_owned());
     }
 
     #[test]
