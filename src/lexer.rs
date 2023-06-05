@@ -352,10 +352,15 @@ impl Lexer {
         }
         Ok(Literal(Str(string_content)))
     }
+
+    /// Lexes a line comment.
+    ///
+    /// # Panics
+    /// If it doesn't start with `//`.
     fn lex_comment_line(&mut self) -> LResult<TokenKind> {
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        // TODO: Implement that a comment at the end of a file is possible, meanign when it does not end through a newline, but eof
+        // TODO: Implement that a comment at the end of a file is possible, meaning when it does not end through a newline, but eof
         self.eat_str("//").unwrap();
         self.cursor.column += 2;
         while self.peek(0) != Some('\n') && self.peek(0).is_some() {
@@ -366,6 +371,10 @@ impl Lexer {
         //assert!(self.peek(0) == Some('\n'));
         Ok(SpecialKeyword(Comment(CommentKind::Line)))
     }
+    /// Lexes a block comment.
+    ///
+    /// # Panics
+    /// If it doesn't start with `/*`.
     fn lex_comment_block(&mut self) -> LResult<TokenKind> {
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -387,7 +396,7 @@ impl Lexer {
             }
         }
 
-        self.eat_str("*/").unwrap();
+        self.eat_str("*/").expect("this was checked before");
         self.cursor.column += 2;
 
         self.cursor.column -= 1;
