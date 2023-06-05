@@ -80,11 +80,6 @@ struct CharCursor<'a> {
     index: usize,
     cursor: token::Position,
 }
-struct Lexer2<'a> {
-    chars: Vec<char>,
-
-    cursor: CharCursor<'a>, 
-}
 
 struct Lexer {
     chars: Vec<char>,
