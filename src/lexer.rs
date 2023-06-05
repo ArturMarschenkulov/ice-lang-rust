@@ -594,29 +594,20 @@ impl Lexer {
     /// Peeks the character at the current index plus the given offset.
     /// If the resulting location is valid, it returns the character wrapped in a `Some`, otherwise `None`.
     fn peek(&self, offset: isize) -> Option<char> {
-        match self.try_index_plus(offset) {
-            Some(index) => self.chars.get(index).copied(),
-            None => None,
-        }
+        self.try_index_plus(offset)
+            .and_then(|index| self.chars.get(index).copied())
     }
 
     fn is_eof(&self) -> bool {
-        self.index >= self.chars.len()
-        // self.peek(0).is_none()
+        self.peek(0).is_none()
     }
 
-    /// peeks up to `n` consecutive chars and returns them as a string. If 'n == 0', refers to the current char as a string.
+    /// Peeks `n + 1` times, starting with the offset `0` and ending with the offset `n`.
+    /// If every peek was valid, it returns the string of the peeks wrapped in a `Some`, otherwise `None`.
     fn peek_into_str(&self, n: usize) -> Option<String> {
-        if self.peek(n as isize).is_some() {
-            let mut str = String::new();
-            for i in 0..=n {
-                let c = self.peek(i as isize).unwrap();
-                str.push(c);
-            }
-            Some(str)
-        } else {
-            None
-        }
+        (0..=n)
+            .map(|i| self.peek(i as isize))
+            .collect::<Option<String>>()
     }
 
     /// Peeks at the offset `offset`. If the peeked char agrees with the given function, it returns it wrapped in a `Some`, otherwise `None`.
@@ -684,20 +675,9 @@ impl Lexer {
     }
 
     fn eat_str(&mut self, str: &str) -> Option<String> {
-        let mut result = String::new();
-        let chars = str.chars().collect::<Vec<char>>();
-        for n in 0..chars.len() {
-            let c = self.peek(n as isize)?;
-            result.push(c);
-        }
-        if result == str {
-            for _ in 0..chars.len() {
-                self.advance();
-            }
-            Some(result)
-        } else {
-            None
-        }
+        str.chars()
+            .map(|ch| self.eat(ch).ok())
+            .collect::<Option<String>>()
     }
     fn _eat_char_any(&mut self, chars: &[char]) -> Option<char> {
         for ch in chars {
