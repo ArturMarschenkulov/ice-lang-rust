@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenKind {
     Punctuator(PunctuatorKind),
     Literal(LiteralKind),
@@ -83,7 +83,7 @@ impl TokenKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PunctuatorKind {
     // Punctuator
     Plus,        // +
@@ -264,7 +264,7 @@ impl PunctuatorKind {
     }
 
     /// Returns `true`, if the token is a structural token.
-    /// 
+    ///
     /// Those are tokens which are integral for the structure of the language.
     /// Because of that the parser treats them in a more special way.
     ///
@@ -642,6 +642,14 @@ impl Token {
             kind,
             span,
             whitespace,
+        }
+    }
+
+    pub fn eof() -> Self {
+        Token {
+            kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
+            span: Span::from_tuples((1, 1), (1, 1)),
+            whitespace: Whitespace::None,
         }
     }
 
