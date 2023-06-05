@@ -643,20 +643,28 @@ impl Lexer {
             .collect()
     }
 
-    /// Checks the 'n'th char ahead of the current index. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
-    fn check(&self, c: char, n: isize) -> Result<char, Option<char>> {
+    /// Checks the char at offset `n`. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
+    fn check_char(&self, c: char, n: isize) -> Result<char, Option<char>> {
         self.check_with(n, |x| x == &c)
     }
 
-    fn check_str<'a>(&self, s: &'a str) -> Option<&'a str> {
-        if self.peek_into_str(s.len() - 1) == Some(s.to_string()) {
-            Some(s)
-        } else {
-            None
-        }
+    fn check_str_(&self, str: &str) -> Option<String> {
+        str.chars()
+            .enumerate()
+            .map(|(i, c)| self.check_char(c, i as isize).ok())
+            .collect::<Option<String>>()
+    }
+    fn check_str(&self, str: &str) -> String {
+        str.chars()
+            .enumerate()
+            .map(|(i, c)| self.check_char(c, i as isize).ok())
+            .take_while(Option::is_some)
+            .flatten()
+            .collect::<String>()
     }
 
-    /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
+    /// Matches a terminal character. If the character is matched, it is eaten and return wrapped in a `Ok`,
+    /// else an `Err(Some)` is returned if the character is not matched and an `Err(None)` is returned if the end of the file is reached.s
     fn eat_char(&mut self, ch: char) -> Result<char, Option<char>> {
         self.eat_with(|x| x == &ch)
     }
