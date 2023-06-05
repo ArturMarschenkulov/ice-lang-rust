@@ -193,7 +193,7 @@ impl Lexer {
 
         let index_old = self.index;
         let kind = match c {
-            '/' => match self.peek_into_str(1).unwrap().as_str() {
+            '/' => match self.peek_n_times_and_collect(1).unwrap().as_str() {
                 "//" => self.lex_comment_line(),
                 "/*" => self.lex_comment_block(),
                 _ => Ok(Punctuator(Slash)),
@@ -377,7 +377,7 @@ impl Lexer {
         self.eat_str("/*").unwrap();
         self.cursor.column += 2;
 
-        while self.check_str("*/").is_none() {
+        while self.check_str("*/").is_empty() {
             if self.is_eof() {
                 return Err(LexerError::unterminated_block_comment());
             }
@@ -404,7 +404,7 @@ impl Lexer {
         use TokenKind::*;
 
         fn process_prefix(lexer: &mut Lexer) -> Option<String> {
-            let prefix = lexer.peek_into_str(1)?;
+            let prefix = lexer.peek_n_times_and_collect(1)?;
 
             if prefix.starts_with('0') && prefix.chars().nth(1).map_or(false, |c| c.is_alphabetic())
             {
@@ -417,7 +417,7 @@ impl Lexer {
             }
         }
         fn process_prefix_(this: &mut Lexer) -> Option<String> {
-            match this.peek_into_str(1) {
+            match this.peek_n_times_and_collect(1) {
                 Some(suf) => {
                     let b_0 = (*suf.as_bytes().first().unwrap() as char) == '0';
                     let b_1 = (*suf.as_bytes().get(1).unwrap() as char).is_alphabetic();
@@ -460,7 +460,7 @@ impl Lexer {
                         break;
                     }
                     // in a number there can be only one dot
-                    '.' if !is_floating && this.check('.', 1).ok().is_none() => {
+                    '.' if !is_floating && this.check_char('.', 1).ok().is_none() => {
                         string.push(peeked);
                         is_floating = true;
                         is_after_dot = true;
@@ -567,16 +567,14 @@ impl Lexer {
 ///
 ///
 impl Lexer {
+    /// Advances the cursor by one.
     fn advance(&mut self) {
         self.advance_by(1);
     }
+
+    /// Advances the cursor by the given offset.
     fn advance_by(&mut self, offset: usize) {
         self.index += offset;
-    }
-    fn advance_new_line(&mut self) {
-        self.index += 1;
-        self.cursor.line += 1;
-        self.cursor.column = 1;
     }
 
     /// Tries to return the index of the current index plus the given offset.
@@ -602,15 +600,27 @@ impl Lexer {
         self.peek(0).is_none()
     }
 
-    /// Peeks `n + 1` times, starting with the offset `0` and ending with the offset `n`.
-    /// If every peek was valid, it returns the string of the peeks wrapped in a `Some`, otherwise `None`.
-    fn peek_into_str(&self, n: usize) -> Option<String> {
+    /// Peeks at `n + 1` characters starting from the current position and collects them into a string.
+    ///
+    /// An `Option` which is `None` if any of the peeks are invalid and `Some(String)` if all peeks are valid.
+    fn peek_n_times_and_collect(&self, n: usize) -> Option<String> {
         (0..=n)
             .map(|i| self.peek(i as isize))
             .collect::<Option<String>>()
     }
 
-    /// Peeks at the offset `offset`. If the peeked char agrees with the given function, it returns it wrapped in a `Some`, otherwise `None`.
+    fn peek_into_str_2(&self, n: usize) -> Result<String, String> {
+        (0..=n).try_fold(String::new(), |mut peeked, i| match self.peek(i as isize) {
+            Some(c) => {
+                peeked.push(c);
+                Ok(peeked)
+            }
+            None => Err(peeked),
+        })
+    }
+
+    /// Peeks at the offset `offset`. If the peeked char agrees with the given predicate, it returns it wrapped in a `Ok`,
+    /// otherwise it returns the peeked char wrapped in a `Err`.
     fn check_with<F>(&self, offset: isize, func: F) -> Result<char, Option<char>>
     where
         Self: Sized,
