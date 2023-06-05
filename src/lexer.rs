@@ -573,7 +573,10 @@ impl Lexer {
 ///
 impl Lexer {
     fn advance(&mut self) {
-        self.index += 1;
+        self.advance_by(1);
+    }
+    fn advance_by(&mut self, offset: usize) {
+        self.index += offset;
     }
     fn advance_new_line(&mut self) {
         self.index += 1;
@@ -585,10 +588,11 @@ impl Lexer {
     ///
     /// If the offset doesn't overflow or underflow the `self.index`, then it will return the new index in a `Some`.
     fn try_index_plus(&self, offset: isize) -> Option<usize> {
-        match offset {
-            offset if offset.is_negative() => self.index.checked_sub(-offset as usize),
-            offset if offset.is_positive() => self.index.checked_add(offset as usize),
-            _ => Some(self.index),
+        match offset.signum() {
+            -1 => self.index.checked_sub(-offset as usize),
+            1 => self.index.checked_add(offset as usize),
+            0 => Some(self.index),
+            _ => unreachable!("Signum of offset is not -1, 0 or 1"),
         }
     }
 
@@ -648,9 +652,9 @@ impl Lexer {
         self.check_with(n, |x| x == &c)
     }
 
-    fn check_str(&self, s: &str) -> Option<String> {
+    fn check_str<'a>(&self, s: &'a str) -> Option<&'a str> {
         if self.peek_into_str(s.len() - 1) == Some(s.to_string()) {
-            Some(s.to_string())
+            Some(s)
         } else {
             None
         }
@@ -677,16 +681,18 @@ impl Lexer {
     where
         F: Fn(&char) -> bool,
     {
-        let s = self.check_while(&func);
-        let _ = (0..s.len()).map(|_| self.advance()).count();
-        s
+        (0..)
+            .map(|_| self.eat_with(&func))
+            .take_while(Result::is_ok)
+            .filter_map(Result::ok)
+            .collect()
     }
 
     fn eat_str(&mut self, str: &str) -> Option<String> {
         let mut result = String::new();
         let chars = str.chars().collect::<Vec<char>>();
         for n in 0..chars.len() {
-            let c = self.peek(n as isize).unwrap();
+            let c = self.peek(n as isize)?;
             result.push(c);
         }
         if result == str {
@@ -698,7 +704,7 @@ impl Lexer {
             None
         }
     }
-    fn eat_char_any(&mut self, chars: &[char]) -> Option<char> {
+    fn _eat_char_any(&mut self, chars: &[char]) -> Option<char> {
         for ch in chars {
             if let Ok(c) = self.eat(*ch) {
                 return Some(c);
