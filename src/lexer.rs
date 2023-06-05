@@ -24,14 +24,14 @@ fn is_hexadecimal(c: &char) -> bool {
     // let is_lower_case = c.is_uppercase();
     // is_hd && is_lower_case
 
-    // [('0'..='9'), ('a'..='f'), ('A'..='F')]
-    //     .iter()
-    //     .any(|s| s.contains(c))
+    [('0'..='9'), ('a'..='f'), ('A'..='F')]
+        .iter()
+        .any(|s| s.contains(c))
 
-    let num = ('0'..='9').contains(c);
-    let upper = ('A'..='F').contains(c);
-    let lower = ('a'..='f').contains(c);
-    num || upper || lower
+    // let num = ('0'..='9').contains(c);
+    // let upper = ('A'..='F').contains(c);
+    // let lower = ('a'..='f').contains(c);
+    // num || upper || lower
 }
 fn is_octal(c: &char) -> bool {
     // c.is_digit(8)
