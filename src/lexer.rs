@@ -261,7 +261,7 @@ impl Lexer {
         Ok(token)
     }
     fn lex_escape_char(&mut self) -> LResult<char> {
-        self.eat('\\').unwrap();
+        self.eat_char('\\').unwrap();
         self.cursor.column += 1;
 
         let escaped_char = match self.peek(0).unwrap() {
@@ -284,7 +284,7 @@ impl Lexer {
     fn lex_char(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.eat('\'').unwrap();
+        self.eat_char('\'').unwrap();
 
         let c = if let Some(c) = self.peek(0) {
             match c {
@@ -302,7 +302,7 @@ impl Lexer {
             None
         };
 
-        match self.eat('\'') {
+        match self.eat_char('\'') {
             Ok(..) => {}
             Err(..) => return Err(LexerError::char_lit_contains_multiple_codepoints()),
         };
@@ -311,7 +311,7 @@ impl Lexer {
     fn lex_string(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.eat('\"').unwrap();
+        self.eat_char('\"').unwrap();
         self.cursor.column += 1;
 
         let mut string_content = String::new();
@@ -346,7 +346,7 @@ impl Lexer {
                 }
             }
         }
-        self.eat('\"').unwrap();
+        self.eat_char('\"').unwrap();
         self.cursor.column += 1;
 
         self.cursor.column -= 1;
@@ -647,7 +647,7 @@ impl Lexer {
     }
 
     /// Matches a terminal character. If the character is matched, an Option with that character is returned, otherwise None.
-    fn eat(&mut self, ch: char) -> Result<char, Option<char>> {
+    fn eat_char(&mut self, ch: char) -> Result<char, Option<char>> {
         self.eat_with(|x| x == &ch)
     }
 
@@ -676,12 +676,12 @@ impl Lexer {
 
     fn eat_str(&mut self, str: &str) -> Option<String> {
         str.chars()
-            .map(|ch| self.eat(ch).ok())
+            .map(|ch| self.eat_char(ch).ok())
             .collect::<Option<String>>()
     }
     fn _eat_char_any(&mut self, chars: &[char]) -> Option<char> {
         for ch in chars {
-            if let Ok(c) = self.eat(*ch) {
+            if let Ok(c) = self.eat_char(*ch) {
                 return Some(c);
             }
         }
