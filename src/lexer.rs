@@ -264,15 +264,16 @@ impl Lexer {
         self.eat_char('\\').unwrap();
         self.cursor.column += 1;
 
-        let escaped_char = match self.peek(0).unwrap() {
-            'n' => Ok('\n'),
-            'r' => Ok('\r'),
-            't' => Ok('\t'),
-            '\\' => Ok('\\'),
-            '\'' => Ok('\''),
-            '"' => Ok('"'),
-            '0' => Ok('\0'),
-            c => Err(LexerError::unknown_escape_char(c)),
+        let escaped_char = match self.peek(0) {
+            Some('n') => Ok('\n'),
+            Some('r') => Ok('\r'),
+            Some('t') => Ok('\t'),
+            Some('\\') => Ok('\\'),
+            Some('\'') => Ok('\''),
+            Some('"') => Ok('"'),
+            Some('0') => Ok('\0'),
+            Some(c) => Err(LexerError::unknown_escape_char(c)),
+            None => Err(LexerError::unterminated_char_lit()),
         };
         self.advance();
         self.cursor.column += 1;
@@ -286,27 +287,22 @@ impl Lexer {
         use TokenKind::*;
         self.eat_char('\'').unwrap();
 
-        let c = if let Some(c) = self.peek(0) {
-            match c {
-                '\\' => self.lex_escape_char(),
-                '\'' => Err(LexerError::empty_char_literal()),
-                '\n' | '\r' => Err(LexerError::new_line_in_char_lit()),
-                _ => {
-                    self.advance();
-                    self.cursor.column += 1;
-                    Ok(c)
-                }
+        let c = match self.peek(0) {
+            Some('\'') => return Err(LexerError::empty_char_literal()),
+            Some('\n') | Some('\r') => return Err(LexerError::new_line_in_char_lit()),
+            Some('\\') => self.lex_escape_char()?,
+            Some(c) => {
+                self.advance();
+                c
             }
-            .ok()
-        } else {
-            None
+            None => return Err(LexerError::unterminated_char_lit()),
         };
 
         match self.eat_char('\'') {
             Ok(..) => {}
             Err(..) => return Err(LexerError::char_lit_contains_multiple_codepoints()),
         };
-        Ok(Literal(Char(c.unwrap())))
+        Ok(Literal(Char(c)))
     }
     fn lex_string(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
