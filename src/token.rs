@@ -344,6 +344,8 @@ impl From<PunctuatorKind> for String {
             Backslash => "\\",
             At => "@",
             Caret => "^",
+            Tilde => "~",
+            Backtick => "`",
 
 
             LeftParen => "(",
