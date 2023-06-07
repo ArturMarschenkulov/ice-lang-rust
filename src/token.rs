@@ -16,7 +16,7 @@ impl TokenKind {
             Punctuator(p) => p.to_string(),
             Literal(..) => todo!("it's not yet implemented for literals"), //l.as_str(),
             Identifier(s) => s.to_string(),
-            Keyword(k) => k.as_str().to_owned(),
+            Keyword(k) => <&str>::from(*k).to_owned(),
             SpecialKeyword(k) => k.as_str().to_owned(),
         }
     }
@@ -387,26 +387,37 @@ pub enum KeywordKind {
     For,
     // Ret,
 }
-impl KeywordKind {
-    pub fn from_str(s: &str) -> Result<KeywordKind, String> {
-        use KeywordKind::*;
-        match s {
-            "var" => Ok(Var),
-            "fn" => Ok(Fn),
-            "type" => Ok(Type),
-            "struct" => Ok(Struct),
 
-            "if" => Ok(If),
-            "else" => Ok(Else),
-            "while" => Ok(While),
-            "for" => Ok(For),
-            //"ret" => Ok(Ret),
-            ident => Err(ident.to_owned()),
-        }
+impl KeywordKind {
+    pub fn len(&self) -> usize {
+        <&str>::from(*self).len()
     }
-    fn as_str(&self) -> &str {
+}
+
+impl TryFrom<&str> for KeywordKind {
+    type Error = String;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         use KeywordKind::*;
-        match self {
+        Ok(match s {
+            "var" => Var,
+            "fn" => Fn,
+            "type" => Type,
+            "struct" => Struct,
+
+            "if" => If,
+            "else" => Else,
+            "while" => While,
+            "for" => For,
+            //"ret" => Ret,
+            ident => return Err(ident.to_owned()),
+        })
+    }
+}
+
+impl From<KeywordKind> for &str {
+    fn from(keyword: KeywordKind) -> Self {
+        use KeywordKind::*;
+        match keyword {
             Var => "var",
             Fn => "fn",
             Type => "type",
@@ -419,10 +430,8 @@ impl KeywordKind {
             //Ret => "ret",
         }
     }
-    pub fn len(&self) -> usize {
-        self.as_str().len()
-    }
 }
+
 impl std::fmt::Display for KeywordKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use KeywordKind::*;

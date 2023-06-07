@@ -555,7 +555,7 @@ impl Lexer {
 
         let token = match string_content.as_ref() {
             lit if is_lit_bool(lit) => LiteralKind::from_str(lit).map_or_else(Identifier, Literal),
-            kw => KeywordKind::from_str(kw).map_or_else(Identifier, Keyword),
+            kw => KeywordKind::try_from(kw).map_or_else(Identifier, Keyword),
         };
         match &token {
             Keyword(kw) => self.cursor.column += (kw.len() - 1) as u32,
