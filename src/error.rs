@@ -48,13 +48,13 @@ impl LexerError {
     pub fn floats_dont_have_base_prefix(base: Option<token::NumberBase>) -> Self {
         LexerError::new(format!(
             "floating point literals are not allowed to have a base prefix (`{}`)",
-            base.unwrap_or(token::NumberBase::Decimal).as_num()
+            u32::from(base.unwrap_or(token::NumberBase::Decimal))
         ))
     }
     pub fn invalid_digit_base_prefix(base: Option<token::NumberBase>) -> Self {
         LexerError::new(format!(
             "invalid digit for base prefix `{}`",
-            base.unwrap_or(token::NumberBase::Decimal).as_num()
+            u32::from(base.unwrap_or(token::NumberBase::Decimal))
         ))
     }
     pub fn invalid_digit_type_suffix(suffix: Option<String>) -> Self {
