@@ -492,20 +492,22 @@ impl Lexer {
                 None
             }
         }
-        type TempComplexType = Result<(Option<NumberBase>, fn(&char) -> bool), LexerError>;
-        fn determine_number_base(prefix: &Option<String>) -> TempComplexType {
+        fn determine_number_base(
+            prefix: &Option<String>,
+        ) -> Result<Option<NumberBase>, LexerError> {
             Ok(match prefix.as_deref() {
-                Some("0b") => (Some(NumberBase::Binary), is_binary),
-                Some("0o") => (Some(NumberBase::Octal), is_octal),
-                Some("0d") => (Some(NumberBase::Decimal), is_digit),
-                Some("0x") => (Some(NumberBase::Hexadecimal), is_hexadecimal),
-                None => (None, is_digit),
+                Some("0b") => Some(NumberBase::Binary),
+                Some("0o") => Some(NumberBase::Octal),
+                Some("0d") => Some(NumberBase::Decimal),
+                Some("0x") => Some(NumberBase::Hexadecimal),
+                None => None,
                 Some(pref) => return Err(LexerError::not_recognized_base_prefix(pref)),
             })
         }
 
-        let prefix = process_prefix(self);
-        let (string, is_floating, mode_parse_suffix) = process_number_body(self, prefix.is_some())?;
+        let number_base_prefix = determine_number_base(&process_prefix(self))?;
+        let (string, is_floating, mode_parse_suffix) =
+            process_number_body(self, number_base_prefix.is_some())?;
         let suffix = process_suffix(self, mode_parse_suffix);
 
         // Cursor part
@@ -514,13 +516,15 @@ impl Lexer {
         self.cursor.column += (string.len() + suffix.clone().unwrap_or_default().len() - 1) as u32;
 
         // Error handling
-        let (number_base, is_in_number_base) = determine_number_base(&prefix)?;
-
-        if prefix.is_some() && is_floating {
-            return Err(LexerError::floats_dont_have_base_prefix(number_base));
+        if number_base_prefix.is_some() && is_floating {
+            return Err(LexerError::floats_dont_have_base_prefix(number_base_prefix));
         }
-        if !string.chars().all(|c| is_in_number_base(&c)) {
-            return Err(LexerError::invalid_digit_base_prefix(number_base));
+        if !string.chars().all(|c| {
+            number_base_prefix
+                .unwrap_or(NumberBase::Decimal)
+                .is_char_in(c)
+        }) {
+            return Err(LexerError::invalid_digit_base_prefix(number_base_prefix));
         }
 
         let possible_suffixes = [
@@ -533,7 +537,7 @@ impl Lexer {
 
         let lit = Literal(Number {
             content: string,
-            prefix: number_base,
+            prefix: number_base_prefix,
             suffix,
             is_float: is_floating,
         });

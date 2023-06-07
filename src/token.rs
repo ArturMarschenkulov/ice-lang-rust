@@ -1,3 +1,5 @@
+use crate::lexer::{is_binary, is_digit, is_hexadecimal, is_octal};
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenKind {
     Punctuator(PunctuatorKind),
@@ -514,7 +516,7 @@ pub fn cook_tokens(tokens: &[Token]) -> Token {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum NumberBase {
     Binary,      // 0b
     Octal,       // 0o
@@ -522,18 +524,58 @@ pub enum NumberBase {
     Hexadecimal, // 0x
 }
 impl NumberBase {
-    pub fn as_num(&self) -> u8 {
+    pub fn is_char_in(&self, c: char) -> bool {
         use NumberBase::*;
         match self {
+            Binary => is_binary(&c),
+            Octal => is_octal(&c),
+            Decimal => is_digit(&c),
+            Hexadecimal => is_hexadecimal(&c),
+        }
+    }
+}
+
+impl TryFrom<u32> for NumberBase {
+    type Error = String;
+    fn try_from(s: u32) -> Result<Self, Self::Error> {
+        use NumberBase::*;
+        Ok(match s {
+            2 => Binary,
+            8 => Octal,
+            10 => Decimal,
+            16 => Hexadecimal,
+            _ => return Err(s.to_string()),
+        })
+    }
+}
+impl TryFrom<&str> for NumberBase {
+    type Error = String;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        use NumberBase::*;
+        Ok(match s {
+            "0b" => Binary,
+            "0o" => Octal,
+            "0d" => Decimal,
+            "0x" => Hexadecimal,
+            _ => return Err(s.to_owned()),
+        })
+    }
+}
+impl From<NumberBase> for u32 {
+    fn from(base: NumberBase) -> Self {
+        use NumberBase::*;
+        match base {
             Binary => 2,
             Octal => 8,
             Decimal => 10,
             Hexadecimal => 16,
         }
     }
-    pub fn as_str(&self) -> &str {
+}
+impl From<NumberBase> for &str {
+    fn from(base: NumberBase) -> Self {
         use NumberBase::*;
-        match self {
+        match base {
             Binary => "0b",
             Octal => "0o",
             Decimal => "0d",
