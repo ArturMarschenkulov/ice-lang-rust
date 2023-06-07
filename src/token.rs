@@ -148,42 +148,6 @@ pub enum PunctuatorKind {
 }
 
 impl PunctuatorKind {
-    pub fn from_char(c: char) -> Option<PunctuatorKind> {
-        use PunctuatorKind::*;
-        match c {
-            '+' => Some(Plus),
-            '-' => Some(Minus),
-            '*' => Some(Asterisk),
-            '/' => Some(Slash),
-            '=' => Some(Equal),
-            '!' => Some(Exclamation),
-            '>' => Some(Greater),
-            '<' => Some(Less),
-            '&' => Some(Ampersand),
-            '|' => Some(VerticalBar),
-            '%' => Some(Percent),
-            '$' => Some(Dollar),
-            '?' => Some(Question),
-            '#' => Some(Hash),
-            '\\' => Some(Backslash),
-            '@' => Some(At),
-            '^' => Some(Caret),
-            '.' => Some(Dot),
-            ':' => Some(Colon),
-            ';' => Some(Semicolon),
-            ',' => Some(Comma),
-            '~' => Some(Tilde),
-            '`' => Some(Backtick),
-
-            '(' => Some(LeftParen),
-            ')' => Some(RightParen),
-            '[' => Some(LeftBracket),
-            ']' => Some(RightBracket),
-            '{' => Some(LeftBrace),
-            '}' => Some(RightBrace),
-            _ => None,
-        }
-    }
     // fn from_self_slice(slice: &[Self]) -> Self {
     //     assert!(slice.len() > 0, "PunctuatorKind::from_self_slice: slice must have at least length 1");
 
@@ -314,11 +278,51 @@ impl PunctuatorKind {
     // }
 }
 
-impl std::fmt::Display for PunctuatorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // write!(f, "{}", self.as_str())
+impl TryFrom<char> for PunctuatorKind {
+    type Error = String;
+    fn try_from(c: char) -> Result<Self, Self::Error> {
         use PunctuatorKind::*;
-        let s = match self {
+        Ok(match c {
+            '+' => Plus,
+            '-' => Minus,
+            '*' => Asterisk,
+            '/' => Slash,
+            '=' => Equal,
+            '!' => Exclamation,
+            '>' => Greater,
+            '<' => Less,
+            '&' => Ampersand,
+            '|' => VerticalBar,
+            '%' => Percent,
+            '$' => Dollar,
+            '?' => Question,
+            '#' => Hash,
+            '\\' => Backslash,
+            '@' => At,
+            '^' => Caret,
+            '.' => Dot,
+            ':' => Colon,
+            ';' => Semicolon,
+            ',' => Comma,
+            '~' => Tilde,
+            '`' => Backtick,
+
+            '(' => LeftParen,
+            ')' => RightParen,
+            '[' => LeftBracket,
+            ']' => RightBracket,
+            '{' => LeftBrace,
+            '}' => RightBrace,
+
+            c => return Err(format!("{} is not a simple punctuator", c)),
+        })
+    }
+}
+
+impl From<PunctuatorKind> for String {
+    fn from(kind: PunctuatorKind) -> Self {
+        use PunctuatorKind::*;
+        match kind {
             Plus => "+",
             Minus => "-",
             Asterisk => "*",
@@ -341,6 +345,7 @@ impl std::fmt::Display for PunctuatorKind {
             At => "@",
             Caret => "^",
 
+
             LeftParen => "(",
             RightParen => ")",
             LeftBracket => "[",
@@ -359,18 +364,17 @@ impl std::fmt::Display for PunctuatorKind {
             MinusEqual => "-=",
             StarEqual => "*=",
             SlashEqual => "/=",
+            ColonColon => "::",
 
-            _ => "",
-        };
-        let s = if s.is_empty() {
-            match self {
-                Complex(complex) => complex.iter().map(|t| t.to_string()).collect::<String>(),
-                _ => unreachable!(),
-            }
-        } else {
-            s.to_string()
-        };
-        write!(f, "{}", s)
+            Complex(complex) => return complex.iter().map(|t| t.to_string()).collect::<String>(),
+        }
+        .to_owned()
+    }
+}
+
+impl std::fmt::Display for PunctuatorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", String::from(self.clone()))
     }
 }
 
@@ -681,7 +685,7 @@ impl Whitespace {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,

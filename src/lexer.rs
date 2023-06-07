@@ -98,7 +98,6 @@ impl Lexer {
     }
     fn scan_tokens(&mut self) -> Vec<Token> {
         use PunctuatorKind::*;
-        use SpecialKeywordKind::*;
         use TokenKind::*;
 
         // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
