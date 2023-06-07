@@ -16,10 +16,10 @@ use crate::token::{
 
 type LResult<T> = Result<T, LexerError>;
 
-fn is_digit(c: &char) -> bool {
+pub fn is_digit(c: &char) -> bool {
     ('0'..='9').contains(c)
 }
-fn is_hexadecimal(c: &char) -> bool {
+pub fn is_hexadecimal(c: &char) -> bool {
     // let is_hd = c.is_digit(16);
     // let is_lower_case = c.is_uppercase();
     // is_hd && is_lower_case
@@ -33,11 +33,11 @@ fn is_hexadecimal(c: &char) -> bool {
     // let lower = ('a'..='f').contains(c);
     // num || upper || lower
 }
-fn is_octal(c: &char) -> bool {
+pub fn is_octal(c: &char) -> bool {
     // c.is_digit(8)
     ('0'..='7').contains(c)
 }
-fn is_binary(c: &char) -> bool {
+pub fn is_binary(c: &char) -> bool {
     // c.is_digit(2)
     ('0'..='1').contains(c)
 }
