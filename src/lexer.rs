@@ -177,11 +177,7 @@ impl Lexer {
             punc_cache.clear();
         }
 
-        let token_eof = Token::new(
-            SpecialKeyword(Eof),
-            token::Span::from_tuples((1, 1), (1, 1)),
-            token::Whitespace::None,
-        );
+        let token_eof = Token::eof();
         tokens.push(token_eof);
         tokens
     }
