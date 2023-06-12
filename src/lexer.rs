@@ -277,15 +277,25 @@ impl Lexer {
 
         escaped_char
     }
+
+    /// Lexes a character literal.
+    ///
+    /// # Panics
+    /// If the first character is not `\'`.
     fn lex_char(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
         self.eat_char('\'').unwrap();
-
+        // '\''
+        let mut escaped_char = false;
         let c = match self.peek(0) {
             Some('\'') => return Err(LexerError::empty_char_literal()),
             Some('\n') | Some('\r') => return Err(LexerError::new_line_in_char_lit()),
-            Some('\\') => self.lex_escape_char()?,
+            Some('\\') => {
+                let x = self.lex_escape_char()?;
+                escaped_char = true;
+                x
+            }
             Some(c) => {
                 self.advance();
                 c
@@ -295,7 +305,14 @@ impl Lexer {
 
         match self.eat_char('\'') {
             Ok(..) => {}
-            Err(..) => return Err(LexerError::char_lit_contains_multiple_codepoints()),
+            Err(..) => {
+                // TODO: This is not correct. Fix this!
+                if escaped_char {
+                    return Err(LexerError::unterminated_char_lit());
+                } else {
+                    return Err(LexerError::char_lit_contains_multiple_codepoints());
+                }
+            }
         };
         Ok(Literal(Char(c)))
     }
