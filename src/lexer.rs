@@ -699,10 +699,12 @@ impl Lexer {
         None
     }
 }
+
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::lexer::Lexer;
-    use crate::token::{KeywordKind, LiteralKind, PunctuatorKind, TokenKind};
+    use crate::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
 
     mod cursor {
         use super::*;
@@ -844,19 +846,40 @@ mod test {
     }
 
     #[test]
+    fn test_scan_token_kind() {
+        // let txt = "";
+        // let lexer = Lexer::new_from_str(txt);
+        // assert_eq!(lexer.scan_token_kind(), None);
+    }
+
+    #[test]
     fn test_lex_char() {
         use crate::lexer::LexerError;
         use LiteralKind::*;
         use TokenKind::*;
+
+        // Simple cases
         let txt = r#"'a'"#;
         let mut lexer = Lexer::new_from_str(txt);
         assert_eq!(lexer.lex_char(), Ok(Literal(Char('a'))));
 
+        // Edge cases
+        let txt = r#"'\\'"#;
+        let mut lexer = Lexer::new_from_str(txt);
+        assert_eq!(lexer.lex_char(), Ok(Literal(Char('\\'))));
+
+        let txt = r#"'\''"#;
+        let mut lexer = Lexer::new_from_str(txt);
+        assert_eq!(lexer.lex_char(), Ok(Literal(Char('\''))));
+
         // Handling errors
+
+        // Empty literal
         let txt = r#"''"#;
         let mut lexer = Lexer::new_from_str(txt);
         assert_eq!(lexer.lex_char(), Err(LexerError::empty_char_literal()));
 
+        // Newline in literal
         let txt = r#"'
         '"#;
         let mut lexer = Lexer::new_from_str(txt);
@@ -872,24 +895,24 @@ mod test {
         let txt = r#"'\"#;
         let mut lexer = Lexer::new_from_str(txt);
         assert_eq!(lexer.lex_char(), Err(LexerError::unterminated_char_lit()));
+
+        // let txt = r#"'a"#;
+        // let mut lexer = Lexer::new_from_str(txt);
+        // assert_eq!(lexer.lex_char(), Err(LexerError::unterminated_char_lit()));
     }
     #[test]
-    fn comment_line_0() {
+    fn test_comment_line() {
         let txt = "//";
         let _ = Lexer::new_from_str(txt).scan_tokens();
-    }
-    #[test]
-    fn comment_line_1() {
+
         let txt = "// This is a comment";
         let _ = Lexer::new_from_str(txt).scan_tokens();
-    }
-    #[test]
-    fn comment_line_2() {
+
         let txt = "// This is a comment\n// And this too\n";
         let _ = Lexer::new_from_str(txt).scan_tokens();
     }
     #[test]
-    fn comment_block_0() {
+    fn test_comment_block() {
         let txt = "/* This is a line comment*/";
         let _ = Lexer::new_from_str(txt).scan_tokens();
     }
@@ -911,6 +934,67 @@ mod test {
     fn num_0() {
         let txt = "0x0.0";
         let _ = Lexer::new_from_str(txt).scan_tokens();
+    }
+
+    #[test]
+
+    fn test_lex_number() {
+        use crate::lexer::LexerError;
+        use NumberBase::*;
+        use TokenKind::*;
+
+        // Simple cases
+        // Decimal numbers
+
+        assert_eq!(
+            Lexer::new_from_str("0").lex_number(),
+            Ok(Literal(LiteralKind::integer("0", None, None)))
+        );
+
+        assert_eq!(
+            Lexer::new_from_str("1").lex_number(),
+            Ok(Literal(LiteralKind::integer("1", None, None)))
+        );
+
+        assert_eq!(
+            Lexer::new_from_str("123").lex_number(),
+            Ok(Literal(LiteralKind::integer("123", None, None)))
+        );
+
+        assert_eq!(
+            Lexer::new_from_str("123456").lex_number(),
+            Ok(Literal(LiteralKind::integer("123456", None, None)))
+        );
+
+        // Error cases
+        // Invalid binary number
+        assert_eq!(
+            Lexer::new_from_str("0b2").lex_number(),
+            Err(LexerError::invalid_digit_base_prefix(Some(Binary)))
+        );
+        assert_eq!(
+            Lexer::new_from_str("0o8").lex_number(),
+            Err(LexerError::invalid_digit_base_prefix(Some(Octal)))
+        );
+        // assert_eq!(
+        //     Lexer::new_from_str("0xg").lex_number(),
+        //     Err(LexerError::invalid_digit_base_prefix(Some(Hexadecimal)))
+        // );
+
+        assert_eq!(
+            Lexer::new_from_str("0x0.0").lex_number(),
+            Err(LexerError::floats_dont_have_base_prefix(Some(Hexadecimal)))
+        );
+
+        // assert_eq!(
+        //     Lexer::new_from_str("0da").lex_number(),
+        //     Err(LexerError::invalid_digit_base_prefix(Some(Decimal)))
+        // );
+
+        // assert_eq!(
+        //     Lexer::new_from_str("0b").lex_number(),
+        //     Err(LexerError::invalid_digit_base_prefix(Some(Binary)))
+        // );
     }
 
     mod num {
@@ -965,12 +1049,7 @@ mod test {
         assert_eq!(tokens[3].kind, Punctuator(Equal));
         assert_eq!(
             tokens[4].kind,
-            Literal(Number {
-                content: "2222".to_owned(),
-                prefix: None,
-                suffix: None,
-                is_float: false,
-            })
+            Literal(Number(token::Number::integer("2222", None, None)))
         );
         assert_eq!(tokens[5].kind, Punctuator(Semicolon));
     }
