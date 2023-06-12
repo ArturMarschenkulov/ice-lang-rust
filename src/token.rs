@@ -1,5 +1,3 @@
-use crate::lexer::{is_binary, is_digit, is_hexadecimal, is_octal};
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenKind {
     Punctuator(PunctuatorKind),
@@ -347,7 +345,6 @@ impl From<PunctuatorKind> for String {
             Tilde => "~",
             Backtick => "`",
 
-
             LeftParen => "(",
             RightParen => ")",
             LeftBracket => "[",
@@ -470,15 +467,6 @@ pub enum SpecialKeywordKind {
 }
 
 impl SpecialKeywordKind {
-    pub fn from_char(c: char) -> Option<Self> {
-        use SpecialKeywordKind::*;
-        match c {
-            '\0' => Some(Eof),
-            '\n' => Some(Newline),
-            ' ' | '\t' | '\r' => Some(Whitespace),
-            _ => None,
-        }
-    }
     fn as_str(&self) -> &str {
         use SpecialKeywordKind::*;
         match self {
@@ -486,6 +474,19 @@ impl SpecialKeywordKind {
             Newline => "newline",
             Whitespace => "whitespace",
             Comment(..) => "comment",
+        }
+    }
+}
+
+impl TryFrom<char> for SpecialKeywordKind {
+    type Error = String;
+    fn try_from(c: char) -> Result<Self, Self::Error> {
+        use SpecialKeywordKind::*;
+        match c {
+            '\0' => Ok(Eof),
+            '\n' => Ok(Newline),
+            ' ' | '\t' | '\r' => Ok(Whitespace),
+            _ => Err(c.to_string()),
         }
     }
 }
@@ -516,8 +517,8 @@ pub fn cook_tokens(tokens: &[Token]) -> Token {
             let first_tok = tokens.first().unwrap();
             let last_tok = tokens.last().unwrap();
             let bools = (
-                first_tok.whitespace.as_bools().0,
-                last_tok.whitespace.as_bools().1,
+                <(bool, bool)>::from(first_tok.whitespace).0,
+                <(bool, bool)>::from(last_tok.whitespace).1,
             );
             Token {
                 kind: token_kind,
@@ -540,13 +541,7 @@ pub enum NumberBase {
 }
 impl NumberBase {
     pub fn is_char_in(&self, c: char) -> bool {
-        use NumberBase::*;
-        match self {
-            Binary => is_binary(&c),
-            Octal => is_octal(&c),
-            Decimal => is_digit(&c),
-            Hexadecimal => is_hexadecimal(&c),
-        }
+        c.is_digit(u32::from(*self))
     }
 }
 
@@ -599,25 +594,86 @@ impl From<NumberBase> for &str {
     }
 }
 
-// TODO: Combine `Integer`and `Floating` into `Number`?
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum LiteralKind {
-    Number {
-        content: String,
+pub struct Number {
+    content: String,
+    prefix: Option<NumberBase>,
+    suffix: Option<String>,
+    is_float: bool,
+}
+
+impl Number {
+    pub fn new(
+        content: &str,
         prefix: Option<NumberBase>,
         suffix: Option<String>,
         is_float: bool,
-    },
+    ) -> Self {
+        if is_float && prefix.is_some() {
+            panic!("Floating point numbers cannot have a prefix");
+        }
+        Self {
+            content: content.to_owned(),
+            prefix,
+            suffix,
+            is_float,
+        }
+    }
+    pub fn integer(content: &str, prefix: Option<NumberBase>, suffix: Option<String>) -> Self {
+        Self {
+            content: content.to_owned(),
+            prefix,
+            suffix,
+            is_float: false,
+        }
+    }
+    pub fn floating(content: &str, suffix: Option<String>) -> Self {
+        Self {
+            content: content.to_owned(),
+            prefix: None,
+            suffix,
+            is_float: true,
+        }
+    }
+}
+
+impl From<Number> for String {
+    fn from(number: Number) -> Self {
+        let prefix = match number.prefix {
+            Some(base) => <&str>::from(base),
+            None => "",
+        };
+        let suffix = match number.suffix {
+            Some(s) => s,
+            None => "".to_owned(),
+        };
+        format!("{}{}{}", prefix, number.content, suffix)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LiteralKind {
+    Number(Number),
     Boolean(bool),
     Char(char),
     Str(String),
     //Unit,
 }
 impl LiteralKind {
+    pub fn integer(content: &str, prefix: Option<NumberBase>, suffix: Option<String>) -> Self {
+        LiteralKind::Number(Number::integer(content, prefix, suffix))
+    }
+    pub fn floating(content: &str, suffix: Option<String>) -> Self {
+        LiteralKind::Number(Number::floating(content, suffix))
+    }
+    pub fn boolean(content: bool) -> Self {
+        LiteralKind::Boolean(content)
+    }
     pub fn from_str(s: &str) -> Result<LiteralKind, String> {
+        use LiteralKind::*;
         match s {
-            "true" => Ok(LiteralKind::Boolean(true)),
-            "false" => Ok(LiteralKind::Boolean(false)),
+            "true" => Ok(Boolean(true)),
+            "false" => Ok(Boolean(false)),
             ident => Err(ident.to_owned()),
         }
     }
@@ -642,12 +698,12 @@ impl Span {
     pub fn new(start: Position, end: Position) -> Self {
         Span { start, end }
     }
-    pub fn from_tuples(start: (u32, u32), end: (u32, u32)) -> Self {
-        Span {
-            start: Position::new(start.0, start.1),
-            end: Position::new(end.0, end.1),
-        }
-    }
+    // pub fn from_tuples(start: (u32, u32), end: (u32, u32)) -> Self {
+    //     Span {
+    //         start: Position::new(start.0, start.1),
+    //         end: Position::new(end.0, end.1),
+    //     }
+    // }
 }
 impl std::fmt::Debug for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -658,6 +714,14 @@ impl std::fmt::Debug for Span {
         )
     }
 }
+impl From<((u32, u32), (u32, u32))> for Span {
+    fn from(tuples: ((u32, u32), (u32, u32))) -> Self {
+        Span {
+            start: Position::new(tuples.0 .0, tuples.0 .1),
+            end: Position::new(tuples.1 .0, tuples.1 .1),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Whitespace {
@@ -666,24 +730,38 @@ pub enum Whitespace {
     Right,
     Both,
 }
-impl Whitespace {
-    pub fn from(bools: (bool, bool)) -> Self {
+
+impl From<Whitespace> for (bool, bool) {
+    fn from(ws: Whitespace) -> Self {
+        use Whitespace::*;
+        match ws {
+            None => (false, false),
+            Left => (true, false),
+            Right => (false, true),
+            Both => (true, true),
+        }
+    }
+}
+
+impl From<(Whitespace, Whitespace)> for Whitespace {
+    fn from(ws: (Whitespace, Whitespace)) -> Self {
+        let left_whitespace = ws.0;
+        let right_whitespace = ws.1;
+        Whitespace::from((
+            <(bool, bool)>::from(left_whitespace).0,
+            <(bool, bool)>::from(right_whitespace).1,
+        ))
+    }
+}
+
+impl From<(bool, bool)> for Whitespace {
+    fn from(bools: (bool, bool)) -> Self {
         use Whitespace::*;
         match bools {
             (true, true) => Both,
             (true, false) => Left,
             (false, true) => Right,
             (false, false) => None,
-        }
-    }
-
-    pub fn as_bools(self) -> (bool, bool) {
-        use Whitespace::*;
-        match self {
-            None => (false, false),
-            Left => (true, false),
-            Right => (false, true),
-            Both => (true, true),
         }
     }
 }
@@ -705,7 +783,7 @@ impl Token {
     pub fn eof() -> Self {
         Token {
             kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
-            span: Span::from_tuples((1, 1), (1, 1)),
+            span: ((1, 1), (1, 1)).into(),
             whitespace: Whitespace::None,
         }
     }
@@ -715,7 +793,7 @@ impl Token {
     pub fn dummy() -> Self {
         Token {
             kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
-            span: Span::from_tuples((0, 0), (0, 0)),
+            span: ((0, 0), (0, 0)).into(),
             whitespace: Whitespace::None,
         }
     }
@@ -757,10 +835,7 @@ impl Token {
         Token {
             kind: Punctuator(c),
             span: Span::new(left.span.start, right.span.end),
-            whitespace: Whitespace::from((
-                left.whitespace.as_bools().0,
-                right.whitespace.as_bools().1,
-            )),
+            whitespace: Whitespace::from((left.whitespace, right.whitespace)),
         }
     }
 }

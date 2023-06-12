@@ -188,19 +188,19 @@ impl Lexer {
 
         let index_old = self.index;
         let kind = match c {
-            '/' => match self.peek_n_times_and_collect(1).unwrap().as_str() {
-                "//" => self.lex_comment_line(),
-                "/*" => self.lex_comment_block(),
+            '/' => match self.peek(1) {
+                Some('/') => self.lex_comment_line(),
+                Some('*') => self.lex_comment_block(),
                 _ => Ok(Punctuator(Slash)),
             },
             '"' => self.lex_string(),
             '\'' => self.lex_char(),
             // TODO: Once if let guards are available rewrite it as such
-            p if PunctuatorKind::from_char(p).is_some() => {
-                Ok(Punctuator(PunctuatorKind::from_char(p).unwrap()))
+            p if PunctuatorKind::try_from(p).is_ok() => {
+                Ok(Punctuator(PunctuatorKind::try_from(p).unwrap()))
             }
-            p if SpecialKeywordKind::from_char(p).is_some() => {
-                Ok(SpecialKeyword(SpecialKeywordKind::from_char(p).unwrap()))
+            p if SpecialKeywordKind::try_from(p).is_ok() => {
+                Ok(SpecialKeyword(SpecialKeywordKind::try_from(p).unwrap()))
             }
             cc if is_digit(&cc) => self.lex_number(),
             cc if is_alpha(&cc) => self.lex_identifier(),
@@ -403,36 +403,22 @@ impl Lexer {
         use LiteralKind::*;
         use TokenKind::*;
 
-        fn process_prefix(lexer: &mut Lexer) -> Option<String> {
-            let prefix = lexer.peek_n_times_and_collect(1)?;
-
-            if prefix.starts_with('0') && prefix.chars().nth(1).map_or(false, |c| c.is_alphabetic())
-            {
-                lexer.advance();
-                lexer.advance();
-                lexer.cursor.column += 2;
-                Some(prefix)
-            } else {
-                None
-            }
-        }
-        fn process_prefix_(this: &mut Lexer) -> Option<String> {
-            match this.peek_n_times_and_collect(1) {
-                Some(suf) => {
-                    let b_0 = (*suf.as_bytes().first().unwrap() as char) == '0';
-                    let b_1 = (*suf.as_bytes().get(1).unwrap() as char).is_alphabetic();
-                    if b_0 && b_1 {
-                        this.advance();
-                        this.advance();
-                        this.cursor.column += 2;
-                        Some(suf)
-                    } else {
-                        None
-                    }
+        fn process_prefix(this: &mut Lexer) -> Result<Option<NumberBase>, LexerError> {
+            match (this.peek(0), this.peek(1)) {
+                (Some('0'), Some(c)) if c.is_alphabetic() => {
+                    let pot_prefix = "0".to_owned() + &c.to_string();
+                    NumberBase::try_from(pot_prefix.as_str())
+                        .map(|x| {
+                            this.advance();
+                            this.advance();
+                            Some(x)
+                        })
+                        .map_err(|_| LexerError::not_recognized_base_prefix(&pot_prefix))
                 }
-                _ => None,
+                _ => Ok(None),
             }
         }
+
         fn process_number_body(
             this: &mut Lexer,
             allow_letters: bool,
@@ -491,27 +477,13 @@ impl Lexer {
                 None
             }
         }
-        fn determine_number_base(
-            prefix: &Option<String>,
-        ) -> Result<Option<NumberBase>, LexerError> {
-            Ok(match prefix.as_deref() {
-                Some("0b") => Some(NumberBase::Binary),
-                Some("0o") => Some(NumberBase::Octal),
-                Some("0d") => Some(NumberBase::Decimal),
-                Some("0x") => Some(NumberBase::Hexadecimal),
-                None => None,
-                Some(pref) => return Err(LexerError::not_recognized_base_prefix(pref)),
-            })
-        }
 
-        let number_base_prefix = determine_number_base(&process_prefix(self))?;
+        let number_base_prefix = process_prefix(self)?;
         let (string, is_floating, mode_parse_suffix) =
             process_number_body(self, number_base_prefix.is_some())?;
         let suffix = process_suffix(self, mode_parse_suffix);
 
         // Cursor part
-        let _starts_with_dot = string.starts_with('.');
-        let _ends_with_dot = string.ends_with('.');
         self.cursor.column += (string.len() + suffix.clone().unwrap_or_default().len() - 1) as u32;
 
         // Error handling
@@ -534,12 +506,12 @@ impl Lexer {
         }
         assert_ne!(string.len(), 0);
 
-        let lit = Literal(Number {
-            content: string,
-            prefix: number_base_prefix,
+        let lit = Literal(Number(token::Number::new(
+            &string,
+            number_base_prefix,
             suffix,
-            is_float: is_floating,
-        });
+            is_floating,
+        )));
 
         Ok(lit)
     }
