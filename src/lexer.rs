@@ -289,7 +289,7 @@ impl Lexer {
                 }
             }
         };
-
+        self.cursor.column -= 1;
         self.index -= 1;
         Ok(Literal(Char(c)))
     }
