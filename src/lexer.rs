@@ -95,9 +95,11 @@ impl Lexer {
         // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
         let mut punc_cache: Vec<Token> = Vec::with_capacity(5);
         let mut tokens = Vec::new();
-        while let Some(ch) = self.peek(0) {
-            let token = self.scan_token(ch).unwrap();
-
+        while let Ok(token) = self.scan_token() {
+            if token.kind == SpecialKeyword(SpecialKeywordKind::Eof) {
+                tokens.push(token);
+                break;
+            }
             // In this part we combine simple punctuator tokens to complex ones, if possible
 
             // `punc_cache` is where copies of the previous punctuators lie,
@@ -167,107 +169,97 @@ impl Lexer {
             tokens.push(cook_tokens(&punc_cache));
             punc_cache.clear();
         }
-
-        let token_eof = Token::eof();
-        tokens.push(token_eof);
         tokens
     }
 
-    fn scan_token_kind(&mut self, c: char) -> LResult<(TokenKind, token::Position, usize)> {
+    fn scan_token_kind(&mut self) -> LResult<(TokenKind, token::Position, usize)> {
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
 
-        let index_old = self.index;
+        let c = match self.peek(0) {
+            Some(c) => c,
+            None => return Ok((SpecialKeyword(Eof), self.cursor, self.index)),
+        };
+
         let kind = match c {
             '/' => match self.peek(1) {
-                Some('/') => self.lex_comment_line(),
-                Some('*') => self.lex_comment_block(),
-                _ => Ok(Punctuator(Slash)),
+                Some('/') => self.lex_comment_line()?,
+                Some('*') => self.lex_comment_block()?,
+                _ => Punctuator(Slash),
             },
-            '"' => self.lex_string(),
-            '\'' => self.lex_char(),
+            '"' => self.lex_string()?,
+            '\'' => self.lex_char()?,
             // TODO: Once if let guards are available rewrite it as such
             p if PunctuatorKind::try_from(p).is_ok() => {
-                Ok(Punctuator(PunctuatorKind::try_from(p).unwrap()))
+                Punctuator(PunctuatorKind::try_from(p).unwrap())
             }
             p if SpecialKeywordKind::try_from(p).is_ok() => {
-                Ok(SpecialKeyword(SpecialKeywordKind::try_from(p).unwrap()))
+                SpecialKeyword(SpecialKeywordKind::try_from(p).unwrap())
             }
-            cc if is_digit(&cc) => self.lex_number(),
-            cc if is_alpha(&cc) => self.lex_identifier(),
-            cc => Err(LexerError::unknown_character(cc, self.cursor)),
+            cc if is_digit(&cc) => self.lex_number()?,
+            cc if is_alpha(&cc) => self.lex_identifier()?,
+            cc => return Err(LexerError::unknown_character(cc, self.cursor)),
         };
-        let kind = kind?;
-        let index_new = self.index;
-        // NOTE: If the token is simple we advance here, because the match statements look prettier that way.
-        // With more complex tokens, basically everything except single punctuators,
-        // handle the advance in their own functions
-        // if kind.is_simple() {
-        //     self.advance();
-        // }
-        if index_old == index_new {
-            self.advance();
-        }
 
         let end_pos = self.cursor;
         let end_index = self.index;
-
-        if kind == SpecialKeyword(Newline) {
-            self.cursor.line += 1;
-            self.cursor.column = 1;
-        } else {
-            self.cursor.column += 1;
-        }
 
         Ok((kind, end_pos, end_index))
     }
 
     /// Scans a token
-    /// Returns the token which was lexed. It also moves the 'cursor' to the next character, so that one can lex the next token.
-    fn scan_token(&mut self, c: char) -> LResult<Token> {
+    /// Starts to scan from `self.index` until it has a valid token. If the token is invalid, it returns an error.
+    /// If the token is valid, it returns the token and the `self.index` is set one position after the token, so that a new token can be scanned.
+    // TODO: Add recovery.
+    // TODO: The cursor/index should only here be moved to the position after the token. Make sure that it happens.
+    fn scan_token(&mut self) -> LResult<Token> {
         let start_pos = self.cursor;
         let start_index = self.index;
 
-        let (token_kind, end_pos, end_index) = self.scan_token_kind(c).unwrap();
+        let (token_kind, end_pos, end_index) = self.scan_token_kind()?;
 
-        let whitespace = {
-            let index_start = 0 - (end_index - start_index) as isize;
-            let index_end = -1_isize;
+        self.advance();
+        if token_kind == TokenKind::SpecialKeyword(SpecialKeywordKind::Newline) {
+            self.cursor.line += 1;
+            self.cursor.column = 1;
+        }
 
-            let index_start_left = self.peek(index_start - 1).unwrap_or(' ');
-            let index_end_right = self.peek(index_end + 1).unwrap_or(' ');
+        let token = Token::new(
+            token_kind,
+            token::Span::new(start_pos, end_pos),
+            token::Whitespace::from((
+                *self.chars.get(start_index).unwrap_or(&' '),
+                *self.chars.get(end_index).unwrap_or(&' '),
+            )),
+        );
 
-            let ws_left = is_left_whitespace(&index_start_left);
-            let ws_right = is_right_whitespace(&index_end_right);
-
-            token::Whitespace::from((ws_left, ws_right))
-        };
-
-        let token = Token::new(token_kind, token::Span::new(start_pos, end_pos), whitespace);
         Ok(token)
     }
+
     fn lex_escape_char(&mut self) -> LResult<char> {
-        self.eat_char('\\').unwrap();
+        self.eat_char('\\')
+            .map_err(|x| LexerError::expected_char('\\', x))?;
         self.cursor.column += 1;
 
         let escaped_char = match self.peek(0) {
-            Some('n') => Ok('\n'),
-            Some('r') => Ok('\r'),
-            Some('t') => Ok('\t'),
-            Some('\\') => Ok('\\'),
-            Some('\'') => Ok('\''),
-            Some('"') => Ok('"'),
-            Some('0') => Ok('\0'),
-            Some(c) => Err(LexerError::unknown_escape_char(c)),
-            None => Err(LexerError::unterminated_char_lit()),
+            Some('n') => '\n',
+            Some('r') => '\r',
+            Some('t') => '\t',
+            Some('\\') => '\\',
+            Some('\'') => '\'',
+            Some('"') => '"',
+            Some('0') => '\0',
+            Some(c) => return Err(LexerError::unknown_escape_char(c)),
+            None => return Err(LexerError::unterminated_char_lit()),
         };
+
         self.advance();
         self.cursor.column += 1;
 
         self.cursor.column -= 1;
 
-        escaped_char
+        Ok(escaped_char)
     }
 
     /// Lexes a character literal.
@@ -277,10 +269,12 @@ impl Lexer {
     fn lex_char(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.eat_char('\'').unwrap();
+        self.eat_char('\'')
+            .map_err(|x| LexerError::expected_char('\'', x))?;
         // '\''
         let mut escaped_char = false;
         let c = match self.peek(0) {
+            None => return Err(LexerError::unterminated_char_lit()),
             Some('\'') => return Err(LexerError::empty_char_literal()),
             Some('\n') | Some('\r') => return Err(LexerError::new_line_in_char_lit()),
             Some('\\') => {
@@ -292,7 +286,6 @@ impl Lexer {
                 self.advance();
                 c
             }
-            None => return Err(LexerError::unterminated_char_lit()),
         };
 
         match self.eat_char('\'') {
@@ -306,12 +299,15 @@ impl Lexer {
                 }
             }
         };
+
+        self.index -= 1;
         Ok(Literal(Char(c)))
     }
     fn lex_string(&mut self) -> LResult<TokenKind> {
         use LiteralKind::*;
         use TokenKind::*;
-        self.eat_char('\"').unwrap();
+        self.eat_char('\"')
+            .map_err(|x| LexerError::expected_char('\"', x))?;
         self.cursor.column += 1;
 
         let mut string_content = String::new();
@@ -332,8 +328,9 @@ impl Lexer {
                 }
                 '\t' => {
                     // TODO: Figure out how to correctly handle a tab, because they can be variable length.
+                    let tab_size = 1;
                     self.advance();
-                    self.cursor.column += 1;
+                    self.cursor.column += tab_size;
                 }
                 '\r' => {
                     self.advance();
@@ -346,10 +343,12 @@ impl Lexer {
                 }
             }
         }
-        self.eat_char('\"').unwrap();
+        self.eat_char('\"')
+            .map_err(|x| LexerError::expected_char('\"', x))?;
         self.cursor.column += 1;
 
         self.cursor.column -= 1;
+        self.index -= 1;
 
         if self.peek(0).is_none() {
             return Err(LexerError::unterminated_string());
@@ -387,7 +386,7 @@ impl Lexer {
         self.cursor.column += 2;
 
         while self.check_str("*/").is_empty() {
-            if self.is_eof() {
+            if self.peek(0).is_none() {
                 return Err(LexerError::unterminated_block_comment());
             }
             self.advance();
@@ -455,7 +454,7 @@ impl Lexer {
                         break;
                     }
                     // in a number there can be only one dot
-                    '.' if !is_floating && this.check_char('.', 1).ok().is_none() => {
+                    '.' if !is_floating && this.check_char(1, '.').ok().is_none() => {
                         string.push(peeked);
                         is_floating = true;
                         is_after_dot = true;
@@ -467,9 +466,8 @@ impl Lexer {
                 };
                 if let Err(e) = res {
                     return Err(e);
-                } else {
-                    this.advance()
                 }
+                this.advance();
             }
             Ok((string, is_floating, mode_parse_suffix))
         }
@@ -493,7 +491,9 @@ impl Lexer {
         let suffix = process_suffix(self, mode_parse_suffix);
 
         // Cursor part
-        self.cursor.column += (string.len() + suffix.clone().unwrap_or_default().len() - 1) as u32;
+        // self.cursor.column += (string.len() + suffix.clone().unwrap_or_default().len() - 1) as u32;
+        self.index -= 1;
+        self.cursor.column -= 1;
 
         // Error handling
         if number_base_prefix.is_some() && is_floating {
@@ -526,10 +526,16 @@ impl Lexer {
     }
 
     fn lex_identifier(&mut self) -> LResult<TokenKind> {
-        use LiteralKind::*;
         use TokenKind::*;
 
+        // NOTE: There can't be a newline here.
+
         let string_content = self.eat_while(is_alpha_numeric);
+
+        // NOTE: Here we adjust the cursor/index back, as it overshot by one.
+        // TODO: Think about a way to remove that.
+        self.cursor.column -= 1;
+        self.index -= 1;
 
         // Here we determine whether the identifier is a keyword or not.
 
@@ -537,13 +543,13 @@ impl Lexer {
             lit if is_lit_bool(lit) => LiteralKind::from_str(lit).map_or_else(Identifier, Literal),
             kw => KeywordKind::try_from(kw).map_or_else(Identifier, Keyword),
         };
-        match &token {
-            Keyword(kw) => self.cursor.column += (kw.len() - 1) as u32,
-            Identifier(id) => self.cursor.column += (id.len() - 1) as u32,
-            Literal(Boolean(false)) => self.cursor.column += ("false".len() - 1) as u32,
-            Literal(Boolean(true)) => self.cursor.column += ("true".len() - 1) as u32,
-            other => panic!("Identifier not a keyword or identifier. {:?}", other),
-        };
+        // match &token {
+        //     Keyword(kw) => self.cursor.column += (kw.len()) as u32,
+        //     Identifier(id) => self.cursor.column += (id.len() - 1) as u32,
+        //     Literal(Boolean(false)) => self.cursor.column += ("false".len() - 1) as u32,
+        //     Literal(Boolean(true)) => self.cursor.column += ("true".len() - 1) as u32,
+        //     other => panic!("Identifier not a keyword or identifier. {:?}", other),
+        // };
         Ok(token)
     }
 }
