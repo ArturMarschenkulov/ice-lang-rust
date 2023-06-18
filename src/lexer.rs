@@ -63,16 +63,6 @@ pub fn lex_tokens_from_file(source: &str) -> LResult<Vec<Token>> {
     Ok(tokens)
 }
 
-/// A cursor for iterating over characters.
-///
-// TODO: Right now, this type is not used, but it should be integrated in the future,
-//     for better separation of concerns.
-struct CharCursor<'a> {
-    chars: &'a Vec<char>,
-    index: usize,
-    cursor: token::Position,
-}
-
 struct Lexer {
     chars: Vec<char>,
 
