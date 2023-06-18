@@ -298,7 +298,6 @@ impl Lexer {
         use TokenKind::*;
         self.eat_char('\"')
             .map_err(|x| LexerError::expected_char('\"', x))?;
-        self.cursor.column += 1;
 
         let mut string_content = String::new();
         while let Some(c) = self.peek(0) {
@@ -329,13 +328,11 @@ impl Lexer {
                 _ => {
                     string_content.push(c);
                     self.advance();
-                    self.cursor.column += 1;
                 }
             }
         }
         self.eat_char('\"')
             .map_err(|x| LexerError::expected_char('\"', x))?;
-        self.cursor.column += 1;
 
         self.cursor.column -= 1;
         self.index -= 1;
