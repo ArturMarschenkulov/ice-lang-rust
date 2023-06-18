@@ -1003,7 +1003,6 @@ mod test {
         use LiteralKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
-        use Whitespace::*;
 
         // use SpecialKeywordKind::*;
         fn tokens(s: &str) -> Vec<TokenKind> {
@@ -1041,6 +1040,28 @@ mod test {
         assert_eq!(
             tokens(r#"var a := ' ';"#),
             vec![
+                Keyword(Var),
+                Identifier(String::from("a")),
+                Punctuator(Colon),
+                Punctuator(Equal),
+                Literal(Char(' ')),
+                Punctuator(Semicolon),
+                SpecialKeyword(SpecialKeywordKind::Eof)
+            ]
+        );
+
+        assert_eq!(
+            tokens(
+                r#"var a := ' ';
+            var a := ' ';"#
+            ),
+            vec![
+                Keyword(Var),
+                Identifier(String::from("a")),
+                Punctuator(Colon),
+                Punctuator(Equal),
+                Literal(Char(' ')),
+                Punctuator(Semicolon),
                 Keyword(Var),
                 Identifier(String::from("a")),
                 Punctuator(Colon),
@@ -1096,35 +1117,56 @@ mod test {
                 Span::from(((1, 5), (1, 5))),   // a
                 Span::from(((1, 7), (1, 7))),   // :
                 Span::from(((1, 8), (1, 8))),   // =
-                Span::from(((1, 10), (1, 16))), // hello
+                Span::from(((1, 10), (1, 16))), // "hello"
                 Span::from(((1, 17), (1, 17))), // ;
                 Span::from(((1, 18), (1, 18))), // eof
             ]
         );
         // assert_eq!(
-        //     tokens(r#"var a := ' ';"#),
+        //     tokens(
+        //         r#"var a := ' ';
+        //     var a := ' ';"#
+        //     ),
         //     vec![
-        //         Keyword(Var),
-        //         Identifier(String::from("a")),
-        //         Punctuator(Colon),
-        //         Punctuator(Equal),
-        //         Literal(Char(' ')),
-        //         Punctuator(Semicolon),
-        //         SpecialKeyword(SpecialKeywordKind::Eof)
+        //         Span::from(((1, 1), (1, 3))),   // var
+        //         Span::from(((1, 5), (1, 5))),   // a
+        //         Span::from(((1, 7), (1, 7))),   // :
+        //         Span::from(((1, 8), (1, 8))),   // =
+        //         Span::from(((1, 10), (1, 12))), // ' '
+        //         Span::from(((1, 13), (1, 13))), // ;
+        //         Span::from(((2, 1), (2, 3))),   // var
+        //         Span::from(((2, 5), (2, 5))),   // a
+        //         Span::from(((2, 7), (2, 7))),   // :
+        //         Span::from(((2, 8), (2, 8))),   // =
+        //         Span::from(((2, 10), (2, 12))), // ' '
+        //         Span::from(((2, 13), (2, 13))), // ;
+        //         Span::from(((2, 14), (2, 14))), // eof
         //     ]
         // );
+        assert_eq!(
+            tokens(r#"var a := ' ';"#),
+            vec![
+                Span::from(((1, 1), (1, 3))),   // var
+                Span::from(((1, 5), (1, 5))),   // a
+                Span::from(((1, 7), (1, 7))),   // :
+                Span::from(((1, 8), (1, 8))),   // =
+                Span::from(((1, 10), (1, 12))), // ' '
+                Span::from(((1, 13), (1, 13))), // ;
+                Span::from(((1, 14), (1, 14))), // eof
+            ]
+        );
 
-        // assert_eq!(
-        //     tokens("std::io::str;"),
-        //     vec![
-        //         Identifier("std".to_owned()),
-        //         Punctuator(ColonColon),
-        //         Identifier("io".to_owned()),
-        //         Punctuator(ColonColon),
-        //         Identifier("str".to_owned()),
-        //         Punctuator(Semicolon),
-        //         SpecialKeyword(SpecialKeywordKind::Eof)
-        //     ]
-        // );
+        assert_eq!(
+            tokens("std::io::str;"),
+            vec![
+                Span::from(((1, 1), (1, 3))),   // std
+                Span::from(((1, 4), (1, 5))),   // ::
+                Span::from(((1, 6), (1, 7))),   // io
+                Span::from(((1, 8), (1, 9))),   // ::
+                Span::from(((1, 10), (1, 12))), // str
+                Span::from(((1, 13), (1, 13))), // ;
+                Span::from(((1, 14), (1, 14))), // eof
+            ]
+        );
     }
 }
