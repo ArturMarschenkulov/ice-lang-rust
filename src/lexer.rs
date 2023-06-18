@@ -548,101 +548,108 @@ impl Lexer {
     }
 }
 
+/// Adjusts the given index by the given offset safely.
+///
+/// This function takes an index as a `usize` and an offset as an `isize`. It attempts to add or subtract the offset
+/// to/from the index based on the sign of the offset. It ensures that the operation is checked, meaning that it will not
+/// cause any overflow or underflow.
+fn adjust_index_safely(index: usize, offset: isize) -> Option<usize> {
+    match offset.is_positive() {
+        true => index.checked_add(offset as usize),
+        false => index.checked_sub(-offset as usize),
+    }
+}
+
 /// This impl is the cursor part for the lexer.
 ///
 ///
 impl Lexer {
     /// Advances the cursor by one.
-    fn advance(&mut self) {
-        self.advance_by(1);
-    }
-
-    /// Advances the cursor by the given offset.
-    fn advance_by(&mut self, offset: usize) {
-        self.index += offset;
-    }
-
-    /// Tries to return the index of the current index plus the given offset.
-    ///
-    /// If the offset doesn't overflow or underflow the `self.index`, then it will return the new index in a `Some`.
-    fn try_index_plus(&self, offset: isize) -> Option<usize> {
-        match offset.signum() {
-            -1 => self.index.checked_sub(-offset as usize),
-            1 => self.index.checked_add(offset as usize),
-            0 => Some(self.index),
-            _ => unreachable!("Signum of offset is not -1, 0 or 1"),
+    fn advance(&mut self) -> Option<char> {
+        // let c = self.peek(0);
+        // self.index = adjust_index_safely(self.index, 1).unwrap();
+        // c
+        match adjust_index_safely(self.index, 1) {
+            Some(i) => {
+                self.index = i;
+                self.cursor.column += 1;
+                self.peek(0)
+            }
+            None => None,
         }
     }
 
+    // /// Advances the cursor by the the steps given.
+    // fn advance_by(&mut self, steps: isize) {
+    //     if steps == 0 {
+    //         return;
+    //     }
+    //     self.index = adjust_index_safely(self.index, steps).unwrap();
+    //     // self.index += steps;
+
+    //     for i in 0..steps {
+    //         if let Some('\n') = self.peek(i as isize) {
+    //             self.cursor.line += 1;
+    //             self.cursor.column = 1;
+    //         } else {
+    //             self.cursor.column += 1;
+    //         }
+    //     }
+    // }
+
     /// Peeks the character at the current index plus the given offset.
-    /// If the resulting location is valid, it returns the character wrapped in a `Some`, otherwise `None`.
-    fn peek(&self, offset: isize) -> Option<char> {
-        self.try_index_plus(offset)
-            .and_then(|index| self.chars.get(index).copied())
-    }
-
-    fn is_eof(&self) -> bool {
-        self.peek(0).is_none()
-    }
-
-    /// Peeks at `n + 1` characters starting from the current position and collects them into a string.
     ///
-    /// An `Option` which is `None` if any of the peeks are invalid and `Some(String)` if all peeks are valid.
-    fn peek_n_times_and_collect(&self, n: usize) -> Option<String> {
-        (0..=n)
-            .map(|i| self.peek(i as isize))
-            .collect::<Option<String>>()
+    /// This method takes an offset as an `isize` and attempts to return the character
+    /// at the position that's at `index + offset`. If the calculated index is out of
+    /// bounds (either less than zero or greater than or equal to the length of the
+    /// characters array), it returns `None`.
+    fn peek(&self, offset: isize) -> Option<char> {
+        adjust_index_safely(self.index, offset).and_then(|index| self.chars.get(index).copied())
     }
 
-    fn peek_into_str_2(&self, n: usize) -> Result<String, String> {
-        (0..=n).try_fold(String::new(), |mut peeked, i| match self.peek(i as isize) {
-            Some(c) => {
-                peeked.push(c);
-                Ok(peeked)
-            }
-            None => Err(peeked),
-        })
-    }
-
+    /// Checks whether the character at the given offset agrees with the provided predicate.
+    ///
+    /// This method takes an offset as an `isize` and a predicate function. It then checks whether the character at the
+    ///
     /// Peeks at the offset `offset`. If the peeked char agrees with the given predicate, it returns it wrapped in a `Ok`,
     /// otherwise it returns the peeked char wrapped in a `Err`.
-    fn check_with<F>(&self, offset: isize, func: F) -> Result<char, Option<char>>
+    fn check_with<F>(&self, offset: isize, predicate: F) -> Result<char, Option<char>>
     where
         Self: Sized,
         F: Fn(&char) -> bool,
     {
         self.peek(offset)
-            .map(|c| if func(&c) { Ok(c) } else { Err(Some(c)) })
+            .map(|c| if predicate(&c) { Ok(c) } else { Err(Some(c)) })
             .unwrap_or(Err(None))
     }
 
     /// Checks the next chars as long as the given function returns true.
-    fn check_while<F>(&mut self, func: F) -> String
+    fn check_while<F>(&mut self, predicate: F) -> String
     where
         F: Fn(&char) -> bool,
     {
         (0..)
-            .map(|offset| self.check_with(offset, &func))
+            .map(|offset| self.check_with(offset, &predicate))
             .take_while(Result::is_ok)
             .filter_map(Result::ok)
             .collect()
     }
 
     /// Checks the char at offset `n`. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
-    fn check_char(&self, c: char, n: isize) -> Result<char, Option<char>> {
+    fn check_char(&self, n: isize, c: char) -> Result<char, Option<char>> {
         self.check_with(n, |x| x == &c)
     }
 
     fn check_str_(&self, str: &str) -> Option<String> {
         str.chars()
             .enumerate()
-            .map(|(i, c)| self.check_char(c, i as isize).ok())
+            .map(|(i, c)| self.check_char(i as isize, c).ok())
             .collect::<Option<String>>()
     }
     fn check_str(&self, str: &str) -> String {
         str.chars()
             .enumerate()
-            .map(|(i, c)| self.check_char(c, i as isize).ok())
+            .map(|(i, c)| self.check_char(i as isize, c).ok())
             .take_while(Option::is_some)
             .flatten()
             .collect::<String>()
@@ -656,22 +663,22 @@ impl Lexer {
 
     /// Checks the charachter at the current index with a given function.
     /// If the function returns true, the current char is "eaten" and returned wrapped in a `Some`, otherwise `None`.
-    fn eat_with<F>(&mut self, func: F) -> Result<char, Option<char>>
+    fn eat_with<F>(&mut self, predicate: F) -> Result<char, Option<char>>
     where
         F: Fn(&char) -> bool,
     {
-        self.check_with(0, &func).map(|char| {
+        self.check_with(0, &predicate).map(|char| {
             self.advance();
             char
         })
     }
 
-    fn eat_while<F>(&mut self, func: F) -> String
+    fn eat_while<F>(&mut self, predicate: F) -> String
     where
         F: Fn(&char) -> bool,
     {
         (0..)
-            .map(|_| self.eat_with(&func))
+            .map(|_| self.eat_with(&predicate))
             .take_while(Result::is_ok)
             .filter_map(Result::ok)
             .collect()
@@ -681,14 +688,6 @@ impl Lexer {
         str.chars()
             .map(|ch| self.eat_char(ch).ok())
             .collect::<Option<String>>()
-    }
-    fn _eat_char_any(&mut self, chars: &[char]) -> Option<char> {
-        for ch in chars {
-            if let Ok(c) = self.eat_char(*ch) {
-                return Some(c);
-            }
-        }
-        None
     }
 }
 
