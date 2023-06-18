@@ -725,7 +725,7 @@ impl From<((u32, u32), (u32, u32))> for Span {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Whitespace {
-    None,
+    NoBoth,
     Left,
     Right,
     Both,
@@ -735,7 +735,7 @@ impl From<Whitespace> for (bool, bool) {
     fn from(ws: Whitespace) -> Self {
         use Whitespace::*;
         match ws {
-            None => (false, false),
+            NoBoth => (false, false),
             Left => (true, false),
             Right => (false, true),
             Both => (true, true),
@@ -761,7 +761,20 @@ impl From<(bool, bool)> for Whitespace {
             (true, true) => Both,
             (true, false) => Left,
             (false, true) => Right,
-            (false, false) => None,
+            (false, false) => NoBoth,
+        }
+    }
+}
+impl From<(char, char)> for Whitespace {
+    fn from(chars: (char, char)) -> Self {
+        use crate::lexer::is_left_whitespace;
+        use crate::lexer::is_right_whitespace;
+        use Whitespace::*;
+        match (is_left_whitespace(&chars.0), is_right_whitespace(&chars.1)) {
+            (true, true) => Both,
+            (true, false) => Left,
+            (false, true) => Right,
+            (false, false) => NoBoth,
         }
     }
 }
@@ -784,7 +797,7 @@ impl Token {
         Token {
             kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
             span: ((1, 1), (1, 1)).into(),
-            whitespace: Whitespace::None,
+            whitespace: Whitespace::NoBoth,
         }
     }
 
@@ -794,7 +807,7 @@ impl Token {
         Token {
             kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
             span: ((0, 0), (0, 0)).into(),
-            whitespace: Whitespace::None,
+            whitespace: Whitespace::NoBoth,
         }
     }
 
