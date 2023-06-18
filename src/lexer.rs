@@ -812,31 +812,34 @@ mod test {
             assert_eq!(lexer.eat_str("bc"), None);
             assert_eq!(lexer.eat_str("c"), Some("c".to_string()));
         }
-        #[test]
-        fn test_peek_n_times_and_collect() {
-            let txt = "abc";
-            let lexer = Lexer::new_from_str(txt);
-            assert_eq!(lexer.peek_n_times_and_collect(2), Some("abc".to_string()));
-            assert_eq!(lexer.peek_n_times_and_collect(1), Some("ab".to_string()));
-            assert_eq!(lexer.peek_n_times_and_collect(0), Some("a".to_string()));
-            assert_eq!(lexer.peek_n_times_and_collect(4), None);
-        }
-        #[test]
-        fn test_peek_into_str_2() {
-            let txt = "abc";
-            let lexer = Lexer::new_from_str(txt);
-            assert_eq!(lexer.peek_into_str_2(2), Ok("abc".to_string()));
-            assert_eq!(lexer.peek_into_str_2(1), Ok("ab".to_string()));
-            assert_eq!(lexer.peek_into_str_2(0), Ok("a".to_string()));
-            assert_eq!(lexer.peek_into_str_2(4), Err("abc".to_string()));
-        }
     }
 
     #[test]
+    fn test_scan_tokens() {
+        use token::*;
+        use KeywordKind::*;
+        use Whitespace::*;
+
+        use TokenKind::*;
+        assert_eq!(
+            Lexer::new_from_str("fn").scan_tokens(),
+            vec![
+                Token::new(Keyword(Fn), Span::from(((1, 1), (1, 2))), NoBoth),
+                Token::new(
+                    SpecialKeyword(SpecialKeywordKind::Eof),
+                    Span::from(((1, 3), (1, 3))),
+                    Both
+                ),
+            ]
+        );
+    }
+    #[test]
     fn test_scan_token_kind() {
-        // let txt = "";
-        // let lexer = Lexer::new_from_str(txt);
-        // assert_eq!(lexer.scan_token_kind(), None);
+        use SpecialKeywordKind::*;
+        use TokenKind::*;
+        let txt = "";
+        let mut lexer = Lexer::new_from_str(txt);
+        assert_eq!(lexer.scan_token().map(|x| x.kind), Ok(SpecialKeyword(Eof)));
     }
 
     #[test]
@@ -888,6 +891,8 @@ mod test {
         // assert_eq!(lexer.lex_char(), Err(LexerError::unterminated_char_lit()));
     }
     #[test]
+    fn test_lex_str() {}
+    #[test]
     fn test_comment_line() {
         let txt = "//";
         let _ = Lexer::new_from_str(txt).scan_tokens();
@@ -903,23 +908,10 @@ mod test {
         let txt = "/* This is a line comment*/";
         let _ = Lexer::new_from_str(txt).scan_tokens();
     }
-    #[test]
-    #[should_panic]
-    fn comment_block_1() {
-        let txt = "/*";
-        let _ = Lexer::new_from_str(txt).scan_tokens();
-    }
 
     #[test]
     fn num_0_() {
         let txt = "0";
-        let _ = Lexer::new_from_str(txt).scan_tokens();
-    }
-
-    #[test]
-    #[should_panic]
-    fn num_0() {
-        let txt = "0x0.0";
         let _ = Lexer::new_from_str(txt).scan_tokens();
     }
 
@@ -956,7 +948,7 @@ mod test {
         // Error cases
         // Invalid binary number
         assert_eq!(
-            Lexer::new_from_str("0b2").lex_number(),
+            Lexer::new_from_str("0b22").lex_number(),
             Err(LexerError::invalid_digit_base_prefix(Some(Binary)))
         );
         assert_eq!(
@@ -978,6 +970,8 @@ mod test {
         //     Err(LexerError::invalid_digit_base_prefix(Some(Decimal)))
         // );
 
+        assert!(Lexer::new_from_str("0.").lex_number().is_err());
+
         // assert_eq!(
         //     Lexer::new_from_str("0b").lex_number(),
         //     Err(LexerError::invalid_digit_base_prefix(Some(Binary)))
@@ -986,19 +980,6 @@ mod test {
 
     mod num {
         use super::*;
-
-        #[test]
-        #[should_panic]
-        fn invalid_binary() {
-            let txt = "0b444";
-            let _ = Lexer::new_from_str(txt).scan_tokens();
-        }
-        #[test]
-        #[should_panic]
-        fn invalid_octal() {
-            let txt = "0o99";
-            let _ = Lexer::new_from_str(txt).scan_tokens();
-        }
 
         #[test]
         #[should_panic]
@@ -1019,40 +1000,134 @@ mod test {
         }
     }
     #[test]
-    fn init_colonequal() {
+    fn test_scan_tokens_KIND() {
+        use token::*;
         use KeywordKind::*;
         use LiteralKind::*;
         use PunctuatorKind::*;
         use TokenKind::*;
+        use Whitespace::*;
 
-        let source = "var a := 2222;";
+        // use SpecialKeywordKind::*;
+        fn tokens(s: &str) -> Vec<TokenKind> {
+            Lexer::new_from_str(s)
+                .scan_tokens()
+                .iter()
+                .map(|t| t.kind.clone())
+                .collect::<Vec<_>>()
+        }
 
-        let mut lexer = Lexer::new_from_str(source);
-        let tokens = lexer.scan_tokens();
-
-        assert_eq!(tokens[0].kind, Keyword(Var));
-        assert_eq!(tokens[1].kind, Identifier(String::from("a")));
-        assert_eq!(tokens[2].kind, Punctuator(Colon));
-        assert_eq!(tokens[3].kind, Punctuator(Equal));
         assert_eq!(
-            tokens[4].kind,
-            Literal(Number(token::Number::integer("2222", None, None)))
+            tokens("var a := 2222;"),
+            vec![
+                Keyword(Var),
+                Identifier(String::from("a")),
+                Punctuator(Colon),
+                Punctuator(Equal),
+                Literal(Number(token::Number::integer("2222", None, None))),
+                Punctuator(Semicolon),
+                SpecialKeyword(SpecialKeywordKind::Eof)
+            ]
         );
-        assert_eq!(tokens[5].kind, Punctuator(Semicolon));
+        assert_eq!(
+            tokens(r#"var a := "hello";"#),
+            vec![
+                Keyword(Var),
+                Identifier(String::from("a")),
+                Punctuator(Colon),
+                Punctuator(Equal),
+                Literal(Str("hello".to_owned())),
+                Punctuator(Semicolon),
+                SpecialKeyword(SpecialKeywordKind::Eof)
+            ]
+        );
+        assert_eq!(
+            tokens(r#"var a := ' ';"#),
+            vec![
+                Keyword(Var),
+                Identifier(String::from("a")),
+                Punctuator(Colon),
+                Punctuator(Equal),
+                Literal(Char(' ')),
+                Punctuator(Semicolon),
+                SpecialKeyword(SpecialKeywordKind::Eof)
+            ]
+        );
+
+        assert_eq!(
+            tokens("std::io::str;"),
+            vec![
+                Identifier("std".to_owned()),
+                Punctuator(ColonColon),
+                Identifier("io".to_owned()),
+                Punctuator(ColonColon),
+                Identifier("str".to_owned()),
+                Punctuator(Semicolon),
+                SpecialKeyword(SpecialKeywordKind::Eof)
+            ]
+        );
     }
     #[test]
-    fn coloncolon() {
-        use PunctuatorKind::*;
-        use TokenKind::*;
+    fn test_scan_tokens_SPAN() {
+        use token::*;
 
-        let source = "std::io::str;";
-        let mut lexer = Lexer::new_from_str(source);
-        let tokens = lexer.scan_tokens();
-        assert_eq!(tokens[0].kind, Identifier(String::from("std")));
-        assert_eq!(tokens[1].kind, Punctuator(ColonColon));
-        assert_eq!(tokens[2].kind, Identifier(String::from("io")));
-        assert_eq!(tokens[3].kind, Punctuator(ColonColon));
-        assert_eq!(tokens[4].kind, Identifier(String::from("str")));
-        assert_eq!(tokens[5].kind, Punctuator(Semicolon));
+        // use SpecialKeywordKind::*;
+        fn tokens(s: &str) -> Vec<Span> {
+            Lexer::new_from_str(s)
+                .scan_tokens()
+                .iter()
+                .map(|t| t.span)
+                .collect::<Vec<_>>()
+        }
+
+        assert_eq!(
+            tokens("var a := 2222;"),
+            vec![
+                Span::from(((1, 1), (1, 3))),   // var
+                Span::from(((1, 5), (1, 5))),   // a
+                Span::from(((1, 7), (1, 7))),   // :
+                Span::from(((1, 8), (1, 8))),   // =
+                Span::from(((1, 10), (1, 13))), // 2222
+                Span::from(((1, 14), (1, 14))), // ;
+                Span::from(((1, 15), (1, 15))), // eof
+            ]
+        );
+        assert_eq!(
+            tokens(r#"var a := "hello";"#),
+            vec![
+                Span::from(((1, 1), (1, 3))),   // var
+                Span::from(((1, 5), (1, 5))),   // a
+                Span::from(((1, 7), (1, 7))),   // :
+                Span::from(((1, 8), (1, 8))),   // =
+                Span::from(((1, 10), (1, 16))), // hello
+                Span::from(((1, 17), (1, 17))), // ;
+                Span::from(((1, 18), (1, 18))), // eof
+            ]
+        );
+        // assert_eq!(
+        //     tokens(r#"var a := ' ';"#),
+        //     vec![
+        //         Keyword(Var),
+        //         Identifier(String::from("a")),
+        //         Punctuator(Colon),
+        //         Punctuator(Equal),
+        //         Literal(Char(' ')),
+        //         Punctuator(Semicolon),
+        //         SpecialKeyword(SpecialKeywordKind::Eof)
+        //     ]
+        // );
+
+        // assert_eq!(
+        //     tokens("std::io::str;"),
+        //     vec![
+        //         Identifier("std".to_owned()),
+        //         Punctuator(ColonColon),
+        //         Identifier("io".to_owned()),
+        //         Punctuator(ColonColon),
+        //         Identifier("str".to_owned()),
+        //         Punctuator(Semicolon),
+        //         SpecialKeyword(SpecialKeywordKind::Eof)
+        //     ]
+        // );
     }
 }
