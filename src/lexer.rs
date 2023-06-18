@@ -33,14 +33,6 @@ pub fn is_hexadecimal(c: &char) -> bool {
     // let lower = ('a'..='f').contains(c);
     // num || upper || lower
 }
-pub fn is_octal(c: &char) -> bool {
-    // c.is_digit(8)
-    ('0'..='7').contains(c)
-}
-pub fn is_binary(c: &char) -> bool {
-    // c.is_digit(2)
-    ('0'..='1').contains(c)
-}
 fn is_alpha(c: &char) -> bool {
     // let is_alphabetic = c.is_alphabetic();
     // let underscore = c == &'_';
@@ -55,10 +47,10 @@ fn is_alpha_numeric(c: &char) -> bool {
     // c.is_alphanumeric()
     is_digit(c) || is_alpha(c)
 }
-fn is_left_whitespace(c: &char) -> bool {
+pub fn is_left_whitespace(c: &char) -> bool {
     c == &' '
 }
-fn is_right_whitespace(c: &char) -> bool {
+pub fn is_right_whitespace(c: &char) -> bool {
     c == &' '
 }
 
