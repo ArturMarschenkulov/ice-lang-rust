@@ -4,6 +4,24 @@ use super::*;
 use crate::lexer::Lexer;
 use crate::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
 
+/// Helper function to convert a string to a vector of token kinds.
+fn to_token_kinds(s: &str) -> Vec<TokenKind> {
+    Lexer::new_from_str(s)
+        .scan_tokens()
+        .iter()
+        .map(|t| t.kind.clone())
+        .collect::<Vec<_>>()
+}
+
+/// Helper function to convert a string to a vector of token spans.
+fn to_token_spans(s: &str) -> Vec<token::Span> {
+    Lexer::new_from_str(s)
+        .scan_tokens()
+        .iter()
+        .map(|t| t.span)
+        .collect::<Vec<_>>()
+}
+
 mod cursor {
     use super::*;
     #[test]
@@ -318,17 +336,8 @@ fn test_scan_tokens_KIND() {
     use PunctuatorKind::*;
     use TokenKind::*;
 
-    // use SpecialKeywordKind::*;
-    fn tokens(s: &str) -> Vec<TokenKind> {
-        Lexer::new_from_str(s)
-            .scan_tokens()
-            .iter()
-            .map(|t| t.kind.clone())
-            .collect::<Vec<_>>()
-    }
-
     assert_eq!(
-        tokens("var a := 2222;"),
+        to_token_kinds("var a := 2222;"),
         vec![
             Keyword(Var),
             Identifier(String::from("a")),
@@ -340,7 +349,7 @@ fn test_scan_tokens_KIND() {
         ]
     );
     assert_eq!(
-        tokens(r#"var a := "hello";"#),
+        to_token_kinds(r#"var a := "hello";"#),
         vec![
             Keyword(Var),
             Identifier(String::from("a")),
@@ -352,7 +361,7 @@ fn test_scan_tokens_KIND() {
         ]
     );
     assert_eq!(
-        tokens(r#"var a := ' ';"#),
+        to_token_kinds(r#"var a := ' ';"#),
         vec![
             Keyword(Var),
             Identifier(String::from("a")),
@@ -365,7 +374,7 @@ fn test_scan_tokens_KIND() {
     );
 
     assert_eq!(
-        tokens(
+        to_token_kinds(
             r#"var a := ' ';
         var a := ' ';"#
         ),
@@ -387,7 +396,7 @@ fn test_scan_tokens_KIND() {
     );
 
     assert_eq!(
-        tokens("std::io::str;"),
+        to_token_kinds("std::io::str;"),
         vec![
             Identifier("std".to_owned()),
             Punctuator(ColonColon),
@@ -403,17 +412,9 @@ fn test_scan_tokens_KIND() {
 fn test_scan_tokens_SPAN() {
     use token::*;
 
-    // use SpecialKeywordKind::*;
-    fn tokens(s: &str) -> Vec<Span> {
-        Lexer::new_from_str(s)
-            .scan_tokens()
-            .iter()
-            .map(|t| t.span)
-            .collect::<Vec<_>>()
-    }
 
     assert_eq!(
-        tokens("var a := 2222;"),
+        to_token_spans("var a := 2222;"),
         vec![
             Span::from(((1, 1), (1, 3))),   // var
             Span::from(((1, 5), (1, 5))),   // a
@@ -425,7 +426,7 @@ fn test_scan_tokens_SPAN() {
         ]
     );
     assert_eq!(
-        tokens(r#"var a := "hello";"#),
+        to_token_spans(r#"var a := "hello";"#),
         vec![
             Span::from(((1, 1), (1, 3))),   // var
             Span::from(((1, 5), (1, 5))),   // a
@@ -458,7 +459,7 @@ fn test_scan_tokens_SPAN() {
     //     ]
     // );
     assert_eq!(
-        tokens(r#"var a := ' ';"#),
+        to_token_spans(r#"var a := ' ';"#),
         vec![
             Span::from(((1, 1), (1, 3))),   // var
             Span::from(((1, 5), (1, 5))),   // a
@@ -471,7 +472,7 @@ fn test_scan_tokens_SPAN() {
     );
 
     assert_eq!(
-        tokens("std::io::str;"),
+        to_token_spans("std::io::str;"),
         vec![
             Span::from(((1, 1), (1, 3))),   // std
             Span::from(((1, 4), (1, 5))),   // ::
