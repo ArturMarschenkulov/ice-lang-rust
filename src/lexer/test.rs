@@ -484,3 +484,69 @@ fn test_scan_tokens_SPAN() {
         ]
     );
 }
+
+#[test]
+fn test_complex_token_cooking() {
+    use token::*;
+    use PunctuatorKind::*;
+    use TokenKind::*;
+
+    assert_eq!(
+        to_token_kinds(".."),
+        vec![
+            Punctuator(PunctuatorKind::Complex(vec![
+                PunctuatorKind::Dot,
+                PunctuatorKind::Dot
+            ])),
+            SpecialKeyword(SpecialKeywordKind::Eof),
+        ],
+    );
+
+    assert_eq!(
+        to_token_kinds("++"),
+        vec![
+            Punctuator(PunctuatorKind::Complex(vec![
+                PunctuatorKind::Plus,
+                PunctuatorKind::Plus
+            ])),
+            SpecialKeyword(SpecialKeywordKind::Eof),
+        ],
+    );
+
+    assert_eq!(
+        to_token_kinds("=."),
+        vec![
+            Punctuator(Equal),
+            Punctuator(Dot),
+            SpecialKeyword(SpecialKeywordKind::Eof),
+        ],
+    );
+
+    assert_eq!(
+        to_token_kinds(".=."),
+        vec![
+            Punctuator(Dot),
+            Punctuator(Equal),
+            Punctuator(Dot),
+            SpecialKeyword(SpecialKeywordKind::Eof),
+        ],
+    );
+
+    assert_eq!(
+        to_token_kinds(":=:"),
+        vec![
+            Punctuator(Colon),
+            Punctuator(Equal),
+            Punctuator(Colon),
+            SpecialKeyword(SpecialKeywordKind::Eof),
+        ],
+    );
+    assert_eq!(
+        to_token_kinds(":="),
+        vec![
+            Punctuator(Colon),
+            Punctuator(Equal),
+            SpecialKeyword(SpecialKeywordKind::Eof),
+        ],
+    );
+}
