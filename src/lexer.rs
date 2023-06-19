@@ -71,6 +71,78 @@ struct Lexer {
     cursor: token::Position,
 }
 
+fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &mut Vec<Token>) {
+    use PunctuatorKind::*;
+    use TokenKind::*;
+    // In this part we combine simple punctuator tokens to complex ones, if possible
+
+    // `punc_cache` is where copies of the previous punctuators lie,
+    // which could be combined to a complex token.
+
+    // If the scanned token is not a punctuator the `punc_cache` is flushed.
+
+    // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
+    //
+    // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.
+    // - valid examples: `.`, `.=`, `..`
+    // - invalid examples: `=.`, `.=.`
+    //
+    // `:`: Must be the first punctuator OR all the preceding punctuators must be `:`
+    // - valid examples: `:`, `::`
+    // - invalid examples: `:=:`
+    //
+    // `=`: It can't form a complex token with a preceding `:`.
+
+    // If it goes to `punc_cache` it is meant that it is cached to be potentially used for a complex token
+    // To the `tokens` simply means it goes to the token stream.
+    enum Action {
+        ToTokens,
+        ToPuncCache,
+    }
+
+    fn action_based_on_token(punc_cache: &[Token], token: &Token) -> Action {
+        let mut action = Action::ToTokens;
+        if let Punctuator(punc) = &token.kind {
+            action = Action::ToPuncCache;
+            let punc_last_kind = punc_cache.last().map(|p| p.kind.clone());
+
+            if punc.is_structural() {
+                action = Action::ToTokens;
+                let (is_last_p_same, is_last_p_colonequal) = punc_last_kind
+                    .as_ref()
+                    .map(|p| {
+                        (
+                            p == &Punctuator(punc.clone()),
+                            p == &Punctuator(Colon) && punc == &Equal,
+                        )
+                    })
+                    .unwrap_or((false, false));
+                if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_p_same) {
+                    action = Action::ToPuncCache;
+                    if is_last_p_colonequal {
+                        action = Action::ToPuncCache;
+                    }
+                }
+            }
+        }
+        action
+    }
+
+    let action = action_based_on_token(punc_cache, &token);
+    match action {
+        Action::ToTokens => {
+            if !punc_cache.is_empty() {
+                tokens.push(cook_tokens(punc_cache));
+                punc_cache.clear();
+            }
+            if !token.kind.is_to_skip() {
+                tokens.push(token);
+            }
+        }
+        Action::ToPuncCache => punc_cache.push(token),
+    }
+}
+
 impl Lexer {
     fn new_from_str(source: &str) -> Self {
         Self {
@@ -80,7 +152,6 @@ impl Lexer {
         }
     }
     fn scan_tokens(&mut self) -> Vec<Token> {
-        use PunctuatorKind::*;
         use TokenKind::*;
 
         // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
@@ -91,70 +162,7 @@ impl Lexer {
                 tokens.push(token);
                 break;
             }
-            // In this part we combine simple punctuator tokens to complex ones, if possible
-
-            // `punc_cache` is where copies of the previous punctuators lie,
-            // which could be combined to a complex token.
-
-            // If the scanned token is not a punctuator the `punc_cache` is flushed.
-
-            // Generally speaking, there are special rules for combining structural punctuators into complex puncturators.
-            //
-            // `.`: Must be the first punctuator OR all the preceding punctuators must be `.`.
-            // - valid examples: `.`, `.=`, `..`
-            // - invalid examples: `=.`, `.=.`
-            //
-            // `:`: Must be the first punctuator OR all the preceding punctuators must be `:`
-            // - valid examples: `:`, `::`
-            // - invalid examples: `:=:`
-            //
-            // `=`: It can't form a complex token with a preceding `:`.
-
-            // If it goes to `punc_cache` it is meant that it is cached to be potentially used for a complex token
-            // To the `tokens` simply means it goes to the token stream.
-            enum Action {
-                ToTokens,
-                ToPuncCache,
-            }
-            let mut action = Action::ToTokens;
-
-            let punc_last_kind = punc_cache.last().map(|p| p.kind.clone());
-
-            if let Punctuator(punc) = &token.kind {
-                action = Action::ToPuncCache;
-
-                if punc.is_structural() {
-                    action = Action::ToTokens;
-                    let (is_last_p_same, is_last_p_colonequal) = punc_last_kind
-                        .as_ref()
-                        .map(|p| {
-                            (
-                                p == &Punctuator(punc.clone()),
-                                p == &Punctuator(Colon) && punc == &Equal,
-                            )
-                        })
-                        .unwrap_or((false, false));
-                    if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_p_same) {
-                        action = Action::ToPuncCache;
-                        if is_last_p_colonequal {
-                            action = Action::ToPuncCache;
-                        }
-                    }
-                }
-            }
-
-            match action {
-                Action::ToTokens => {
-                    if !punc_cache.is_empty() {
-                        tokens.push(cook_tokens(&punc_cache));
-                        punc_cache.clear();
-                    }
-                    if !token.kind.is_to_skip() {
-                        tokens.push(token);
-                    }
-                }
-                Action::ToPuncCache => punc_cache.push(token),
-            }
+            maybe_add_to_token_cache(&mut punc_cache, token, &mut tokens);
         }
         if !punc_cache.is_empty() {
             tokens.push(cook_tokens(&punc_cache));
