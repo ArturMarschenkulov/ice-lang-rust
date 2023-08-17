@@ -10,7 +10,7 @@ impl Parser {
         let ty = match &token.kind {
             TokenKind::Identifier(..) => {
                 let ty = Ty {
-                    kind: TyKind::Simple(Identifier::from_token(token.clone())),
+                    kind: TyKind::Simple(Identifier::from(token.clone())),
                 };
 
                 self.advance();

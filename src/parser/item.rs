@@ -93,7 +93,7 @@ impl Parser {
         };
 
         let var_decl = StmtKind::Var {
-            var: Identifier::from_token(name),
+            var: Identifier::from(name),
             ty,
             init: expr,
         };

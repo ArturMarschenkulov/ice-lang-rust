@@ -3,6 +3,13 @@ pub struct Identifier {
     pub name: crate::token::Token,
 }
 
+impl From<crate::token::Token> for Identifier {
+    fn from(token: crate::token::Token) -> Self {
+        // assert!(token.kind.is_identifier());
+        Identifier { name: token }
+    }
+}
+
 pub struct Operator {
     pub name: crate::token::Token,
 }
@@ -18,12 +25,6 @@ struct Typed<T> {
     ty: Ty,
 }
 
-impl Identifier {
-    pub fn from_token(token: crate::token::Token) -> Self {
-        // assert!(token.kind.is_identifier());
-        Identifier { name: token }
-    }
-}
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     Literal(crate::token::LiteralKind), // 3, 5.0, "hello", 'c', true, false
