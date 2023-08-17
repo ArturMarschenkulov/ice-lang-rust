@@ -100,27 +100,50 @@ fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &
         ToPuncCache,
     }
 
+    fn action_based_on_token_(punc_cache: &[Token], token: &Token) -> Action {
+        if let Punctuator(punc) = &token.kind {
+            if punc.is_structural() {
+                let (is_last_p_same, is_last_p_colonequal) = punc_cache
+                    .last()
+                    .map(|p| {
+                        (
+                            p.kind == Punctuator(punc.clone()),
+                            p.kind == Punctuator(Colon) && punc == &Equal,
+                        )
+                    })
+                    .unwrap_or((false, false));
+                if [Dot, Colon].contains(punc)
+                    && (punc_cache.is_empty() || is_last_p_same || is_last_p_colonequal)
+                {
+                    return Action::ToPuncCache;
+                }
+                return Action::ToTokens;
+            } else {
+                return Action::ToPuncCache;
+            }
+        }
+        Action::ToTokens
+    }
+
     fn action_based_on_token(punc_cache: &[Token], token: &Token) -> Action {
         let mut action = Action::ToTokens;
         if let Punctuator(punc) = &token.kind {
             action = Action::ToPuncCache;
-            let punc_last_kind = punc_cache.last().map(|p| p.kind.clone());
-
             if punc.is_structural() {
                 action = Action::ToTokens;
-                let (is_last_p_same, is_last_p_colonequal) = punc_last_kind
-                    .as_ref()
+                let (is_last_p_same, is_last_p_colonequal) = punc_cache
+                    .last()
                     .map(|p| {
                         (
-                            p == &Punctuator(punc.clone()),
-                            p == &Punctuator(Colon) && punc == &Equal,
+                            p.kind == Punctuator(punc.clone()),
+                            p.kind == Punctuator(Colon) && punc == &Equal,
                         )
                     })
                     .unwrap_or((false, false));
                 if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_p_same) {
                     action = Action::ToPuncCache;
                     if is_last_p_colonequal {
-                        action = Action::ToPuncCache;
+                        action = Action::ToTokens;
                     }
                 }
             }
@@ -159,14 +182,14 @@ impl Lexer {
         let mut tokens = Vec::new();
         while let Ok(token) = self.scan_token() {
             if token.kind == SpecialKeyword(SpecialKeywordKind::Eof) {
+                if !punc_cache.is_empty() {
+                    tokens.push(cook_tokens(&punc_cache));
+                    punc_cache.clear();
+                }
                 tokens.push(token);
                 break;
             }
             maybe_add_to_token_cache(&mut punc_cache, token, &mut tokens);
-        }
-        if !punc_cache.is_empty() {
-            tokens.push(cook_tokens(&punc_cache));
-            punc_cache.clear();
         }
         tokens
     }
@@ -539,13 +562,6 @@ impl Lexer {
             lit if is_lit_bool(lit) => LiteralKind::try_from(lit).map_or_else(Identifier, Literal),
             kw => KeywordKind::try_from(kw).map_or_else(Identifier, Keyword),
         };
-        // match &token {
-        //     Keyword(kw) => self.cursor.column += (kw.len()) as u32,
-        //     Identifier(id) => self.cursor.column += (id.len() - 1) as u32,
-        //     Literal(Boolean(false)) => self.cursor.column += ("false".len() - 1) as u32,
-        //     Literal(Boolean(true)) => self.cursor.column += ("true".len() - 1) as u32,
-        //     other => panic!("Identifier not a keyword or identifier. {:?}", other),
-        // };
         Ok(token)
     }
 }
