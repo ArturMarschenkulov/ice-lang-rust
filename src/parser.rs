@@ -121,36 +121,35 @@ impl Parser {
     }
 }
 
+/// Adjusts the given index by the given offset safely.
+///
+/// This function takes an index as a `usize` and an offset as an `isize`. It attempts to add or subtract the offset
+/// to/from the index based on the sign of the offset. It ensures that the operation is checked, meaning that it will not
+/// cause any overflow or underflow.
+fn adjust_index_safely(index: usize, offset: isize) -> Option<usize> {
+    match offset.is_positive() {
+        true => index.checked_add(offset as usize),
+        false => index.checked_sub(-offset as usize),
+    }
+}
+
 /// This impl block is for the cursor functionality
 impl Parser {
     fn peek(&self, offset: isize) -> Option<&Token> {
-        let new_offset = if offset.is_negative() {
-            self.current.checked_sub(-offset as usize)
-        } else if offset.is_positive() {
-            self.current.checked_add(offset as usize)
-        } else {
-            Some(self.current)
-        };
-
-        match new_offset {
-            Some(new_offset) => self.tokens.get(new_offset),
-            None => None,
-        }
+        adjust_index_safely(self.current, offset).and_then(|new_offset| self.tokens.get(new_offset))
     }
 
     fn check(&self, kind: &TokenKind, offset: isize) -> Result<&Token, Option<&Token>> {
         self.check_with(offset, |tk| tk == kind)
     }
-    fn check_with<F>(&self, offset: isize, func: F) -> Result<&Token, Option<&Token>>
+    fn check_with<F>(&self, offset: isize, pred: F) -> Result<&Token, Option<&Token>>
     where
         Self: Sized,
         F: Fn(&TokenKind) -> bool,
     {
-        match self.peek(offset) {
-            Some(token) if func(&token.kind) => Ok(token),
-            peeked @ Some(_) => Err(peeked),
-            None => Err(None),
-        }
+        self.peek(offset)
+            .map(|c| if pred(&c.kind) { Ok(c) } else { Err(Some(c)) })
+            .unwrap_or(Err(None))
     }
     fn eat(&mut self, kind: &TokenKind) -> Result<&Token, Option<&Token>> {
         self.eat_with(|t| t == kind)
@@ -170,7 +169,7 @@ impl Parser {
     fn eat_just(&mut self) -> Result<&Token, Option<&Token>> {
         self.eat_with(|_| true)
     }
-    fn eat_with<F>(&mut self, func: F) -> Result<&Token, Option<&Token>>
+    fn eat_with<F>(&mut self, pred: F) -> Result<&Token, Option<&Token>>
     where
         Self: Sized,
         F: Fn(&TokenKind) -> bool,
@@ -180,24 +179,29 @@ impl Parser {
         // but for now we'll just use this.
         // TODO: If polonius is ready, use the better version.
 
-        if let Ok(..) = self.check_with(0, &func) {
+        if let Ok(..) = self.check_with(0, &pred) {
             self.advance()
         }
 
         match self.peek(-1) {
-            Some(token) if func(&token.kind) => Ok(token),
+            Some(token) if pred(&token.kind) => Ok(token),
             peeked @ Some(..) => Err(peeked),
             None => Err(None),
         }
 
         // // After polonius is ready, this SHOULD work
-        // match self.check_at_with(0, &func) {
+        // match self.check_with(0, &pred) {
         //     Ok(token) => {
         //         self.advance();
         //         Ok(token)
-        //     },
+        //     }
         //     Err(err) => Err(err),
         // }
+
+        // self.check_with(0, &pred).map(|tok| {
+        //     self.advance();
+        //     tok
+        // })
     }
     fn advance(&mut self) {
         if !self.is_at_end() {
