@@ -274,9 +274,14 @@ impl Parser {
         };
         Ok(expr)
     }
+    /// Parses a binary or unary expression.
+    ///
+    /// This function is recursive, and it uses Pratt parsing. This function is based on [this article](https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html).
+    ///
+    /// This function is also used as an entry point for parsing expressions. In that case the `prev_bp` is `BindingPower::new()`.
     fn parse_expr_binary(&mut self, prev_bp: BindingPower) -> PResult<Expr> {
         let un_prefix = self.peek(0).unwrap();
-        let mut left = match get_binding_power_un_prefix(self, un_prefix) {
+        let mut left = match prefix_binding_power(self, un_prefix) {
             Some(bp) if bp.left >= prev_bp.right => {
                 let op = self.eat_punctuator().unwrap().clone();
                 let right = self.parse_expr_binary(bp).unwrap();
@@ -289,13 +294,17 @@ impl Parser {
 
         loop {
             let bin_infix = self.peek(0).unwrap();
-            match get_binding_power_bin_infix(self, bin_infix) {
+            match infix_binding_power(self, bin_infix) {
+                // This is not a binary infix operator.
                 None => break,
+                // This is a binary infix operator, but it binds less tightly than the previous operator.
                 Some(bp) if bp.left < prev_bp.right => break,
+                // This is a binary infix operator, but it binds equally tightly as the previous operator.
                 Some(bp) if bp.left == prev_bp.right => panic!(
                     "Operators have the same precedence and are non-associative. This is not {:?}",
                     self.peek(0)
                 ),
+                // This is a binary infix operator, but it binds more tightly than the previous operator.
                 Some(bp) => {
                     let operator = self.eat_punctuator().unwrap().clone();
                     let right = self.parse_expr_binary(bp).unwrap();
@@ -313,8 +322,11 @@ impl Parser {
     }
 
     pub fn parse_identifier(&mut self) -> PResult<Identifier> {
-        let token = self.eat_identifier().unwrap().clone();
-        let identifier = Identifier::from_token(token);
+        let token = match self.eat_identifier() {
+            Ok(token) => token.clone(),
+            Err(token) => panic!("Expected identifier, got {:?}", token),
+        };
+        let identifier = Identifier::from(token);
         Ok(identifier)
     }
     fn parse_symbol(&mut self) -> PResult<Expr> {
@@ -326,7 +338,7 @@ impl Parser {
             ids.push(self.parse_identifier().unwrap());
         }
 
-        let actual_id = ids.pop().unwrap();
+        let actual_id = ids.pop().expect("Expected identifier");
         let actual_path = if ids.is_empty() { None } else { Some(ids) };
 
         let expr = Expr {
