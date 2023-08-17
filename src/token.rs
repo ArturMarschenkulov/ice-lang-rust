@@ -669,7 +669,10 @@ impl LiteralKind {
     pub fn boolean(content: bool) -> Self {
         LiteralKind::Boolean(content)
     }
-    pub fn from_str(s: &str) -> Result<LiteralKind, String> {
+}
+impl TryFrom<&str> for LiteralKind {
+    type Error = String;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         use LiteralKind::*;
         match s {
             "true" => Ok(Boolean(true)),

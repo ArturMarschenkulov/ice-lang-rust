@@ -536,7 +536,7 @@ impl Lexer {
         // Here we determine whether the identifier is a keyword or not.
 
         let token = match string_content.as_ref() {
-            lit if is_lit_bool(lit) => LiteralKind::from_str(lit).map_or_else(Identifier, Literal),
+            lit if is_lit_bool(lit) => LiteralKind::try_from(lit).map_or_else(Identifier, Literal),
             kw => KeywordKind::try_from(kw).map_or_else(Identifier, Keyword),
         };
         // match &token {
