@@ -1,6 +1,6 @@
+use super::error::*;
 use super::{PResult, Parser};
 use crate::ast::{Identifier, Ty, TyKind};
-use crate::error::ParserError;
 use crate::token::{PunctuatorKind, TokenKind};
 
 /// This impl block is for parsing the types
