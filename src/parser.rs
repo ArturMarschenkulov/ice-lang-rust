@@ -95,7 +95,7 @@ impl Parser {
         Self {
             tokens,
             current: 0,
-            infix_bp: expr::set_binding_power_bin_infix(),
+            infix_bp: expr::BindingPower::infix_binding_powers(),
         }
     }
     fn parse_(&mut self) -> PResult<Vec<Item>> {

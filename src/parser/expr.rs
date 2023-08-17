@@ -8,6 +8,32 @@ enum Associativity {
     Right,
     None,
 }
+
+pub struct BindingPower2 {
+    associativity: Associativity,
+    precedence: u32,
+}
+impl BindingPower2 {
+    fn new() -> Self {
+        Self {
+            associativity: Associativity::None,
+            precedence: 0,
+        }
+    }
+    fn from(precedence: u32, associativity: Associativity) -> Self {
+        Self {
+            associativity,
+            precedence,
+        }
+    }
+    fn is_zero(&self) -> bool {
+        self.precedence == 0
+    }
+}
+
+/// `BindingPower` represents the binding power of an operator. It combines both precedence and associativity.
+///
+/// Unlike traditional precedence where the smaller the number the more tightly it binds, here the bigger the number the more tightly it binds.
 #[derive(Clone)]
 pub struct BindingPower {
     left: f32,
@@ -38,90 +64,89 @@ impl BindingPower {
             },
         }
     }
-    // fn is_zero(&self) -> bool {
-    //     self.left == 0.0 && self.right == 0.0
-    // }
 }
 
-pub fn set_binding_power_bin_infix() -> std::collections::HashMap<String, BindingPower> {
-    use std::collections::HashMap;
-    use Associativity::*;
-    use PunctuatorKind::*;
-    use TokenKind::*;
-    let arr = [
-        //
-        (Punctuator(Asterisk), 7, Left),
-        (Punctuator(Slash), 7, Left),
-        (Punctuator(Percent), 7, Left),
-        //
-        (Punctuator(Plus), 6, Left),
-        (Punctuator(Minus), 6, Left),
-        //
-        (Punctuator(Less), 4, None),
-        (Punctuator(LessEqual), 4, None),
-        (Punctuator(Greater), 3, None),
-        (Punctuator(GreaterEqual), 4, None),
-        (Punctuator(EqualEqual), 4, None),
-        (Punctuator(BangEqual), 4, None),
-        //
-        (Punctuator(Ampersand), 3, None),
-        (Punctuator(VerticalBar), 2, None),
-        //
-        (Punctuator(Equal), 1, Right),
-    ];
-    // Workaround, so that we don't have to implement stuff only for the HashMap.
-    fn stringify(tk: &TokenKind) -> String {
-        format!("{:?}", tk)
+/// This is for the default binding powers impl. This is intended to be temporary, as in the future the user will be able to change the binding powers
+/// and the default binding powers will be in a standard library.
+impl BindingPower {
+    pub fn infix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
+        use std::collections::HashMap;
+        use Associativity::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
+        let arr = [
+            //
+            (Punctuator(Asterisk), 7, Left),
+            (Punctuator(Slash), 7, Left),
+            (Punctuator(Percent), 7, Left),
+            //
+            (Punctuator(Plus), 6, Left),
+            (Punctuator(Minus), 6, Left),
+            //
+            (Punctuator(Less), 4, None),
+            (Punctuator(LessEqual), 4, None),
+            (Punctuator(Greater), 3, None),
+            (Punctuator(GreaterEqual), 4, None),
+            (Punctuator(EqualEqual), 4, None),
+            (Punctuator(BangEqual), 4, None),
+            //
+            (Punctuator(Ampersand), 3, None),
+            (Punctuator(VerticalBar), 2, None),
+            //
+            (Punctuator(Equal), 1, Right),
+        ];
+        // Workaround, so that we don't have to implement stuff only for the HashMap.
+        fn stringify(tk: &TokenKind) -> String {
+            format!("{:?}", tk)
+        }
+        arr.iter()
+            .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+            .collect::<HashMap<String, BindingPower>>()
     }
-    arr.iter()
-        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
-        .collect::<HashMap<String, BindingPower>>()
-}
-
-pub fn set_binding_power_un_postfix() -> std::collections::HashMap<String, BindingPower> {
-    use std::collections::HashMap;
-
-    fn stringify(tk: &TokenKind) -> String {
-        format!("{:?}", tk)
+    pub fn postfix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
+        use std::collections::HashMap;
+        fn stringify(tk: &TokenKind) -> String {
+            format!("{:?}", tk)
+        }
+        let arr: [(TokenKind, u32, Associativity); 0] = [];
+        arr.iter()
+            .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+            .collect::<HashMap<String, BindingPower>>()
     }
-    let arr: [(TokenKind, u32, Associativity); 0] = [];
-    arr.iter()
-        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
-        .collect::<HashMap<String, BindingPower>>()
-}
-pub fn set_binding_power_un_prefix() -> std::collections::HashMap<String, BindingPower> {
-    use std::collections::HashMap;
-    use Associativity::*;
-    use PunctuatorKind::*;
-    use TokenKind::*;
-    fn stringify(tk: &TokenKind) -> String {
-        format!("{:?}", tk)
+    pub fn prefix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
+        use std::collections::HashMap;
+        use Associativity::*;
+        use PunctuatorKind::*;
+        use TokenKind::*;
+        fn stringify(tk: &TokenKind) -> String {
+            format!("{:?}", tk)
+        }
+        let arr = [(Punctuator(Plus), 6, Right), (Punctuator(Minus), 6, Right)];
+        arr.iter()
+            .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+            .collect::<HashMap<String, BindingPower>>()
     }
-    let arr = [(Punctuator(Plus), 6, Right), (Punctuator(Minus), 6, Right)];
-    arr.iter()
-        .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
-        .collect::<HashMap<String, BindingPower>>()
 }
 
-fn get_binding_power_bin_infix(p: &Parser, token: &Token) -> Option<BindingPower> {
+fn infix_binding_power(p: &Parser, token: &Token) -> Option<BindingPower> {
     fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
     p.infix_bp.get(&stringify(&token.kind)).cloned()
 }
-fn get_binding_power_un_postfix(_p: &Parser, token: &Token) -> Option<BindingPower> {
+fn postfix_binding_power(_p: &Parser, token: &Token) -> Option<BindingPower> {
     fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
-    set_binding_power_un_postfix()
+    BindingPower::postfix_binding_powers()
         .get(&stringify(&token.kind))
         .cloned()
 }
-fn get_binding_power_un_prefix(_p: &Parser, token: &Token) -> Option<BindingPower> {
+fn prefix_binding_power(_p: &Parser, token: &Token) -> Option<BindingPower> {
     fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
-    set_binding_power_un_prefix()
+    BindingPower::prefix_binding_powers()
         .get(&stringify(&token.kind))
         .cloned()
 }
