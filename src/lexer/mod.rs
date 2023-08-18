@@ -7,13 +7,15 @@
 //! - [ ] Implement nested comments.
 //! - [ ] Consider adding different comment styles.
 
+mod error;
+mod test;
+
 use crate::token;
 use crate::token::{
     cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind,
     SpecialKeywordKind, Token, TokenKind,
 };
-mod error;
-mod test;
+
 use error::LexerError;
 
 type LResult<T> = Result<T, LexerError>;

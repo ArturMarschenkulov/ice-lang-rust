@@ -1,8 +1,9 @@
 #![cfg(test)]
 
-use super::*;
 use crate::lexer::Lexer;
 use crate::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
+
+use super::*;
 
 /// Helper function to convert a string to a vector of token kinds.
 fn to_token_kinds(s: &str) -> Vec<TokenKind> {

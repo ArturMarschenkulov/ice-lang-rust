@@ -1,6 +1,7 @@
+use crate::ast::{Expr, ExprKind, Identifier, Operator, Stmt};
+use crate::token::{KeywordKind, PunctuatorKind, TokenKind};
+
 use super::{PResult, Parser};
-use crate::ast::{Expr, ExprKind, Identifier, Stmt};
-use crate::token::{KeywordKind, PunctuatorKind, Token, TokenKind};
 
 #[derive(Clone, Copy)]
 enum Associativity {

@@ -1,13 +1,13 @@
-use crate::ast::{Item, Module, Project};
-
-use crate::token::{SpecialKeywordKind, Token, TokenKind};
-
 mod error;
 mod expr;
 mod item;
 mod stmt;
 mod ty;
 use error::ParserError;
+
+use crate::ast::{Item, Module, Project};
+use crate::token::{SpecialKeywordKind, Token, TokenKind};
+
 
 #[allow(unused_macros)]
 macro_rules! get_function_name {

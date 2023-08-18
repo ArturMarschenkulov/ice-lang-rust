@@ -1,6 +1,7 @@
-use super::{PResult, Parser};
 use crate::ast::{ExprKind, Stmt, StmtKind};
 use crate::token::{KeywordKind, PunctuatorKind, TokenKind};
+
+use super::{PResult, Parser};
 
 /// This impl block is for parsing statements
 impl Parser {

@@ -1,7 +1,8 @@
-use super::error::*;
-use super::{PResult, Parser};
 use crate::ast::{Identifier, Ty, TyKind};
 use crate::token::{PunctuatorKind, TokenKind};
+
+use super::error::*;
+use super::{PResult, Parser};
 
 /// This impl block is for parsing the types
 impl Parser {
