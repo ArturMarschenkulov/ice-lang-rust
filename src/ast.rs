@@ -1,11 +1,11 @@
 #[derive(Clone, Debug)]
 pub struct Identifier {
-    name: crate::token::Token,
+    name: crate::lexer::token::Token,
 }
 
 impl Identifier {
     fn name(&self) -> &str {
-        if let crate::token::TokenKind::Identifier(name) = &self.name.kind {
+        if let crate::lexer::token::TokenKind::Identifier(name) = &self.name.kind {
             name
         } else {
             panic!("Expected identifier")
@@ -13,9 +13,9 @@ impl Identifier {
     }
 }
 
-impl TryFrom<crate::token::Token> for Identifier {
+impl TryFrom<crate::lexer::token::Token> for Identifier {
     type Error = &'static str;
-    fn try_from(token: crate::token::Token) -> Result<Self, Self::Error> {
+    fn try_from(token: crate::lexer::token::Token) -> Result<Self, Self::Error> {
         // // assert!(token.kind.is_identifier());
         // Identifier { name: token }
         Some(Identifier { name: token }).ok_or("Expected identifier")
@@ -24,13 +24,13 @@ impl TryFrom<crate::token::Token> for Identifier {
 
 #[derive(Clone, Debug)]
 pub struct Operator {
-    pub name: crate::token::Token,
+    pub name: crate::lexer::token::Token,
 }
 
-impl TryFrom<crate::token::Token> for Operator {
+impl TryFrom<crate::lexer::token::Token> for Operator {
     type Error = &'static str;
 
-    fn try_from(token: crate::token::Token) -> Result<Self, Self::Error> {
+    fn try_from(token: crate::lexer::token::Token) -> Result<Self, Self::Error> {
         Some(Operator { name: token }).ok_or("Expected operator")
     }
 }
@@ -48,7 +48,7 @@ struct Typed<T> {
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
-    Literal(crate::token::LiteralKind), // 3, 5.0, "hello", 'c', true, false
+    Literal(crate::lexer::token::LiteralKind), // 3, 5.0, "hello", 'c', true, false
     Grouping(Box<Expr>),                // (3, 5, 6)
     BinaryInfix(Box<Expr>, Operator, Box<Expr>), // 3 + 5, 3 * 5, 3 / 5, 3 - 5
     UnaryPrefix(Operator, Box<Expr>),   // -3, !true
@@ -264,7 +264,7 @@ impl DebugTreePrinter for Expr {
                         .unwrap()
                         .iter()
                         .map(|t| {
-                            if let crate::token::TokenKind::Identifier(id) = &t.name.kind {
+                            if let crate::lexer::token::TokenKind::Identifier(id) = &t.name.kind {
                                 id.clone()
                             } else {
                                 panic!("Expected identifier")

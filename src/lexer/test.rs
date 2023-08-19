@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::lexer::Lexer;
-use crate::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
+use super::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
 
 use super::*;
 

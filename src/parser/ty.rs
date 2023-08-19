@@ -1,5 +1,5 @@
 use crate::ast::{Identifier, Ty, TyKind};
-use crate::token::{PunctuatorKind, TokenKind};
+use super::super::lexer::token::{PunctuatorKind, TokenKind};
 
 use super::error::*;
 use super::{PResult, Parser};

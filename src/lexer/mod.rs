@@ -9,10 +9,10 @@
 
 mod error;
 mod cursor;
+pub mod token;
 mod test;
 
-use crate::token;
-use crate::token::{
+use token::{
     cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind,
     SpecialKeywordKind, Token, TokenKind,
 };

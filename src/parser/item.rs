@@ -1,5 +1,5 @@
 use crate::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
-use crate::token::{KeywordKind, PunctuatorKind, TokenKind};
+use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
 
 use super::{PResult, Parser};
 

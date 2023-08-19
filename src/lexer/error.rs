@@ -1,4 +1,4 @@
-use crate::token;
+use super::token;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct LexerError {

@@ -6,7 +6,7 @@ mod ty;
 use error::ParserError;
 
 use crate::ast::{Item, Module, Project};
-use crate::token::{SpecialKeywordKind, Token, TokenKind};
+use super::lexer::token::{SpecialKeywordKind, Token, TokenKind};
 
 
 #[allow(unused_macros)]
