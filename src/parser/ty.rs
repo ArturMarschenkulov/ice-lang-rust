@@ -1,4 +1,4 @@
-use crate::ast::{Identifier, Ty, TyKind};
+use super::ast::{Identifier, Ty, TyKind};
 use super::super::lexer::token::{PunctuatorKind, TokenKind};
 
 use super::error::*;

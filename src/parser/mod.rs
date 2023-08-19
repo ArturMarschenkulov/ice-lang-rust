@@ -3,9 +3,10 @@ mod expr;
 mod item;
 mod stmt;
 mod ty;
+pub mod ast;
 use error::ParserError;
 
-use crate::ast::{Item, Module, Project};
+use ast::{Item, Module, Project};
 use super::lexer::token::{SpecialKeywordKind, Token, TokenKind};
 
 

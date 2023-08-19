@@ -1,4 +1,4 @@
-use crate::ast::{Expr, ExprKind, Identifier, Operator, Stmt};
+use super::ast::{Expr, ExprKind, Identifier, Operator, Stmt};
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
 
 use super::{PResult, Parser};

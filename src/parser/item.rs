@@ -1,4 +1,4 @@
-use crate::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
+use super::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
 
 use super::{PResult, Parser};

@@ -1,4 +1,4 @@
-use crate::ast::{ExprKind, Stmt, StmtKind};
+use super::ast::{ExprKind, Stmt, StmtKind};
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
 
 use super::{PResult, Parser};
