@@ -282,13 +282,11 @@ impl Parser {
     /// This function is also used as an entry point for parsing expressions. In that case the `prev_bp` is `BindingPower::new()`.
     fn parse_expr_binary(&mut self, prev_bp: BindingPower) -> PResult<Expr> {
         let un_prefix = self.peek(0).unwrap();
-        let un_prefix = Operator {
-            name: un_prefix.clone(),
-        };
+        let un_prefix = Operator::try_from(un_prefix.clone()).unwrap();
         let mut left = match prefix_binding_power(self, &un_prefix) {
             Some(bp) if bp.left >= prev_bp.right => {
                 let op = self.eat_punctuator().unwrap().clone();
-                let op = Operator { name: op };
+                let op = Operator::try_from(op).unwrap();
                 let right = self.parse_expr_binary(bp).unwrap();
                 Expr {
                     kind: ExprKind::UnaryPrefix(op, Box::new(right)),
@@ -299,9 +297,7 @@ impl Parser {
 
         loop {
             let bin_infix = self.peek(0).unwrap();
-            let bin_infix = Operator {
-                name: bin_infix.clone(),
-            };
+            let bin_infix = Operator::try_from(bin_infix.clone()).unwrap();
             match infix_binding_power(self, &bin_infix) {
                 // This is not a binary infix operator.
                 None => break,
@@ -315,7 +311,7 @@ impl Parser {
                 // This is a binary infix operator, but it binds more tightly than the previous operator.
                 Some(bp) => {
                     let operator = self.eat_punctuator().unwrap().clone();
-                    let operator = Operator { name: operator };
+                    let operator = Operator::try_from(operator).unwrap();
                     let right = self.parse_expr_binary(bp).unwrap();
                     left = Expr {
                         kind: ExprKind::BinaryInfix(
@@ -335,7 +331,7 @@ impl Parser {
             Ok(token) => token.clone(),
             Err(token) => panic!("Expected identifier, got {:?}", token),
         };
-        let identifier = Identifier::from(token);
+        let identifier = Identifier::try_from(token).unwrap();
         Ok(identifier)
     }
     fn parse_symbol(&mut self) -> PResult<Expr> {

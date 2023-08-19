@@ -1,6 +1,6 @@
 #[derive(Clone, Debug)]
 pub struct Identifier {
-    pub name: crate::token::Token,
+    name: crate::token::Token,
 }
 
 impl Identifier {
@@ -13,16 +13,26 @@ impl Identifier {
     }
 }
 
-impl From<crate::token::Token> for Identifier {
-    fn from(token: crate::token::Token) -> Self {
-        // assert!(token.kind.is_identifier());
-        Identifier { name: token }
+impl TryFrom<crate::token::Token> for Identifier {
+    type Error = &'static str;
+    fn try_from(token: crate::token::Token) -> Result<Self, Self::Error> {
+        // // assert!(token.kind.is_identifier());
+        // Identifier { name: token }
+        Some(Identifier { name: token }).ok_or("Expected identifier")
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Operator {
     pub name: crate::token::Token,
+}
+
+impl TryFrom<crate::token::Token> for Operator {
+    type Error = &'static str;
+
+    fn try_from(token: crate::token::Token) -> Result<Self, Self::Error> {
+        Some(Operator { name: token }).ok_or("Expected operator")
+    }
 }
 
 // enum Delimiter {
@@ -41,7 +51,7 @@ pub enum ExprKind {
     Literal(crate::token::LiteralKind), // 3, 5.0, "hello", 'c', true, false
     Grouping(Box<Expr>),                // (3, 5, 6)
     BinaryInfix(Box<Expr>, Operator, Box<Expr>), // 3 + 5, 3 * 5, 3 / 5, 3 - 5
-    UnaryPrefix(Operator, Box<Expr>), // -3, !true
+    UnaryPrefix(Operator, Box<Expr>),   // -3, !true
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
