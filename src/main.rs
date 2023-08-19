@@ -1,18 +1,17 @@
 #![allow(dead_code)]
-mod ast;
 mod compiler;
-mod error;
 mod lexer;
 mod parser;
-mod token;
 
-use crate::ast::DebugTreePrinter;
-//use crate::evaluator::get_evaluation_from_ast;
-use crate::lexer::lex_tokens_from_file;
-use crate::parser::parse_project_from_file;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
+
+use crate::parser::ast::DebugTreePrinter;
+//use crate::evaluator::get_evaluation_from_ast;
+use crate::lexer::lex_tokens_from_file;
+use crate::parser::parse_project_from_file;
+
 //use crate::compiler::get_asm_from_ast;
 
 static TEXT: &str = r#"
@@ -61,7 +60,7 @@ fn print_time(vec: &Vec<(&str, std::time::Duration)>) {
         stage, nano_t, micro_t, mili_t, sec_t
     );
 }
-fn print_token_stream(tokens: &Vec<token::Token>) {
+fn print_token_stream(tokens: &Vec<lexer::token::Token>) {
     println!("----Token Stream----");
     for token in tokens {
         println!(
@@ -77,6 +76,16 @@ fn print_source_code(source: &str) {
     println!("{}", source);
     println!("~~~~Source Code~~~~");
     println!();
+}
+
+fn time_fn<F, A>(f: F) -> (A, std::time::Duration)
+where
+    F: FnOnce() -> A,
+{
+    let now = Instant::now();
+    let r = f();
+    let e = now.elapsed();
+    (r, e)
 }
 struct Ice {}
 impl Ice {
@@ -134,10 +143,7 @@ impl Ice {
             let lexer_str = ansi_term::Color::Cyan.paint(name).to_string();
             print_stage(&lexer_str);
         }
-        let now = Instant::now();
-        let res = f();
-        let time = now.elapsed();
-
+        let (res, time) = time_fn(f);
         if show_structure {
             f2(res.as_ref().unwrap())
         }
@@ -167,7 +173,7 @@ impl Ice {
             show_stages,
             show_ast_tree,
             || parse_project_from_file(tokens.clone()),
-            ast::Project::print_debug_tree,
+            parser::ast::Project::print_debug_tree,
         );
         time_vec.push(("Parser", parser_time));
         let _ast = _ast.unwrap();
@@ -193,7 +199,7 @@ fn lift_two<A, B, C>(this: Option<A>, right: Option<B>, func: fn(A, B) -> C) -> 
 
 /// Main entry point to the whole project/compiler
 fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
+    // std::env::set_var("RUST_BACKTRACE", "1");
     println!("------------------------------------------------------------");
     let mut ice = Ice {};
     ice.main();
