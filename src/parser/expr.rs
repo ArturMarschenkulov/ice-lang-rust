@@ -129,26 +129,26 @@ impl BindingPower {
     }
 }
 
-fn infix_binding_power(p: &Parser, token: &Token) -> Option<BindingPower> {
+fn infix_binding_power(p: &Parser, token: &Operator) -> Option<BindingPower> {
     fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
-    p.infix_bp.get(&stringify(&token.kind)).cloned()
+    p.infix_bp.get(&stringify(&token.name.kind)).cloned()
 }
-fn postfix_binding_power(_p: &Parser, token: &Token) -> Option<BindingPower> {
+fn postfix_binding_power(_p: &Parser, token: &Operator) -> Option<BindingPower> {
     fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
     BindingPower::postfix_binding_powers()
-        .get(&stringify(&token.kind))
+        .get(&stringify(&token.name.kind))
         .cloned()
 }
-fn prefix_binding_power(_p: &Parser, token: &Token) -> Option<BindingPower> {
+fn prefix_binding_power(_p: &Parser, token: &Operator) -> Option<BindingPower> {
     fn stringify(tk: &TokenKind) -> String {
         format!("{:?}", tk)
     }
     BindingPower::prefix_binding_powers()
-        .get(&stringify(&token.kind))
+        .get(&stringify(&token.name.kind))
         .cloned()
 }
 
@@ -282,9 +282,13 @@ impl Parser {
     /// This function is also used as an entry point for parsing expressions. In that case the `prev_bp` is `BindingPower::new()`.
     fn parse_expr_binary(&mut self, prev_bp: BindingPower) -> PResult<Expr> {
         let un_prefix = self.peek(0).unwrap();
-        let mut left = match prefix_binding_power(self, un_prefix) {
+        let un_prefix = Operator {
+            name: un_prefix.clone(),
+        };
+        let mut left = match prefix_binding_power(self, &un_prefix) {
             Some(bp) if bp.left >= prev_bp.right => {
                 let op = self.eat_punctuator().unwrap().clone();
+                let op = Operator { name: op };
                 let right = self.parse_expr_binary(bp).unwrap();
                 Expr {
                     kind: ExprKind::UnaryPrefix(op, Box::new(right)),
@@ -295,7 +299,10 @@ impl Parser {
 
         loop {
             let bin_infix = self.peek(0).unwrap();
-            match infix_binding_power(self, bin_infix) {
+            let bin_infix = Operator {
+                name: bin_infix.clone(),
+            };
+            match infix_binding_power(self, &bin_infix) {
                 // This is not a binary infix operator.
                 None => break,
                 // This is a binary infix operator, but it binds less tightly than the previous operator.
@@ -308,6 +315,7 @@ impl Parser {
                 // This is a binary infix operator, but it binds more tightly than the previous operator.
                 Some(bp) => {
                     let operator = self.eat_punctuator().unwrap().clone();
+                    let operator = Operator { name: operator };
                     let right = self.parse_expr_binary(bp).unwrap();
                     left = Expr {
                         kind: ExprKind::BinaryInfix(

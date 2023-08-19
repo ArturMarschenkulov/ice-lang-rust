@@ -3,6 +3,16 @@ pub struct Identifier {
     pub name: crate::token::Token,
 }
 
+impl Identifier {
+    fn name(&self) -> &str {
+        if let crate::token::TokenKind::Identifier(name) = &self.name.kind {
+            name
+        } else {
+            panic!("Expected identifier")
+        }
+    }
+}
+
 impl From<crate::token::Token> for Identifier {
     fn from(token: crate::token::Token) -> Self {
         // assert!(token.kind.is_identifier());
@@ -10,6 +20,7 @@ impl From<crate::token::Token> for Identifier {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Operator {
     pub name: crate::token::Token,
 }
@@ -29,8 +40,8 @@ struct Typed<T> {
 pub enum ExprKind {
     Literal(crate::token::LiteralKind), // 3, 5.0, "hello", 'c', true, false
     Grouping(Box<Expr>),                // (3, 5, 6)
-    BinaryInfix(Box<Expr>, crate::token::Token, Box<Expr>), // 3 + 5, 3 * 5, 3 / 5, 3 - 5
-    UnaryPrefix(crate::token::Token, Box<Expr>), // -3, !true
+    BinaryInfix(Box<Expr>, Operator, Box<Expr>), // 3 + 5, 3 * 5, 3 / 5, 3 - 5
+    UnaryPrefix(Operator, Box<Expr>), // -3, !true
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
@@ -111,13 +122,7 @@ impl TyKind {
     /// Returns the name of the type if it's a simple type.
     pub fn name(&self) -> Option<&str> {
         match self {
-            TyKind::Simple(Identifier {
-                name:
-                    crate::token::Token {
-                        kind: crate::token::TokenKind::Identifier(ty),
-                        ..
-                    },
-            }) => Some(ty),
+            TyKind::Simple(x) => Some(x.name()),
             _ if self.is_unit() => Some("()"),
             _ => None,
         }
@@ -148,13 +153,13 @@ pub enum ItemKind {
     },
     // /// type Foo = enum { A, B }
     // Enum {
-    //     name: Token,
+    //     name: Identifier,
     //     variants: Vec<Field>,
     // },
 
     // /// type Unit = {}
     // Unit {
-    //     name: Token,
+    //     name: Identifier,
     // },
 }
 #[derive(Clone, Debug)]
@@ -234,12 +239,12 @@ impl DebugTreePrinter for Expr {
                 expr.print_debug_tree();
             }
             ExprKind::BinaryInfix(expr_l, op, expr_r) => {
-                debug_tree::add_branch!("Binary: {:?}", op.kind);
+                debug_tree::add_branch!("Binary: {:?}", op.name.kind);
                 expr_l.print_debug_tree();
                 expr_r.print_debug_tree();
             }
             ExprKind::UnaryPrefix(op, expr) => {
-                debug_tree::add_branch!("Unary: {:?}", op.kind);
+                debug_tree::add_branch!("Unary: {:?}", op.name.kind);
                 expr.print_debug_tree();
             }
             ExprKind::Symbol { name, path } => {
