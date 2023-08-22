@@ -163,6 +163,9 @@ fn prefix_binding_power(_p: &Parser, token: &Operator) -> Option<BindingPower> {
 
 /// This impl block is for parsing expressions
 impl Parser {
+    /// Parses an expression.
+    /// 
+    /// This function is the entry point for parsing expressions.
     pub fn parse_expr(&mut self) -> PResult<Expr> {
         self.parse_expr_binary(BindingPower::new())
     }

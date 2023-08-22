@@ -40,6 +40,11 @@ impl Parser {
         self.eat_with(TokenKind::is_punctuator)
     }
 
+
+    /// Eats the next token if it matches the given predicate.
+    /// 
+    /// If the next token matches the predicate, it is consumed and returned.
+    /// Otherwise, the cursor is not moved and `Err` is ret
     fn eat_with<F>(&mut self, pred: F) -> Result<&Token, Option<&Token>>
     where
         Self: Sized,
