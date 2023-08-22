@@ -1,5 +1,5 @@
-use super::ast::{Expr, ExprKind, Identifier, Operator, Stmt};
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
+use super::ast::{Expr, ExprKind, Identifier, Operator, Stmt};
 
 use super::{PResult, Parser};
 
@@ -45,6 +45,15 @@ impl BindingPower {
         Self {
             left: 0.0,
             right: 0.0,
+        }
+    }
+    fn comp(bp_0: &BindingPower, bp_1: &BindingPower) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        match (bp_0.left, bp_1.right) {
+            (l, r) if l > r => Ordering::Greater,
+            (l, r) if l < r => Ordering::Less,
+            (l, r) if l == r => Ordering::Equal,
+            _ => panic!("This should not happen"),
         }
     }
     fn from(precedence: u32, associativity: Associativity) -> Self {
@@ -284,7 +293,7 @@ impl Parser {
         let un_prefix = self.peek(0).unwrap();
         let un_prefix = Operator::try_from(un_prefix.clone()).unwrap();
         let mut left = match prefix_binding_power(self, &un_prefix) {
-            Some(bp) if bp.left >= prev_bp.right => {
+            Some(bp) if prev_bp.right < bp.left => {
                 let op = self.eat_punctuator().unwrap().clone();
                 let op = Operator::try_from(op).unwrap();
                 let right = self.parse_expr_binary(bp).unwrap();
@@ -302,9 +311,9 @@ impl Parser {
                 // This is not a binary infix operator.
                 None => break,
                 // This is a binary infix operator, but it binds less tightly than the previous operator.
-                Some(bp) if bp.left < prev_bp.right => break,
+                Some(bp) if prev_bp.right > bp.left => break,
                 // This is a binary infix operator, but it binds equally tightly as the previous operator.
-                Some(bp) if bp.left == prev_bp.right => panic!(
+                Some(bp) if prev_bp.right == bp.left => panic!(
                     "Operators have the same precedence and are non-associative. This is not {:?}",
                     self.peek(0)
                 ),

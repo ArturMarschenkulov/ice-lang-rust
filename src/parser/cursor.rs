@@ -39,15 +39,7 @@ impl Parser {
     pub fn eat_punctuator(&mut self) -> Result<&Token, Option<&Token>> {
         self.eat_with(TokenKind::is_punctuator)
     }
-    fn eat_keyword(&mut self) -> Result<&Token, Option<&Token>> {
-        self.eat_with(TokenKind::is_keyword)
-    }
-    fn eat_literal(&mut self) -> Result<&Token, Option<&Token>> {
-        self.eat_with(TokenKind::is_literal)
-    }
-    fn eat_just(&mut self) -> Result<&Token, Option<&Token>> {
-        self.eat_with(|_| true)
-    }
+
     fn eat_with<F>(&mut self, pred: F) -> Result<&Token, Option<&Token>>
     where
         Self: Sized,

@@ -1,5 +1,5 @@
-use super::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
+use super::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
 
 use super::{PResult, Parser};
 
@@ -140,41 +140,41 @@ impl Parser {
             .unwrap_or_else(|_| panic!("Expected '{}' after {} parameters", end.as_str(), s.0));
         Ok(result)
     }
-    fn parse_delim_seq_(
-        &mut self,
-        start: &TokenKind,
-        end: &TokenKind,
-        sep: &TokenKind,
-        s: (&str, &str, &str),
-    ) -> PResult<Vec<(Identifier, Ty)>> {
-        use PunctuatorKind::*;
-        //use TokenKind::*;
+    // fn parse_delim_seq_(
+    //     &mut self,
+    //     start: &TokenKind,
+    //     end: &TokenKind,
+    //     sep: &TokenKind,
+    //     s: (&str, &str, &str),
+    // ) -> PResult<Vec<(Identifier, Ty)>> {
+    //     use PunctuatorKind::*;
+    //     //use TokenKind::*;
 
-        let mut result = Vec::new();
-        self.eat(start).unwrap();
-        while self.check(end, 0).is_err() {
-            let name = self
-                .parse_identifier()
-                .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.1));
+    //     let mut result = Vec::new();
+    //     self.eat(start).unwrap();
+    //     while self.check(end, 0).is_err() {
+    //         let name = self
+    //             .parse_identifier()
+    //             .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.1));
 
-            self.eat(&TokenKind::Punctuator(Colon))
-                .unwrap_or_else(|_| panic!("Expected ':' after {} {}", s.0, s.1));
-            let ty = self.parse_ty().unwrap();
+    //         self.eat(&TokenKind::Punctuator(Colon))
+    //             .unwrap_or_else(|_| panic!("Expected ':' after {} {}", s.0, s.1));
+    //         let ty = self.parse_ty().unwrap();
 
-            match self.eat(sep) {
-                Ok(..) => (),
-                Err(..) => {
-                    let _ = self.check(end, 0).unwrap_or_else(|_| {
-                        panic!("Expected '{}' after {} {}", end.as_str(), s.0, s.1)
-                    });
-                }
-            }
-            result.push((name, ty));
-        }
-        self.eat(end)
-            .unwrap_or_else(|_| panic!("Expected '{}' after {} parameters", end.as_str(), s.0));
-        Ok(result)
-    }
+    //         match self.eat(sep) {
+    //             Ok(..) => (),
+    //             Err(..) => {
+    //                 let _ = self.check(end, 0).unwrap_or_else(|_| {
+    //                     panic!("Expected '{}' after {} {}", end.as_str(), s.0, s.1)
+    //                 });
+    //             }
+    //         }
+    //         result.push((name, ty));
+    //     }
+    //     self.eat(end)
+    //         .unwrap_or_else(|_| panic!("Expected '{}' after {} parameters", end.as_str(), s.0));
+    //     Ok(result)
+    // }
     pub fn parse_item_fn(&mut self) -> PResult<Item> {
         use KeywordKind::*;
         use PunctuatorKind::*;

@@ -25,7 +25,7 @@ impl TokenKind {
             _ => false,
         }
     }
-    pub fn is_simple(&self) -> bool {
+    fn is_simple(&self) -> bool {
         use SpecialKeywordKind::*;
         use TokenKind::*;
         match self {
@@ -212,11 +212,7 @@ impl PunctuatorKind {
     }
 
     fn is_delimiter(&self) -> bool {
-        use PunctuatorKind::*;
-        matches!(
-            self,
-            LeftParen | RightParen | LeftBracket | RightBracket | LeftBrace | RightBrace
-        )
+        self.is_delimiter_open() || self.is_delimiter_close()
     }
     fn is_delimiter_open(&self) -> bool {
         use PunctuatorKind::*;
@@ -673,10 +669,9 @@ impl LiteralKind {
 impl TryFrom<&str> for LiteralKind {
     type Error = String;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        use LiteralKind::*;
         match s {
-            "true" => Ok(Boolean(true)),
-            "false" => Ok(Boolean(false)),
+            "true" => Ok(Self::boolean(true)),
+            "false" => Ok(Self::boolean(false)),
             ident => Err(ident.to_owned()),
         }
     }
@@ -793,24 +788,6 @@ impl Token {
             kind,
             span,
             whitespace,
-        }
-    }
-
-    pub fn eof() -> Self {
-        Token {
-            kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
-            span: ((1, 1), (1, 1)).into(),
-            whitespace: Whitespace::NoBoth,
-        }
-    }
-
-    /// creats a dummy token.
-    /// It's mainly used for temporary stuff.
-    pub fn dummy() -> Self {
-        Token {
-            kind: TokenKind::SpecialKeyword(SpecialKeywordKind::Eof),
-            span: ((0, 0), (0, 0)).into(),
-            whitespace: Whitespace::NoBoth,
         }
     }
 

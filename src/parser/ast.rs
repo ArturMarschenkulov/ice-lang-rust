@@ -48,10 +48,14 @@ struct Typed<T> {
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
-    Literal(crate::lexer::token::LiteralKind), // 3, 5.0, "hello", 'c', true, false
-    Grouping(Box<Expr>),                // (3, 5, 6)
-    BinaryInfix(Box<Expr>, Operator, Box<Expr>), // 3 + 5, 3 * 5, 3 / 5, 3 - 5
-    UnaryPrefix(Operator, Box<Expr>),   // -3, !true
+    /// E.g., 3, 5.0, "hello", 'c', true, false
+    Literal(crate::lexer::token::LiteralKind),
+    /// E.g., (3, 5, 6)
+    Grouping(Box<Expr>),
+    /// E.g., 3 + 5, 3 * 5, 3 / 5, 3 - 5                   
+    BinaryInfix(Box<Expr>, Operator, Box<Expr>),
+    /// E.g., -3, !true
+    UnaryPrefix(Operator, Box<Expr>),
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
@@ -59,7 +63,8 @@ pub enum ExprKind {
         /// however it can be also empty (`::x`)
         path: Option<Vec<Identifier>>,
     }, // x, x::y::z, ::x
-    Block(Vec<Stmt>),                   // { stmt; stmt; stmt; }
+    // E.g., { stmt; stmt; stmt; }
+    Block(Vec<Stmt>),
 
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     While(Box<Expr>, Box<Expr>),
@@ -203,6 +208,8 @@ pub struct Stmt {
     // pub span: Span,
 }
 
+// AST Printer part
+
 pub trait DebugTreePrinter {
     fn print_debug_tree(&self);
 }
@@ -263,13 +270,7 @@ impl DebugTreePrinter for Expr {
                         .clone()
                         .unwrap()
                         .iter()
-                        .map(|t| {
-                            if let crate::lexer::token::TokenKind::Identifier(id) = &t.name.kind {
-                                id.clone()
-                            } else {
-                                panic!("Expected identifier")
-                            }
-                        })
+                        .map(|t| t.name().to_owned())
                         .collect::<Vec<String>>();
                     Some(s)
                 } else {

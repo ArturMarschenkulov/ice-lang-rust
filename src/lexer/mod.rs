@@ -7,55 +7,41 @@
 //! - [ ] Implement nested comments.
 //! - [ ] Consider adding different comment styles.
 
-mod error;
 mod cursor;
-pub mod token;
+mod error;
 mod test;
+pub mod token;
 
 use token::{
-    cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind,
-    SpecialKeywordKind, Token, TokenKind,
+    cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind, Span,
+    SpecialKeywordKind, Token, TokenKind, Whitespace,
 };
 
 use error::LexerError;
 
 type LResult<T> = Result<T, LexerError>;
 
-pub fn is_digit(c: &char) -> bool {
+fn is_digit(c: &char) -> bool {
     ('0'..='9').contains(c)
 }
-pub fn is_hexadecimal(c: &char) -> bool {
-    // let is_hd = c.is_digit(16);
-    // let is_lower_case = c.is_uppercase();
-    // is_hd && is_lower_case
-
+fn is_hexadecimal(c: &char) -> bool {
     [('0'..='9'), ('a'..='f'), ('A'..='F')]
         .iter()
         .any(|s| s.contains(c))
-
-    // let num = ('0'..='9').contains(c);
-    // let upper = ('A'..='F').contains(c);
-    // let lower = ('a'..='f').contains(c);
-    // num || upper || lower
 }
 fn is_alpha(c: &char) -> bool {
-    // let is_alphabetic = c.is_alphabetic();
-    // let underscore = c == &'_';
-    // is_alphabetic || underscore
-
     let minor_case = ('a'..='z').contains(c);
     let major_case = ('A'..='Z').contains(c);
     let underscore = c == &'_';
     minor_case || major_case || underscore
 }
 fn is_alpha_numeric(c: &char) -> bool {
-    // c.is_alphanumeric()
     is_digit(c) || is_alpha(c)
 }
-pub fn is_left_whitespace(c: &char) -> bool {
+fn is_left_whitespace(c: &char) -> bool {
     c == &' '
 }
-pub fn is_right_whitespace(c: &char) -> bool {
+fn is_right_whitespace(c: &char) -> bool {
     c == &' '
 }
 
@@ -64,7 +50,7 @@ fn is_lit_bool(s: &str) -> bool {
 }
 
 pub fn lex_tokens_from_file(source: &str) -> LResult<Vec<Token>> {
-    let tokens = Lexer::new_from_str(source).scan_tokens();
+    let tokens = Lexer::from(source).scan_tokens();
     Ok(tokens)
 }
 
@@ -170,14 +156,17 @@ fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &
     }
 }
 
-impl Lexer {
-    fn new_from_str(source: &str) -> Self {
+impl From<&str> for Lexer {
+    fn from(source: &str) -> Self {
         Self {
             chars: source.chars().collect(),
             index: 0,
             cursor: token::Position::new(1, 1),
         }
     }
+}
+
+impl Lexer {
     fn scan_tokens(&mut self) -> Vec<Token> {
         use TokenKind::*;
 
@@ -217,15 +206,15 @@ impl Lexer {
             '"' => self.lex_string()?,
             '\'' => self.lex_char()?,
             // TODO: Once if let guards are available rewrite it as such
-            p if PunctuatorKind::try_from(p).is_ok() => {
-                Punctuator(PunctuatorKind::try_from(p).unwrap())
+            kw_punct if PunctuatorKind::try_from(kw_punct).is_ok() => {
+                Punctuator(PunctuatorKind::try_from(kw_punct).unwrap())
             }
-            p if SpecialKeywordKind::try_from(p).is_ok() => {
-                SpecialKeyword(SpecialKeywordKind::try_from(p).unwrap())
+            kw_special if SpecialKeywordKind::try_from(kw_special).is_ok() => {
+                SpecialKeyword(SpecialKeywordKind::try_from(kw_special).unwrap())
             }
-            cc if is_digit(&cc) => self.lex_number()?,
-            cc if is_alpha(&cc) => self.lex_identifier()?,
-            cc => return Err(LexerError::unknown_character(cc, self.cursor)),
+            digit if is_digit(&digit) => self.lex_number()?,
+            alpha if is_alpha(&alpha) => self.lex_identifier()?,
+            unknown => return Err(LexerError::unknown_character(unknown, self.cursor)),
         };
 
         let end_pos = self.cursor;
@@ -234,7 +223,11 @@ impl Lexer {
         Ok((kind, end_pos, end_index))
     }
 
-    /// Scans a token
+    /// Scans a token.
+    ///
+    /// This is one of the core functions of the lexer. Maybe in the future, in case the lexer becomes on demand,
+    /// this will become the main function.
+    ///
     /// Starts to scan from `self.index` until it has a valid token. If the token is invalid, it returns an error.
     /// If the token is valid, it returns the token and the `self.index` is set one position after the token, so that a new token can be scanned.
     // TODO: Add recovery.
@@ -253,8 +246,8 @@ impl Lexer {
 
         let token = Token::new(
             token_kind,
-            token::Span::new(start_pos, end_pos),
-            token::Whitespace::from((
+            Span::new(start_pos, end_pos),
+            Whitespace::from((
                 *self.chars.get(start_index).unwrap_or(&' '),
                 *self.chars.get(end_index).unwrap_or(&' '),
             )),
@@ -431,7 +424,6 @@ impl Lexer {
     }
 
     fn lex_number(&mut self) -> LResult<TokenKind> {
-        use LiteralKind::*;
         use TokenKind::*;
 
         fn process_prefix(this: &mut Lexer) -> Result<Option<NumberBase>, LexerError> {
@@ -538,12 +530,11 @@ impl Lexer {
         }
         assert_ne!(string.len(), 0);
 
-        let lit = Literal(Number(token::Number::new(
-            &string,
-            number_base_prefix,
-            suffix,
-            is_floating,
-        )));
+        let lit = Literal(if is_floating {
+            LiteralKind::floating(&string, suffix)
+        } else {
+            LiteralKind::integer(&string, number_base_prefix, suffix)
+        });
 
         Ok(lit)
     }

@@ -70,9 +70,6 @@ expr_primary := ident | 'true' | 'false' | expr_group | string | number
 
 type PResult<T> = Result<T, ParserError>;
 
-pub fn get_ast_from_tokens(tokens: Vec<Token>) -> PResult<Project> {
-    Parser::from_tokens(tokens).parse()
-}
 /// Parses a `Project` from a file.
 /// It's most likely a temporary function, because we can only parse one file, meaning a file would be the whole project.
 /// In the future of course this would not be a thing.
@@ -90,24 +87,12 @@ struct Parser {
 
 /// This impl block is the entry block
 impl Parser {
-    fn new() -> Self {
-        Parser::from_tokens(Vec::new())
-    }
     fn from_tokens(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
             current: 0,
             infix_bp: expr::BindingPower::infix_binding_powers(),
         }
-    }
-    fn parse_(&mut self) -> PResult<Vec<Item>> {
-        let mut items: Vec<Item> = Vec::new();
-
-        while !self.is_at_end() {
-            let item = self.parse_item().unwrap();
-            items.push(item);
-        }
-        Ok(items)
     }
     fn parse(&mut self) -> PResult<Project> {
         let mut items: Vec<Item> = Vec::new();

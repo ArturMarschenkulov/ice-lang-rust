@@ -14,9 +14,9 @@ impl LexerError {
     pub fn expected_char(expected: char, found: Option<char>) -> Self {
         Self::new(format!("Expected '{}' but found '{:?}'", expected, found))
     }
-    pub fn expected_str(expected: &str, found: Option<&str>) -> Self {
-        Self::new(format!("Expected '{}' but found '{:?}'", expected, found))
-    }
+    // pub fn expected_str(expected: &str, found: Option<&str>) -> Self {
+    //     Self::new(format!("Expected '{}' but found '{:?}'", expected, found))
+    // }
     // mainly about chars
     pub fn empty_char_literal() -> Self {
         Self::new("Empty character literal".to_string())

@@ -50,17 +50,17 @@ impl Lexer {
             .unwrap_or(Err(None))
     }
 
-    /// Checks the next chars as long as the given function returns true.
-    pub fn check_while<F>(&mut self, pred: F) -> String
-    where
-        F: Fn(&char) -> bool,
-    {
-        (0..)
-            .map(|offset| self.check_with(offset, &pred))
-            .take_while(Result::is_ok)
-            .filter_map(Result::ok)
-            .collect()
-    }
+    // /// Checks the next chars as long as the given function returns true.
+    // pub fn check_while<F>(&mut self, pred: F) -> String
+    // where
+    //     F: Fn(&char) -> bool,
+    // {
+    //     (0..)
+    //         .map(|offset| self.check_with(offset, &pred))
+    //         .take_while(Result::is_ok)
+    //         .filter_map(Result::ok)
+    //         .collect()
+    // }
 
     /// Checks the char at offset `n`. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
     pub fn check_char(&self, n: isize, c: char) -> Result<char, Option<char>> {
@@ -86,10 +86,6 @@ impl Lexer {
     /// else an `Err(Some)` is returned if the character is not matched and an `Err(None)` is returned if the end of the file is reached.s
     pub fn eat_char(&mut self, ch: char) -> Result<char, Option<char>> {
         self.eat_with(|x| x == &ch)
-    }
-
-    fn eat(&mut self) -> Result<char, Option<char>> {
-        self.eat_with(|_| true)
     }
 
     /// Checks the charachter at the current index with a given function.
