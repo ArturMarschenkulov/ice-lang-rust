@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
 
-use crate::parser::ast::DebugTreePrinter;
+use crate::parser::ast_print::DebugTreePrinter;
 //use crate::evaluator::get_evaluation_from_ast;
 use crate::lexer::lex_tokens_from_file;
 use crate::parser::parse_project_from_file;

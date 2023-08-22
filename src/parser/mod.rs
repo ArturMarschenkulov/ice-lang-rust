@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod ast_print;
 mod cursor;
 mod error;
 mod expr;
