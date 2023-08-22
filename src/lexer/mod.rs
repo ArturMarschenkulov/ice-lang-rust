@@ -381,14 +381,17 @@ impl Lexer {
         use TokenKind::*;
         // TODO: Implement that a comment at the end of a file is possible, meaning when it does not end through a newline, but eof
         self.eat_str("//").unwrap();
-        self.cursor.column += 2;
-        while self.peek(0) != Some('\n') && self.peek(0).is_some() {
+
+        let mut comment_content = String::new();
+        while let Some(c) = self.peek(0) {
+            if c == '\n' || c == '\r' || c == '\0' {
+                break;
+            }
+            comment_content.push(c);
             self.advance();
-            self.cursor.column += 1;
         }
         self.cursor.column -= 1;
-        //assert!(self.peek(0) == Some('\n'));
-        Ok(SpecialKeyword(Comment(CommentKind::Line)))
+        Ok(SpecialKeyword(Comment(CommentKind::Line(comment_content))))
     }
     /// Lexes a block comment.
     ///
@@ -399,28 +402,32 @@ impl Lexer {
         use TokenKind::*;
         // TODO: Implement nested block comments
         self.eat_str("/*").unwrap();
-        self.cursor.column += 2;
 
-        while self.check_str("*/").is_empty() {
-            if self.peek(0).is_none() {
+        let mut comment_content = String::new();
+        while let Some(c) = self.peek(0) {
+            if c == '*' && self.check_char(1, '/').is_ok() {
+                self.eat_str("*/").expect("this was checked before");
+                break;
+            }
+            if c == '\0' {
                 return Err(Error::unterminated_block_comment());
             }
-            self.advance();
 
-            if self.peek(0) == Some('\n') {
+            if c == '\r' && self.check_char(1, '\n').is_ok() {
+                self.advance();
+                self.advance();
                 self.cursor.line += 1;
                 self.cursor.column = 1;
+                comment_content.push('\n');
             } else {
-                self.cursor.column += 1;
+                self.advance();
+                comment_content.push(c);
             }
         }
 
-        self.eat_str("*/").expect("this was checked before");
-        self.cursor.column += 2;
-
         self.cursor.column -= 1;
 
-        Ok(SpecialKeyword(Comment(CommentKind::Block)))
+        Ok(SpecialKeyword(Comment(CommentKind::Block(comment_content))))
     }
 
     fn lex_number(&mut self) -> LResult<TokenKind> {

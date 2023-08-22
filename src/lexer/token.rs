@@ -449,17 +449,17 @@ impl std::fmt::Display for KeywordKind {
         write!(f, "{}", s)
     }
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommentKind {
-    Line,
-    Block,
+    Line(String),
+    Block(String),
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpecialKeywordKind {
     Eof,
     Newline,
     Whitespace,
-    Comment(CommentKind), //Unknown,
+    Comment(CommentKind),
 }
 
 impl SpecialKeywordKind {
@@ -488,6 +488,7 @@ impl TryFrom<char> for SpecialKeywordKind {
 }
 
 /// Tokens a slice of tokens and converts them into a complex token.
+/// 
 /// Certain complex tokens are converted into a single token, which significes several tokens.
 /// If token slice has only one token, the singular token itself is returned.
 pub fn cook_tokens(tokens: &[Token]) -> Token {
@@ -696,12 +697,6 @@ impl Span {
     pub fn new(start: Position, end: Position) -> Self {
         Span { start, end }
     }
-    // pub fn from_tuples(start: (u32, u32), end: (u32, u32)) -> Self {
-    //     Span {
-    //         start: Position::new(start.0, start.1),
-    //         end: Position::new(end.0, end.1),
-    //     }
-    // }
 }
 impl std::fmt::Debug for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -790,17 +785,6 @@ impl Token {
             whitespace,
         }
     }
-
-    // pub fn from_kw_to_ident(&self) -> Token {
-    //     use TokenKind::*;
-    //     match self.kind {
-    //         Keyword(kw) => Token {
-    //             kind: Identifier(kw.as_str().to_string()),
-    //             ..*self
-    //         },
-    //         _ => unreachable!(),
-    //     }
-    // }
     pub fn from_self_slice(slice: &[Token]) -> Self {
         use TokenKind::*;
         // TODO: Maybe consider to move this logic somewhere else, where it is guaranteed
