@@ -9,7 +9,7 @@
 
 mod cursor;
 mod error;
-mod test;
+mod tests;
 pub mod token;
 
 use token::{
