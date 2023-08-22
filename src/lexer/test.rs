@@ -174,7 +174,7 @@ fn test_scan_token_kind() {
 
 #[test]
 fn test_lex_char() {
-    use crate::lexer::LexerError;
+    use crate::lexer::Error;
     use LiteralKind::*;
     use TokenKind::*;
 
@@ -197,24 +197,24 @@ fn test_lex_char() {
     // Empty literal
     let txt = r#"''"#;
     let mut lexer = Lexer::from(txt);
-    assert_eq!(lexer.lex_char(), Err(LexerError::empty_char_literal()));
+    assert_eq!(lexer.lex_char(), Err(Error::empty_char_literal()));
 
     // Newline in literal
     let txt = r#"'
     '"#;
     let mut lexer = Lexer::from(txt);
-    assert_eq!(lexer.lex_char(), Err(LexerError::new_line_in_char_lit()));
+    assert_eq!(lexer.lex_char(), Err(Error::new_line_in_char_lit()));
 
     let txt = r#"'ab'"#;
     let mut lexer = Lexer::from(txt);
     assert_eq!(
         lexer.lex_char(),
-        Err(LexerError::char_lit_contains_multiple_codepoints())
+        Err(Error::char_lit_contains_multiple_codepoints())
     );
 
     let txt = r#"'\"#;
     let mut lexer = Lexer::from(txt);
-    assert_eq!(lexer.lex_char(), Err(LexerError::unterminated_char_lit()));
+    assert_eq!(lexer.lex_char(), Err(Error::unterminated_char_lit()));
 
     // let txt = r#"'a"#;
     // let mut lexer = Lexer::new_from_str(txt);
@@ -248,7 +248,7 @@ fn num_0_() {
 #[test]
 
 fn test_lex_number() {
-    use crate::lexer::LexerError;
+    use crate::lexer::Error;
     use NumberBase::*;
     use TokenKind::*;
 
@@ -279,11 +279,11 @@ fn test_lex_number() {
     // Invalid binary number
     assert_eq!(
         Lexer::from("0b22").lex_number(),
-        Err(LexerError::invalid_digit_base_prefix(Some(Binary)))
+        Err(Error::invalid_digit_base_prefix(Some(Binary)))
     );
     assert_eq!(
         Lexer::from("0o8").lex_number(),
-        Err(LexerError::invalid_digit_base_prefix(Some(Octal)))
+        Err(Error::invalid_digit_base_prefix(Some(Octal)))
     );
     // assert_eq!(
     //     Lexer::new_from_str("0xg").lex_number(),
@@ -292,7 +292,7 @@ fn test_lex_number() {
 
     assert_eq!(
         Lexer::from("0x0.0").lex_number(),
-        Err(LexerError::floats_dont_have_base_prefix(Some(Hexadecimal)))
+        Err(Error::floats_dont_have_base_prefix(Some(Hexadecimal)))
     );
 
     // assert_eq!(

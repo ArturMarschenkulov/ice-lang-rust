@@ -17,9 +17,9 @@ use token::{
     SpecialKeywordKind, Token, TokenKind, Whitespace,
 };
 
-use error::LexerError;
+use error::Error;
 
-type LResult<T> = Result<T, LexerError>;
+type LResult<T> = Result<T, Error>;
 
 fn is_digit(c: &char) -> bool {
     ('0'..='9').contains(c)
@@ -214,7 +214,7 @@ impl Lexer {
             }
             digit if is_digit(&digit) => self.lex_number()?,
             alpha if is_alpha(&alpha) => self.lex_identifier()?,
-            unknown => return Err(LexerError::unknown_character(unknown, self.cursor)),
+            unknown => return Err(Error::unknown_character(unknown, self.cursor)),
         };
 
         let end_pos = self.cursor;
@@ -258,7 +258,7 @@ impl Lexer {
 
     fn lex_escape_char(&mut self) -> LResult<char> {
         self.eat_char('\\')
-            .map_err(|x| LexerError::expected_char('\\', x))?;
+            .map_err(|x| Error::expected_char('\\', x))?;
         self.cursor.column += 1;
 
         let escaped_char = match self.peek(0) {
@@ -269,8 +269,8 @@ impl Lexer {
             Some('\'') => '\'',
             Some('"') => '"',
             Some('0') => '\0',
-            Some(c) => return Err(LexerError::unknown_escape_char(c)),
-            None => return Err(LexerError::unterminated_char_lit()),
+            Some(c) => return Err(Error::unknown_escape_char(c)),
+            None => return Err(Error::unterminated_char_lit()),
         };
 
         self.advance();
@@ -289,13 +289,13 @@ impl Lexer {
         use LiteralKind::*;
         use TokenKind::*;
         self.eat_char('\'')
-            .map_err(|x| LexerError::expected_char('\'', x))?;
+            .map_err(|x| Error::expected_char('\'', x))?;
         // '\''
         let mut escaped_char = false;
         let c = match self.peek(0) {
-            None => return Err(LexerError::unterminated_char_lit()),
-            Some('\'') => return Err(LexerError::empty_char_literal()),
-            Some('\n') | Some('\r') => return Err(LexerError::new_line_in_char_lit()),
+            None => return Err(Error::unterminated_char_lit()),
+            Some('\'') => return Err(Error::empty_char_literal()),
+            Some('\n') | Some('\r') => return Err(Error::new_line_in_char_lit()),
             Some('\\') => {
                 let x = self.lex_escape_char()?;
                 escaped_char = true;
@@ -312,9 +312,9 @@ impl Lexer {
             Err(..) => {
                 // TODO: This is not correct. Fix this!
                 if escaped_char {
-                    return Err(LexerError::unterminated_char_lit());
+                    return Err(Error::unterminated_char_lit());
                 } else {
-                    return Err(LexerError::char_lit_contains_multiple_codepoints());
+                    return Err(Error::char_lit_contains_multiple_codepoints());
                 }
             }
         };
@@ -326,7 +326,7 @@ impl Lexer {
         use LiteralKind::*;
         use TokenKind::*;
         self.eat_char('\"')
-            .map_err(|x| LexerError::expected_char('\"', x))?;
+            .map_err(|x| Error::expected_char('\"', x))?;
 
         let mut string_content = String::new();
         while let Some(c) = self.peek(0) {
@@ -361,13 +361,13 @@ impl Lexer {
             }
         }
         self.eat_char('\"')
-            .map_err(|x| LexerError::expected_char('\"', x))?;
+            .map_err(|x| Error::expected_char('\"', x))?;
 
         self.cursor.column -= 1;
         self.index -= 1;
 
         if self.peek(0).is_none() {
-            return Err(LexerError::unterminated_string());
+            return Err(Error::unterminated_string());
         }
         Ok(Literal(Str(string_content)))
     }
@@ -403,7 +403,7 @@ impl Lexer {
 
         while self.check_str("*/").is_empty() {
             if self.peek(0).is_none() {
-                return Err(LexerError::unterminated_block_comment());
+                return Err(Error::unterminated_block_comment());
             }
             self.advance();
 
@@ -426,7 +426,7 @@ impl Lexer {
     fn lex_number(&mut self) -> LResult<TokenKind> {
         use TokenKind::*;
 
-        fn process_prefix(this: &mut Lexer) -> Result<Option<NumberBase>, LexerError> {
+        fn process_prefix(this: &mut Lexer) -> Result<Option<NumberBase>, Error> {
             match (this.peek(0), this.peek(1)) {
                 (Some('0'), Some(c)) if c.is_alphabetic() => {
                     let pot_prefix = "0".to_owned() + &c.to_string();
@@ -436,7 +436,7 @@ impl Lexer {
                             this.advance();
                             Some(x)
                         })
-                        .map_err(|_| LexerError::not_recognized_base_prefix(&pot_prefix))
+                        .map_err(|_| Error::not_recognized_base_prefix(&pot_prefix))
                 }
                 _ => Ok(None),
             }
@@ -445,7 +445,7 @@ impl Lexer {
         fn process_number_body(
             this: &mut Lexer,
             allow_letters: bool,
-        ) -> Result<(String, bool, bool), LexerError> {
+        ) -> Result<(String, bool, bool), Error> {
             let mut is_after_dot = false;
             let mut is_floating = false;
             let mut mode_parse_suffix = false;
@@ -512,21 +512,21 @@ impl Lexer {
 
         // Error handling
         if number_base_prefix.is_some() && is_floating {
-            return Err(LexerError::floats_dont_have_base_prefix(number_base_prefix));
+            return Err(Error::floats_dont_have_base_prefix(number_base_prefix));
         }
         if !string.chars().all(|c| {
             number_base_prefix
                 .unwrap_or(NumberBase::Decimal)
                 .is_char_in(c)
         }) {
-            return Err(LexerError::invalid_digit_base_prefix(number_base_prefix));
+            return Err(Error::invalid_digit_base_prefix(number_base_prefix));
         }
 
         let possible_suffixes = [
             "", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
         ];
         if !possible_suffixes.contains(&suffix.clone().unwrap_or_default().as_str()) {
-            return Err(LexerError::invalid_digit_type_suffix(suffix));
+            return Err(Error::invalid_digit_type_suffix(suffix));
         }
         assert_ne!(string.len(), 0);
 

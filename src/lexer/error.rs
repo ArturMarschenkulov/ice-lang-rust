@@ -1,16 +1,16 @@
 use super::token;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct LexerError {
+pub struct Error {
     pub msg: String,
 }
-impl LexerError {
+impl Error {
     pub fn new(msg: String) -> Self {
         Self { msg }
     }
 }
 
-impl LexerError {
+impl Error {
     pub fn expected_char(expected: char, found: Option<char>) -> Self {
         Self::new(format!("Expected '{}' but found '{:?}'", expected, found))
     }
@@ -52,19 +52,19 @@ impl LexerError {
     }
 
     pub fn floats_dont_have_base_prefix(base: Option<token::NumberBase>) -> Self {
-        LexerError::new(format!(
+        Self::new(format!(
             "floating point literals are not allowed to have a base prefix (`{}`)",
             u32::from(base.unwrap_or(token::NumberBase::Decimal))
         ))
     }
     pub fn invalid_digit_base_prefix(base: Option<token::NumberBase>) -> Self {
-        LexerError::new(format!(
+        Self::new(format!(
             "invalid digit for base prefix `{}`",
             u32::from(base.unwrap_or(token::NumberBase::Decimal))
         ))
     }
     pub fn invalid_digit_type_suffix(suffix: Option<String>) -> Self {
-        LexerError::new(format!(
+        Self::new(format!(
             "invalid suffix `{}` for numeric literal",
             suffix.unwrap_or_default()
         ))
