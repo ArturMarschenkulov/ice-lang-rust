@@ -192,10 +192,9 @@ impl Lexer {
         use SpecialKeywordKind::*;
         use TokenKind::*;
 
-        let c = match self.peek(0) {
-            Some(c) => c,
-            None => return Ok((SpecialKeyword(Eof), self.cursor, self.index)),
-        };
+        // The assumption here is that `None` signifies the end of the file.
+        // Also, assuming that `'\0'` is not a valid character in the source code.
+        let c = self.peek(0).unwrap_or('\0');
 
         let kind = match c {
             '/' => match self.peek(1) {
@@ -205,11 +204,17 @@ impl Lexer {
             },
             '"' => self.lex_string()?,
             '\'' => self.lex_char()?,
+            '\0' => {
+                self.advance();
+                SpecialKeyword(Eof)
+            }
             // TODO: Once if let guards are available rewrite it as such
             kw_punct if PunctuatorKind::try_from(kw_punct).is_ok() => {
+                self.advance();
                 Punctuator(PunctuatorKind::try_from(kw_punct).unwrap())
             }
             kw_special if SpecialKeywordKind::try_from(kw_special).is_ok() => {
+                self.advance();
                 SpecialKeyword(SpecialKeywordKind::try_from(kw_special).unwrap())
             }
             digit if is_digit(&digit) => self.lex_number()?,
@@ -217,14 +222,15 @@ impl Lexer {
             unknown => return Err(Error::unknown_character(unknown, self.cursor)),
         };
 
-        let end_pos = self.cursor;
+        let mut end_pos = self.cursor;
+        end_pos.column = self.cursor.column - 1;
         let end_index = self.index;
 
         Ok((kind, end_pos, end_index))
     }
 
     /// Scans a token.
-    ///
+    ///* */
     /// This is one of the core functions of the lexer. Maybe in the future, in case the lexer becomes on demand,
     /// this will become the main function.
     ///
@@ -238,7 +244,6 @@ impl Lexer {
 
         let (token_kind, end_pos, end_index) = self.scan_token_kind()?;
 
-        self.advance();
         if token_kind == TokenKind::SpecialKeyword(SpecialKeywordKind::Newline) {
             self.cursor.line += 1;
             self.cursor.column = 1;
@@ -249,7 +254,7 @@ impl Lexer {
             Span::new(start_pos, end_pos),
             Whitespace::from((
                 *self.chars.get(start_index).unwrap_or(&' '),
-                *self.chars.get(end_index).unwrap_or(&' '),
+                *self.chars.get(end_index - 1).unwrap_or(&' '),
             )),
         );
 
@@ -259,7 +264,6 @@ impl Lexer {
     fn lex_escape_char(&mut self) -> LResult<char> {
         self.eat_char('\\')
             .map_err(|x| Error::expected_char('\\', x))?;
-        self.cursor.column += 1;
 
         let escaped_char = match self.peek(0) {
             Some('n') => '\n',
@@ -272,12 +276,7 @@ impl Lexer {
             Some(c) => return Err(Error::unknown_escape_char(c)),
             None => return Err(Error::unterminated_char_lit()),
         };
-
         self.advance();
-        self.cursor.column += 1;
-
-        self.cursor.column -= 1;
-
         Ok(escaped_char)
     }
 
@@ -318,8 +317,6 @@ impl Lexer {
                 }
             }
         };
-        self.cursor.column -= 1;
-        self.index -= 1;
         Ok(Literal(Char(c)))
     }
     fn lex_string(&mut self) -> LResult<TokenKind> {
@@ -346,9 +343,9 @@ impl Lexer {
                 }
                 '\t' => {
                     // TODO: Figure out how to correctly handle a tab, because they can be variable length.
-                    let tab_size = 1;
+                    const TAB_SIZE: u32 = 1;
                     self.advance();
-                    self.cursor.column += tab_size;
+                    self.cursor.column += TAB_SIZE;
                 }
                 '\r' => {
                     self.advance();
@@ -363,9 +360,6 @@ impl Lexer {
         self.eat_char('\"')
             .map_err(|x| Error::expected_char('\"', x))?;
 
-        self.cursor.column -= 1;
-        self.index -= 1;
-
         if self.peek(0).is_none() {
             return Err(Error::unterminated_string());
         }
@@ -379,7 +373,6 @@ impl Lexer {
     fn lex_comment_line(&mut self) -> LResult<TokenKind> {
         use SpecialKeywordKind::*;
         use TokenKind::*;
-        // TODO: Implement that a comment at the end of a file is possible, meaning when it does not end through a newline, but eof
         self.eat_str("//").unwrap();
 
         let mut comment_content = String::new();
@@ -390,7 +383,6 @@ impl Lexer {
             comment_content.push(c);
             self.advance();
         }
-        self.cursor.column -= 1;
         Ok(SpecialKeyword(Comment(CommentKind::Line(comment_content))))
     }
     /// Lexes a block comment.
@@ -424,9 +416,6 @@ impl Lexer {
                 comment_content.push(c);
             }
         }
-
-        self.cursor.column -= 1;
-
         Ok(SpecialKeyword(Comment(CommentKind::Block(comment_content))))
     }
 
@@ -512,11 +501,6 @@ impl Lexer {
             process_number_body(self, number_base_prefix.is_some())?;
         let suffix = process_suffix(self, mode_parse_suffix);
 
-        // Cursor part
-        // self.cursor.column += (string.len() + suffix.clone().unwrap_or_default().len() - 1) as u32;
-        self.index -= 1;
-        self.cursor.column -= 1;
-
         // Error handling
         if number_base_prefix.is_some() && is_floating {
             return Err(Error::floats_dont_have_base_prefix(number_base_prefix));
@@ -548,19 +532,8 @@ impl Lexer {
 
     fn lex_identifier(&mut self) -> LResult<TokenKind> {
         use TokenKind::*;
-
-        // NOTE: There can't be a newline here.
-
-        let string_content = self.eat_while(is_alpha_numeric);
-
-        // NOTE: Here we adjust the cursor/index back, as it overshot by one.
-        // TODO: Think about a way to remove that.
-        self.cursor.column -= 1;
-        self.index -= 1;
-
-        // Here we determine whether the identifier is a keyword or not.
-
-        let token = match string_content.as_ref() {
+        let content = self.eat_while(is_alpha_numeric);
+        let token = match content.as_ref() {
             lit if is_lit_bool(lit) => LiteralKind::try_from(lit).map_or_else(Identifier, Literal),
             kw => KeywordKind::try_from(kw).map_or_else(Identifier, Keyword),
         };
