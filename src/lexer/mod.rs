@@ -38,12 +38,6 @@ fn is_alpha(c: &char) -> bool {
 fn is_alpha_numeric(c: &char) -> bool {
     is_digit(c) || is_alpha(c)
 }
-fn is_left_whitespace(c: &char) -> bool {
-    c == &' '
-}
-fn is_right_whitespace(c: &char) -> bool {
-    c == &' '
-}
 
 fn is_lit_bool(s: &str) -> bool {
     ["true", "false"].contains(&s)

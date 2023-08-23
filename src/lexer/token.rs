@@ -716,12 +716,20 @@ impl From<((u32, u32), (u32, u32))> for Span {
     }
 }
 
+/// Represents the whitespace before and after a token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Whitespace {
     NoBoth,
     Left,
     Right,
     Both,
+}
+
+fn is_left_whitespace(c: &char) -> bool {
+    c == &' '
+}
+fn is_right_whitespace(c: &char) -> bool {
+    c == &' '
 }
 
 impl From<Whitespace> for (bool, bool) {
@@ -738,12 +746,9 @@ impl From<Whitespace> for (bool, bool) {
 
 impl From<(Whitespace, Whitespace)> for Whitespace {
     fn from(ws: (Whitespace, Whitespace)) -> Self {
-        let left_whitespace = ws.0;
-        let right_whitespace = ws.1;
-        Whitespace::from((
-            <(bool, bool)>::from(left_whitespace).0,
-            <(bool, bool)>::from(right_whitespace).1,
-        ))
+        let left = ws.0;
+        let right = ws.1;
+        Whitespace::from((<(bool, bool)>::from(left).0, <(bool, bool)>::from(right).1))
     }
 }
 
@@ -760,8 +765,6 @@ impl From<(bool, bool)> for Whitespace {
 }
 impl From<(char, char)> for Whitespace {
     fn from(chars: (char, char)) -> Self {
-        use crate::lexer::is_left_whitespace;
-        use crate::lexer::is_right_whitespace;
         use Whitespace::*;
         match (is_left_whitespace(&chars.0), is_right_whitespace(&chars.1)) {
             (true, true) => Both,
