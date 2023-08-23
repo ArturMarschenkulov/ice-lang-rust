@@ -407,7 +407,7 @@ impl Parser {
                 stmts
             }
             unhandled => {
-                panic!("{:?}", &unhandled)
+                panic!("unkown token: {:?}", &unhandled)
             }
         };
         Ok(expr)

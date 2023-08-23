@@ -37,12 +37,6 @@ impl TokenKind {
     pub fn is_punctuator(&self) -> bool {
         matches!(self, TokenKind::Punctuator(_))
     }
-    pub fn is_literal(&self) -> bool {
-        matches!(self, TokenKind::Literal(_))
-    }
-    pub fn is_keyword(&self) -> bool {
-        matches!(self, TokenKind::Keyword(_))
-    }
     pub fn is_identifier(&self) -> bool {
         matches!(self, TokenKind::Identifier(_))
     }
@@ -488,7 +482,7 @@ impl TryFrom<char> for SpecialKeywordKind {
 }
 
 /// Tokens a slice of tokens and converts them into a complex token.
-/// 
+///
 /// Certain complex tokens are converted into a single token, which significes several tokens.
 /// If token slice has only one token, the singular token itself is returned.
 pub fn cook_tokens(tokens: &[Token]) -> Token {
