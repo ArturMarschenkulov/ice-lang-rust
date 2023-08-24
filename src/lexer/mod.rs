@@ -218,7 +218,7 @@ impl Lexer {
 
         let mut end_pos = self.cursor;
         end_pos.column = self.cursor.column - 1;
-        let end_index = self.index;
+        let end_index = self.index - 1;
 
         Ok((kind, end_pos, end_index))
     }
@@ -248,7 +248,7 @@ impl Lexer {
             Span::new(start_pos, end_pos),
             Whitespace::from((
                 *self.chars.get(start_index).unwrap_or(&' '),
-                *self.chars.get(end_index - 1).unwrap_or(&' '),
+                *self.chars.get(end_index).unwrap_or(&' '),
             )),
         );
 
