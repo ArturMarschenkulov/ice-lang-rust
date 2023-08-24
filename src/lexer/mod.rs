@@ -21,14 +21,6 @@ use error::Error;
 
 type LResult<T> = Result<T, Error>;
 
-fn is_digit(c: &char) -> bool {
-    ('0'..='9').contains(c)
-}
-fn is_hexadecimal(c: &char) -> bool {
-    [('0'..='9'), ('a'..='f'), ('A'..='F')]
-        .iter()
-        .any(|s| s.contains(c))
-}
 fn is_alpha(c: &char) -> bool {
     let minor_case = ('a'..='z').contains(c);
     let major_case = ('A'..='Z').contains(c);
@@ -36,7 +28,7 @@ fn is_alpha(c: &char) -> bool {
     minor_case || major_case || underscore
 }
 fn is_alpha_numeric(c: &char) -> bool {
-    is_digit(c) || is_alpha(c)
+    c.is_ascii_digit() || is_alpha(c)
 }
 
 fn is_lit_bool(s: &str) -> bool {
@@ -211,7 +203,7 @@ impl Lexer {
                 self.advance();
                 SpecialKeyword(SpecialKeywordKind::try_from(kw_special).unwrap())
             }
-            digit if is_digit(&digit) => self.lex_number()?,
+            digit if digit.is_ascii_digit() => self.lex_number()?,
             alpha if is_alpha(&alpha) => self.lex_identifier()?,
             unknown => return Err(Error::unknown_character(unknown, self.cursor)),
         };
@@ -444,8 +436,8 @@ impl Lexer {
             while let Some(peeked) = this.peek(0) {
                 let res: LResult<()> = match peeked {
                     // checks whether it is a possible digit at all.
-                    c if (allow_letters && is_hexadecimal(&c))
-                        || (!allow_letters && is_digit(&c)) =>
+                    c if (allow_letters && c.is_ascii_hexdigit())
+                        || (!allow_letters && c.is_ascii_digit()) =>
                     {
                         string.push(c);
                         if is_after_dot {
