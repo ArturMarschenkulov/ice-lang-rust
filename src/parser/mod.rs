@@ -6,7 +6,7 @@ mod expr;
 mod item;
 mod stmt;
 mod ty;
-use error::ParserError;
+use error::Error;
 
 use super::lexer::token::Token;
 use ast::{Item, Module, Project};
@@ -69,7 +69,7 @@ expr_primary := ident | 'true' | 'false' | expr_group | string | number
 
  */
 
-type PResult<T> = Result<T, ParserError>;
+type PResult<T> = Result<T, Error>;
 
 /// Parses a `Project` from a file.
 /// It's most likely a temporary function, because we can only parse one file, meaning a file would be the whole project.

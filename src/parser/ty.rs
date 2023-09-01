@@ -26,7 +26,7 @@ impl Parser {
                     kind: TyKind::Tuple(Vec::new()),
                 }
             }
-            _ => Err(ParserError::new(format!(
+            _ => Err(Error::new(format!(
                 "Expected a type, got {:?}",
                 token
             )))?,
