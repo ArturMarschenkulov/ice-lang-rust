@@ -73,39 +73,6 @@ mod cursor {
         assert_eq!(lexer.check_with(-2, |x| x == &'b'), Err(None));
     }
 
-    // #[test]
-    // fn test_check_while() {
-    //     let txt = "abc504";
-    //     let mut lexer = Lexer::from(txt);
-    //     assert_eq!(lexer.check_while(|x| x == &'a'), "a".to_string());
-    //     assert_eq!(lexer.check_while(|x| x.is_alphabetic()), "abc".to_string());
-    //     assert_eq!(
-    //         lexer.check_while(|x| x.is_alphanumeric()),
-    //         "abc504".to_string()
-    //     );
-    //     assert_eq!(lexer.check_while(|x| x.is_numeric()), "".to_string());
-    //     let txt = "123four";
-    //     let mut lexer = Lexer::from(txt);
-    //     assert_eq!(lexer.check_while(|x| x.is_numeric()), "123".to_string());
-    //     assert_eq!(lexer.check_while(|x| x.is_alphabetic()), "".to_string());
-    //     assert_eq!(
-    //         lexer.check_while(|x| x.is_alphanumeric()),
-    //         "123four".to_string()
-    //     );
-    // }
-
-    #[test]
-    fn test_check_str() {
-        let txt = "hello";
-        let lexer = Lexer::from(txt);
-        assert_eq!(lexer.check_str("hello"), "hello".to_owned());
-        assert_eq!(lexer.check_str_("hEllo"), None);
-
-        let txt = "";
-        let lexer = Lexer::from(txt);
-        assert_eq!(lexer.check_str("hello"), "".to_owned());
-    }
-
     #[test]
     fn test_eat_with() {
         let txt = "a";

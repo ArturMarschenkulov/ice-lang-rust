@@ -50,36 +50,9 @@ impl Lexer {
             .unwrap_or(Err(None))
     }
 
-    // /// Checks the next chars as long as the given function returns true.
-    // pub fn check_while<F>(&mut self, pred: F) -> String
-    // where
-    //     F: Fn(&char) -> bool,
-    // {
-    //     (0..)
-    //         .map(|offset| self.check_with(offset, &pred))
-    //         .take_while(Result::is_ok)
-    //         .filter_map(Result::ok)
-    //         .collect()
-    // }
-
     /// Checks the char at offset `n`. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
     pub fn check_char(&self, n: isize, c: char) -> Result<char, Option<char>> {
         self.check_with(n, |x| x == &c)
-    }
-
-    pub fn check_str_(&self, str: &str) -> Option<String> {
-        str.chars()
-            .enumerate()
-            .map(|(i, c)| self.check_char(i as isize, c).ok())
-            .collect::<Option<String>>()
-    }
-    pub fn check_str(&self, str: &str) -> String {
-        str.chars()
-            .enumerate()
-            .map(|(i, c)| self.check_char(i as isize, c).ok())
-            .take_while(Option::is_some)
-            .flatten()
-            .collect::<String>()
     }
 
     /// Matches a terminal character. If the character is matched, it is eaten and return wrapped in a `Ok`,
