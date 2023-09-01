@@ -1,3 +1,8 @@
+//! This module contains the cursor part of the lexer.
+//!
+//! The cursor is the part of the lexer that keeps track of the current position in the source code.s
+//! It is used to advance the lexer and to peek at the next character.
+
 use super::Lexer;
 
 /// Adjusts the given index by the given offset safely.

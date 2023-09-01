@@ -1,3 +1,9 @@
+//! The Ice abstract syntax tree module.
+//! 
+//! This module contains types that form the language AST.
+//! 
+//! The AST is the representation of the source code in a tree-like structure.
+
 #[derive(Clone, Debug)]
 pub struct Identifier {
     pub name: crate::lexer::token::Token,

@@ -1,4 +1,7 @@
-
+//! AST Debug Tree Printer
+//! 
+//! This module contains the implementation of the `DebugTreePrinter` trait for the AST. This trait is used to print the AST
+//! in a tree-like structure.
 use super::ast::*;
 
 pub trait DebugTreePrinter {
