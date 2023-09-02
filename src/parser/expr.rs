@@ -363,9 +363,7 @@ impl Parser {
         let expr = match token.kind {
             TokenKind::Literal(lit) => {
                 self.advance();
-                Expr {
-                    kind: ExprKind::Literal(lit),
-                }
+                Expr::literal(lit)
             }
             TokenKind::Identifier(_) => {
                 if self.check(&TokenKind::Punctuator(LeftParen), 1).is_ok() {
@@ -384,9 +382,7 @@ impl Parser {
                 let left = self.parse_expr().unwrap();
                 self.eat(&TokenKind::Punctuator(RightParen))
                     .expect("Expected ')' after expression");
-                Expr {
-                    kind: ExprKind::Grouping(Box::new(left)),
-                }
+                Expr::group(left)
             }
             TokenKind::Punctuator(LeftBrace) => {
                 let stmts = self.parse_expr_block().unwrap();

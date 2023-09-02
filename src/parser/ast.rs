@@ -83,6 +83,19 @@ pub struct Expr {
     pub kind: ExprKind,
     // pub span: Span,
 }
+/// Impl block for constructors of `Expr`.
+impl Expr {
+    pub fn literal(literal: crate::lexer::token::LiteralKind) -> Self {
+        Expr {
+            kind: ExprKind::Literal(literal),
+        }
+    }
+    pub fn group(expr: Expr) -> Self {
+        Expr {
+            kind: ExprKind::Grouping(Box::new(expr)),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Parameter {
