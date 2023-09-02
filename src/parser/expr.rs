@@ -316,23 +316,16 @@ impl Parser {
     }
 
     pub fn parse_identifier(&mut self) -> PResult<Identifier> {
-        let token = match self.eat_identifier() {
-            Ok(token) => token.clone(),
-            Err(token) => panic!("Expected identifier, got {:?}", token),
-        };
-        let identifier = Identifier::try_from(token).unwrap();
-        Ok(identifier)
+        self.eat_identifier()
+            .map_err(|token| Error::new(format!("Expected identifier, got {:?}", token)))
+            .map(|token| Identifier::try_from(token.clone()).expect("guaranteed"))
     }
 
     pub fn parse_operator(&mut self) -> PResult<Operator> {
-        let token = match self.eat_punctuator() {
-            Ok(token) => token.clone(),
-            Err(token) => return Err(Error::new(format!("Expected operator, got {:?}", token))),
-        };
-        let operator = Operator::try_from(token).expect("guaranteed");
-        Ok(operator)
+        self.eat_punctuator()
+            .map_err(|token| Error::new(format!("Expected operator, got {:?}", token)))
+            .map(|token| Operator::try_from(token.clone()).expect("guaranteed"))
     }
-    
     fn parse_symbol(&mut self) -> PResult<Expr> {
         use PunctuatorKind::*;
         let mut ids = Vec::new();
