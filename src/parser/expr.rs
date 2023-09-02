@@ -153,20 +153,31 @@ impl Parser {
     }
 }
 
+fn parse_expr_block_(this: &mut Parser, text_0: &str, text_1: &str) -> PResult<Expr> {
+    use PunctuatorKind::*;
+    use TokenKind::*;
+
+    this.check(&Punctuator(LeftBrace), 0).expect(text_0);
+    let block = this.parse_expr_block().unwrap();
+    this.check(&Punctuator(RightBrace), -1).expect(text_1);
+
+    Ok(block)
+}
+
 /// This impl block is for parsing control flow expressions
 impl Parser {
     fn parse_expr_if(&mut self) -> PResult<Expr> {
         use KeywordKind::*;
-        use PunctuatorKind::*;
         use TokenKind::*;
 
         self.eat(&Keyword(If)).expect("Expected 'if'");
         let condition = self.parse_expr().unwrap();
-        self.check(&Punctuator(LeftBrace), 0)
-            .expect("Expected '{' after if condition");
-        let then_branch = self.parse_expr_block().unwrap();
-        self.check(&Punctuator(RightBrace), -1)
-            .expect("Expected '}' after if body");
+        let then_branch = parse_expr_block_(
+            self,
+            "Expected '{' after if condition",
+            "Expected '}' after if body",
+        )
+        .unwrap();
 
         let else_branch = match self.peek(0).unwrap().kind {
             Keyword(Else) => Some(Box::new(self.parse_expr_else().unwrap())),
@@ -179,35 +190,28 @@ impl Parser {
     }
     fn parse_expr_else(&mut self) -> PResult<Expr> {
         use KeywordKind::*;
-        use PunctuatorKind::*;
         use TokenKind::*;
         self.eat(&Keyword(Else)).expect("Expected 'else'");
         match self.peek(0).unwrap().kind {
-            Keyword(If) => {
-                //self.advance();
-                self.parse_expr_if()
-            }
-            _ => {
-                self.check(&Punctuator(LeftBrace), 0)
-                    .expect("Expected '{' after else");
-                let e = self.parse_expr_block();
-                self.check(&Punctuator(RightBrace), -1)
-                    .expect("Expected '}' after else body");
-                e
-            }
+            Keyword(If) => self.parse_expr_if(),
+            _ => parse_expr_block_(
+                self,
+                "Expected '{' after else",
+                "Expected '}' after else body",
+            ),
         }
     }
     fn parse_expr_while(&mut self) -> PResult<Expr> {
         use KeywordKind::*;
-        use PunctuatorKind::*;
         use TokenKind::*;
         self.eat(&Keyword(While)).unwrap();
         let condition = self.parse_expr().unwrap();
-        self.check(&Punctuator(LeftBrace), 0)
-            .expect("Expect '{' after while condition.");
-        let while_body = self.parse_expr_block().unwrap();
-        self.check(&Punctuator(RightBrace), -1)
-            .expect("Expect '}' after while body.");
+        let while_body = parse_expr_block_(
+            self,
+            "Expect '{' after while condition.",
+            "Expect '}' after while body.",
+        )
+        .unwrap();
         let expr = Expr {
             kind: ExprKind::While(Box::new(condition), Box::new(while_body)),
         };
@@ -233,12 +237,14 @@ impl Parser {
             .expect("Expected ';' after for condition");
 
         let itr_expr = self.parse_expr().unwrap();
-        self.check(&Punctuator(LeftBrace), 0)
-            .expect("Expected '{' after for iterator expression");
 
-        let while_body = self.parse_expr_block().unwrap();
-        self.check(&Punctuator(RightBrace), -1)
-            .expect("Expected '}' after for body");
+        let while_body = parse_expr_block_(
+            self,
+            "Expected '{' after for iterator expression",
+            "Expected '}' after for body",
+        )
+        .unwrap();
+
         let expr = Expr {
             kind: ExprKind::For(
                 Box::new(initilizer.unwrap()),
