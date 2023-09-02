@@ -95,6 +95,54 @@ impl Expr {
             kind: ExprKind::Grouping(Box::new(expr)),
         }
     }
+    pub fn if_(expr: Expr, then: Expr, else_: Option<Expr>) -> Self {
+        Expr {
+            kind: ExprKind::If(Box::new(expr), Box::new(then), else_.map(Box::new)),
+        }
+    }
+    pub fn while_(expr: Expr, body: Expr) -> Self {
+        Expr {
+            kind: ExprKind::While(Box::new(expr), Box::new(body)),
+        }
+    }
+    pub fn for_(init: Stmt, cond: Expr, update: Expr, body: Expr) -> Self {
+        Expr {
+            kind: ExprKind::For(
+                Box::new(init),
+                Box::new(cond),
+                Box::new(update),
+                Box::new(body),
+            ),
+        }
+    }
+    pub fn block(stmts: Vec<Stmt>) -> Self {
+        Expr {
+            kind: ExprKind::Block(stmts),
+        }
+    }
+
+    pub fn unary_prefix(op: Operator, expr: Expr) -> Self {
+        Expr {
+            kind: ExprKind::UnaryPrefix(op, Box::new(expr)),
+        }
+    }
+    pub fn binary_infix(lhs: Expr, op: Operator, rhs: Expr) -> Self {
+        Expr {
+            kind: ExprKind::BinaryInfix(Box::new(lhs), op, Box::new(rhs)),
+        }
+    }
+
+    pub fn symbol(name: Identifier, path: Option<Vec<Identifier>>) -> Self {
+        Expr {
+            kind: ExprKind::Symbol { name, path },
+        }
+    }
+
+    pub fn fn_call(expr: Expr, args: Vec<Expr>) -> Self {
+        Expr {
+            kind: ExprKind::FnCall(Box::new(expr), args),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

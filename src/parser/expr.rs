@@ -180,12 +180,10 @@ impl Parser {
         .unwrap();
 
         let else_branch = match self.peek(0).unwrap().kind {
-            Keyword(Else) => Some(Box::new(self.parse_expr_else().unwrap())),
+            Keyword(Else) => Some(self.parse_expr_else().unwrap()),
             _ => None,
         };
-        let expr = Expr {
-            kind: ExprKind::If(Box::new(condition), Box::new(then_branch), else_branch),
-        };
+        let expr = Expr::if_(condition, then_branch, else_branch);
         Ok(expr)
     }
     fn parse_expr_else(&mut self) -> PResult<Expr> {
@@ -212,9 +210,7 @@ impl Parser {
             "Expect '}' after while body.",
         )
         .unwrap();
-        let expr = Expr {
-            kind: ExprKind::While(Box::new(condition), Box::new(while_body)),
-        };
+        let expr = Expr::while_(condition, while_body);
         Ok(expr)
     }
     fn parse_expr_for(&mut self) -> PResult<Expr> {
@@ -245,14 +241,7 @@ impl Parser {
         )
         .unwrap();
 
-        let expr = Expr {
-            kind: ExprKind::For(
-                Box::new(initilizer.unwrap()),
-                Box::new(condition),
-                Box::new(itr_expr),
-                Box::new(while_body),
-            ),
-        };
+        let expr = Expr::for_(initilizer.unwrap(), condition, itr_expr, while_body);
         Ok(expr)
     }
 }
@@ -269,10 +258,7 @@ impl Parser {
         }
 
         self.eat(&Punctuator(RightBrace)).unwrap();
-
-        let expr = Expr {
-            kind: ExprKind::Block(statements),
-        };
+        let expr = Expr::block(statements);
         Ok(expr)
     }
     /// Parses a binary or unary expression.
@@ -281,18 +267,27 @@ impl Parser {
     ///
     /// This function is also used as an entry point for parsing expressions. In that case the `prev_bp` is `BindingPower::new()`.
     fn parse_expr_binary(&mut self, prev_bp: BindingPower) -> PResult<Expr> {
-        let un_prefix = self.peek(0).unwrap();
-        let un_prefix = Operator::try_from(un_prefix.clone()).unwrap();
-        let mut left = match prefix_binding_power(self, &un_prefix) {
-            Some(bp) if prev_bp.right < bp.left => {
-                let op = self.eat_punctuator().unwrap().clone();
-                let op = Operator::try_from(op).unwrap();
-                let right = self.parse_expr_binary(bp).unwrap();
-                Expr {
-                    kind: ExprKind::UnaryPrefix(op, Box::new(right)),
+        let un_prefix = self
+            .peek(0)
+            .ok_or_else(super::Error::unexpected_eof)?
+            .clone();
+
+        let mut left = if un_prefix.kind.is_punctuator() {
+            let un_prefix = Operator::try_from(un_prefix).map_err(|x| {
+                super::Error::new(format!("Expected unary prefix operator, got {:?}", x))
+            })?;
+
+            match prefix_binding_power(self, &un_prefix) {
+                Some(bp) if prev_bp.right < bp.left => {
+                    let op = self.parse_operator()?;
+                    let right = self.parse_expr_binary(bp).unwrap();
+
+                    Expr::unary_prefix(op, right)
                 }
+                Some(_) | None => self.parse_expr_primary().unwrap(),
             }
-            Some(_) | None => self.parse_expr_primary().unwrap(),
+        } else {
+            self.parse_expr_primary().unwrap()
         };
 
         loop {
@@ -310,16 +305,10 @@ impl Parser {
                 ),
                 // This is a binary infix operator, but it binds more tightly than the previous operator.
                 Some(bp) => {
-                    let operator = self.eat_punctuator().unwrap().clone();
-                    let operator = Operator::try_from(operator).unwrap();
+                    let operator = self.parse_operator().unwrap();
                     let right = self.parse_expr_binary(bp).unwrap();
-                    left = Expr {
-                        kind: ExprKind::BinaryInfix(
-                            Box::new(left),
-                            operator.clone(),
-                            Box::new(right),
-                        ),
-                    };
+
+                    left = Expr::binary_infix(left, operator, right);
                 }
             }
         }
@@ -334,6 +323,16 @@ impl Parser {
         let identifier = Identifier::try_from(token).unwrap();
         Ok(identifier)
     }
+
+    pub fn parse_operator(&mut self) -> PResult<Operator> {
+        let token = match self.eat_punctuator() {
+            Ok(token) => token.clone(),
+            Err(token) => return Err(Error::new(format!("Expected operator, got {:?}", token))),
+        };
+        let operator = Operator::try_from(token).expect("guaranteed");
+        Ok(operator)
+    }
+    
     fn parse_symbol(&mut self) -> PResult<Expr> {
         use PunctuatorKind::*;
         let mut ids = Vec::new();
@@ -346,12 +345,7 @@ impl Parser {
         let actual_id = ids.pop().expect("Expected identifier");
         let actual_path = if ids.is_empty() { None } else { Some(ids) };
 
-        let expr = Expr {
-            kind: ExprKind::Symbol {
-                name: actual_id,
-                path: actual_path,
-            },
-        };
+        let expr = Expr::symbol(actual_id, actual_path);
         Ok(expr)
     }
     fn parse_expr_primary(&mut self) -> PResult<Expr> {
@@ -401,12 +395,8 @@ impl Parser {
 
         let callee_name = self.parse_identifier().unwrap();
 
-        let callee = Box::from(Expr {
-            kind: ExprKind::Symbol {
-                name: callee_name,
-                path: None,
-            },
-        });
+        let callee = Expr::symbol(callee_name, None);
+
         self.eat(&TokenKind::Punctuator(LeftParen))
             .expect("Expected '(' after function name");
 
@@ -422,9 +412,7 @@ impl Parser {
         self.eat(&TokenKind::Punctuator(RightParen))
             .expect("Expected ')' after arguments");
 
-        let expr = Expr {
-            kind: ExprKind::FnCall(callee, arguments),
-        };
+        let expr = Expr::fn_call(callee, arguments);
         Ok(expr)
     }
 }
