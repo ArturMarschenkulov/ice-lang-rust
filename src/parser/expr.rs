@@ -106,21 +106,15 @@ impl BindingPower {
             (Punctuator(Equal), 1, Right),
         ];
         // Workaround, so that we don't have to implement stuff only for the HashMap.
-        fn stringify(tk: &TokenKind) -> String {
-            format!("{:?}", tk)
-        }
         arr.iter()
-            .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+            .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
     }
     pub fn postfix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
-        fn stringify(tk: &TokenKind) -> String {
-            format!("{:?}", tk)
-        }
         let arr: [(TokenKind, u32, Associativity); 0] = [];
         arr.iter()
-            .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+            .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
     }
     pub fn prefix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
@@ -128,36 +122,24 @@ impl BindingPower {
         use Associativity::*;
         use PunctuatorKind::*;
         use TokenKind::*;
-        fn stringify(tk: &TokenKind) -> String {
-            format!("{:?}", tk)
-        }
         let arr = [(Punctuator(Plus), 6, Right), (Punctuator(Minus), 6, Right)];
         arr.iter()
-            .map(|(tk, prec, asso)| (stringify(tk), BindingPower::from(*prec, *asso)))
+            .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
     }
 }
 
 fn infix_binding_power(p: &Parser, token: &Operator) -> Option<BindingPower> {
-    fn stringify(tk: &TokenKind) -> String {
-        format!("{:?}", tk)
-    }
-    p.infix_bp.get(&stringify(&token.name.kind)).cloned()
+    p.infix_bp.get(&format!("{:?}", &token.name.kind)).cloned()
 }
 fn postfix_binding_power(_p: &Parser, token: &Operator) -> Option<BindingPower> {
-    fn stringify(tk: &TokenKind) -> String {
-        format!("{:?}", tk)
-    }
     BindingPower::postfix_binding_powers()
-        .get(&stringify(&token.name.kind))
+        .get(&format!("{:?}", &token.name.kind))
         .cloned()
 }
 fn prefix_binding_power(_p: &Parser, token: &Operator) -> Option<BindingPower> {
-    fn stringify(tk: &TokenKind) -> String {
-        format!("{:?}", tk)
-    }
     BindingPower::prefix_binding_powers()
-        .get(&stringify(&token.name.kind))
+        .get(&format!("{:?}", token.name.kind))
         .cloned()
 }
 
