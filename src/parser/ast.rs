@@ -147,6 +147,15 @@ impl Expr {
     }
 }
 
+impl Expr {
+    pub fn does_require_semicolon_if_in_stmt(&self) -> bool {
+        !matches!(
+            &self.kind,
+            ExprKind::Block(..) | ExprKind::If(..) | ExprKind::While(..) | ExprKind::For(..)
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Parameter {
     pub name: Identifier,
