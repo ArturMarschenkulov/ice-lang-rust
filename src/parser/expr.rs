@@ -1,7 +1,7 @@
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
 use super::ast::{Expr, Identifier, Operator, Stmt};
 
-use super::{PResult, Parser};
+use super::{Error, PResult, Parser};
 
 #[derive(Clone, Copy)]
 enum Associativity {
@@ -146,7 +146,7 @@ fn prefix_binding_power(_p: &Parser, token: &Operator) -> Option<BindingPower> {
 /// This impl block is for parsing expressions
 impl Parser {
     /// Parses an expression.
-    /// 
+    ///
     /// This function is the entry point for parsing expressions.
     pub fn parse_expr(&mut self) -> PResult<Expr> {
         self.parse_expr_binary(BindingPower::new())
@@ -171,7 +171,7 @@ impl Parser {
         use TokenKind::*;
 
         self.eat(&Keyword(If)).expect("Expected 'if'");
-        let condition = self.parse_expr().unwrap();
+        let condition = self.parse_expr()?;
         let then_branch = parse_expr_block_(
             self,
             "Expected '{' after if condition",
@@ -263,6 +263,7 @@ impl Parser {
         let expr = Expr::block(statements);
         Ok(expr)
     }
+
     /// Parses a binary or unary expression.
     ///
     /// This function is recursive, and it uses Pratt parsing. This function is based on [this article](https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html).
@@ -282,14 +283,14 @@ impl Parser {
             match prefix_binding_power(self, &un_prefix) {
                 Some(bp) if prev_bp.right < bp.left => {
                     let op = self.parse_operator()?;
-                    let right = self.parse_expr_binary(bp).unwrap();
+                    let right = self.parse_expr_binary(bp)?;
 
                     Expr::unary_prefix(op, right)
                 }
-                Some(_) | None => self.parse_expr_primary().unwrap(),
+                Some(_) | None => self.parse_expr_primary()?,
             }
         } else {
-            self.parse_expr_primary().unwrap()
+            self.parse_expr_primary()?
         };
 
         loop {
@@ -307,7 +308,7 @@ impl Parser {
                 ),
                 // This is a binary infix operator, but it binds more tightly than the previous operator.
                 Some(bp) => {
-                    let operator = self.parse_operator().unwrap();
+                    let operator = self.parse_operator()?;
                     let right = self.parse_expr_binary(bp).unwrap();
 
                     left = Expr::binary_infix(left, operator, right);
@@ -323,7 +324,7 @@ impl Parser {
             .map(|token| Identifier::try_from(token.clone()).expect("guaranteed"))
     }
 
-    pub fn parse_operator(&mut self) -> PResult<Operator> {
+    fn parse_operator(&mut self) -> PResult<Operator> {
         self.eat_punctuator()
             .map_err(|token| Error::new(format!("Expected operator, got {:?}", token)))
             .map(|token| Operator::try_from(token.clone()).expect("guaranteed"))
@@ -331,10 +332,10 @@ impl Parser {
     fn parse_symbol(&mut self) -> PResult<Expr> {
         use PunctuatorKind::*;
         let mut ids = Vec::new();
-        ids.push(self.parse_identifier().unwrap());
+        ids.push(self.parse_identifier()?);
 
         while self.eat(&TokenKind::Punctuator(ColonColon)).is_ok() {
-            ids.push(self.parse_identifier().unwrap());
+            ids.push(self.parse_identifier()?);
         }
 
         let actual_id = ids.pop().expect("Expected identifier");
@@ -346,7 +347,7 @@ impl Parser {
     fn parse_expr_primary(&mut self) -> PResult<Expr> {
         use KeywordKind::*;
         use PunctuatorKind::*;
-        // use TokenKind::*;
+
         let token = self.peek(0).unwrap().clone();
 
         let expr = match token.kind {
@@ -358,7 +359,7 @@ impl Parser {
                 if self.check(&TokenKind::Punctuator(LeftParen), 1).is_ok() {
                     self.parse_expr_fn_call().unwrap()
                 } else {
-                    self.parse_symbol().unwrap()
+                    self.parse_symbol()?
                 }
             }
 
@@ -386,25 +387,25 @@ impl Parser {
         Ok(expr)
     }
     fn parse_expr_fn_call(&mut self) -> PResult<Expr> {
-        use PunctuatorKind::*;
-
-        let callee_name = self.parse_identifier().unwrap();
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
+        let callee_name = self.parse_identifier()?;
 
         let callee = Expr::symbol(callee_name, None);
 
-        self.eat(&TokenKind::Punctuator(LeftParen))
+        self.eat(&TK::Punctuator(PK::LeftParen))
             .expect("Expected '(' after function name");
 
         let mut arguments: Vec<Expr> = Vec::new();
-        while self.check(&TokenKind::Punctuator(RightParen), 0).is_err() {
+        while self.check(&TK::Punctuator(PK::RightParen), 0).is_err() {
             arguments.push(self.parse_expr().unwrap());
-            if self.check(&TokenKind::Punctuator(RightParen), 0).is_ok() {
-                self.eat(&TokenKind::Punctuator(Comma))
+            if self.check(&TK::Punctuator(PK::RightParen), 0).is_ok() {
+                self.eat(&TK::Punctuator(PK::Comma))
                     .expect("Expected ',' after argument");
             }
         }
 
-        self.eat(&TokenKind::Punctuator(RightParen))
+        self.eat(&TK::Punctuator(PK::RightParen))
             .expect("Expected ')' after arguments");
 
         let expr = Expr::fn_call(callee, arguments);

@@ -1,5 +1,5 @@
+use super::super::lexer::token::{SpecialKeywordKind, Token, TokenKind};
 use super::Parser;
-use super::super::lexer::token::{Token, TokenKind, SpecialKeywordKind};
 /// Adjusts the given index by the given offset safely.
 ///
 /// This function takes an index as a `usize` and an offset as an `isize`. It attempts to add or subtract the offset
@@ -21,6 +21,9 @@ impl Parser {
     pub fn check(&self, kind: &TokenKind, offset: isize) -> Result<&Token, Option<&Token>> {
         self.check_with(offset, |tk| tk == kind)
     }
+
+    /// Checks if the token at the given offset matches the given predicate.
+    /// If it does, it is returned, else `Err` is returned.
     pub fn check_with<F>(&self, offset: isize, pred: F) -> Result<&Token, Option<&Token>>
     where
         Self: Sized,
@@ -40,9 +43,8 @@ impl Parser {
         self.eat_with(TokenKind::is_punctuator)
     }
 
-
     /// Eats the next token if it matches the given predicate.
-    /// 
+    ///
     /// If the next token matches the predicate, it is consumed and returned.
     /// Otherwise, the cursor is not moved and `Err` is ret
     fn eat_with<F>(&mut self, pred: F) -> Result<&Token, Option<&Token>>
