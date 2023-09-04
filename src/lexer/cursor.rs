@@ -1,6 +1,6 @@
 //! This module contains the cursor part of the lexer.
 //!
-//! The cursor is the part of the lexer that keeps track of the current position in the source code.s
+//! The cursor is the part of the lexer that keeps track of the current position in the source code
 //! It is used to advance the lexer and to peek at the next character.
 
 use super::Lexer;
@@ -61,7 +61,7 @@ impl Lexer {
     }
 
     /// Matches a terminal character. If the character is matched, it is eaten and return wrapped in a `Ok`,
-    /// else an `Err(Some)` is returned if the character is not matched and an `Err(None)` is returned if the end of the file is reached.s
+    /// else an `Err(Some)` is returned if the character is not matched and an `Err(None)` is returned if the end of the file is reached
     pub fn eat_char(&mut self, ch: char) -> Result<char, Option<char>> {
         self.eat_with(|x| x == &ch)
     }
