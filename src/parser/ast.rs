@@ -62,6 +62,8 @@ pub enum ExprKind {
     BinaryInfix(Box<Expr>, Operator, Box<Expr>),
     /// E.g., -3, !true
     UnaryPrefix(Operator, Box<Expr>),
+    /// E.g., 3!
+    UnaryPostfix(Box<Expr>, Operator),
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)

@@ -58,6 +58,10 @@ impl DebugTreePrinter for Expr {
                 debug_tree::add_branch!("Unary: {:?}", op.name.kind);
                 expr.print_debug_tree();
             }
+            ExprKind::UnaryPostfix(expr,op) => {
+                debug_tree::add_branch!("Unary: {:?}", op.name.kind);
+                expr.print_debug_tree();
+            }
             ExprKind::Symbol { name, path } => {
                 let s = if path.is_some() {
                     let s = path
