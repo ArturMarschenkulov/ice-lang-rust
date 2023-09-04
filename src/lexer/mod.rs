@@ -9,13 +9,13 @@
 
 mod cursor;
 mod error;
-mod tests;
-pub mod token;
-
 use token::{
     cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind, Span,
     SpecialKeywordKind, Token, TokenKind, Whitespace,
 };
+pub mod token;
+
+mod tests;
 
 use error::Error;
 
@@ -216,12 +216,12 @@ impl Lexer {
     }
 
     /// Scans a token.
-    ///* */
+    ///
     /// This is one of the core functions of the lexer. Maybe in the future, in case the lexer becomes on demand,
     /// this will become the main function.
     ///
-    /// Starts to scan from `self.index` until it has a valid token. If the token is invalid, it returns an error.
-    /// If the token is valid, it returns the token and the `self.index` is set one position after the token, so that a new token can be scanned.
+    /// Starts to scan from [`Lexer::index`] until it has a valid token [`Token`]. If the token is invalid, it returns an error [`Error`].
+    /// If the token is valid, it returns the token and the [`Lexer::index`] is set one position after the token, so that a new token can be scanned.
     // TODO: Add recovery.
     // TODO: The cursor/index should only here be moved to the position after the token. Make sure that it happens.
     fn scan_token(&mut self) -> LResult<Token> {

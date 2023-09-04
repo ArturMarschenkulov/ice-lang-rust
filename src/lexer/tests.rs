@@ -378,7 +378,6 @@ fn test_scan_tokens_KIND() {
 }
 #[test]
 fn test_scan_tokens_SPAN() {
-    use token::*;
 
     assert_eq!(
         to_token_spans("var a := 2222;"),

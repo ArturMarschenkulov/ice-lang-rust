@@ -1,3 +1,5 @@
+//! This module contains the definition of the [`Token`] struct and its associated types.
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenKind {
     Punctuator(PunctuatorKind),
@@ -513,10 +515,7 @@ pub fn cook_tokens(tokens: &[Token]) -> Token {
             );
             Token {
                 kind: token_kind,
-                span: Span {
-                    start: first_tok.span.start,
-                    end: last_tok.span.end,
-                },
+                span: Span::from((first_tok.span, last_tok.span)),
                 whitespace: Whitespace::from(bools),
             }
         }
@@ -692,6 +691,14 @@ impl Span {
         Span { start, end }
     }
 }
+impl From<(Span, Span)> for Span {
+    fn from(spans: (Span, Span)) -> Self {
+        Span {
+            start: spans.0.start,
+            end: spans.1.end,
+        }
+    }
+}
 impl std::fmt::Debug for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -738,14 +745,6 @@ impl From<Whitespace> for (bool, bool) {
     }
 }
 
-impl From<(Whitespace, Whitespace)> for Whitespace {
-    fn from(ws: (Whitespace, Whitespace)) -> Self {
-        let left = ws.0;
-        let right = ws.1;
-        Whitespace::from((<(bool, bool)>::from(left).0, <(bool, bool)>::from(right).1))
-    }
-}
-
 impl From<(bool, bool)> for Whitespace {
     fn from(bools: (bool, bool)) -> Self {
         use Whitespace::*;
@@ -757,15 +756,22 @@ impl From<(bool, bool)> for Whitespace {
         }
     }
 }
+
+impl From<(Whitespace, Whitespace)> for Whitespace {
+    fn from(ws: (Whitespace, Whitespace)) -> Self {
+        let left = ws.0;
+        let right = ws.1;
+        let left = <(bool, bool)>::from(left);
+        let right = <(bool, bool)>::from(right);
+        Whitespace::from((left.0, right.1))
+    }
+}
+
 impl From<(char, char)> for Whitespace {
     fn from(chars: (char, char)) -> Self {
-        use Whitespace::*;
-        match (is_left_whitespace(&chars.0), is_right_whitespace(&chars.1)) {
-            (true, true) => Both,
-            (true, false) => Left,
-            (false, true) => Right,
-            (false, false) => NoBoth,
-        }
+        let is_left = is_left_whitespace(&chars.0);
+        let is_right = is_right_whitespace(&chars.1);
+        Whitespace::from((is_left, is_right))
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -808,7 +814,7 @@ impl Token {
         let right = slice.last().unwrap();
         Token {
             kind: Punctuator(c),
-            span: Span::new(left.span.start, right.span.end),
+            span: Span::from((left.span, right.span)),
             whitespace: Whitespace::from((left.whitespace, right.whitespace)),
         }
     }
