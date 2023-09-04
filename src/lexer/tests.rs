@@ -15,7 +15,7 @@ fn to_token_kinds(s: &str) -> Vec<TokenKind> {
 }
 
 /// Helper function to convert a string to a vector of token spans.
-fn to_token_spans(s: &str) -> Vec<token::Span> {
+fn to_token_spans(s: &str) -> Vec<span::Span> {
     Lexer::from(s)
         .scan_tokens()
         .iter()
@@ -121,10 +121,10 @@ fn test_scan_tokens() {
     assert_eq!(
         Lexer::from("fn").scan_tokens(),
         vec![
-            Token::new(Keyword(Fn), Span::from(((1, 1), (1, 2))), NoBoth),
+            Token::new(Keyword(Fn), span::Span::from(((1, 1), (1, 2))), NoBoth),
             Token::new(
                 SpecialKeyword(SpecialKeywordKind::Eof),
-                Span::from(((1, 3), (1, 3))),
+                span::Span::from(((1, 3), (1, 3))),
                 Both
             ),
         ]
@@ -378,7 +378,7 @@ fn test_scan_tokens_KIND() {
 }
 #[test]
 fn test_scan_tokens_SPAN() {
-
+    use span::*;
     assert_eq!(
         to_token_spans("var a := 2222;"),
         vec![

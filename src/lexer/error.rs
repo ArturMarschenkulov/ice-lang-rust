@@ -1,4 +1,4 @@
-use super::token;
+use super::{span, token};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Error {
@@ -70,7 +70,7 @@ impl Error {
         ))
     }
     // General
-    pub fn unknown_character(c: char, pos: token::Position) -> Self {
+    pub fn unknown_character(c: char, pos: span::Position) -> Self {
         Self::new(format!(
             "Unknown character '{}' at {}:{}",
             c, pos.line, pos.column

@@ -9,11 +9,13 @@
 
 mod cursor;
 mod error;
+mod span;
+pub mod token;
+
 use token::{
-    cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind, Span,
+    cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind,
     SpecialKeywordKind, Token, TokenKind, Whitespace,
 };
-pub mod token;
 
 mod tests;
 
@@ -44,7 +46,7 @@ struct Lexer {
     chars: Vec<char>,
 
     index: usize,
-    cursor: token::Position,
+    cursor: span::Position,
 }
 
 fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &mut Vec<Token>) {
@@ -147,7 +149,7 @@ impl From<&str> for Lexer {
         Self {
             chars: source.chars().collect(),
             index: 0,
-            cursor: token::Position::new(1, 1),
+            cursor: span::Position::new(1, 1),
         }
     }
 }
@@ -173,7 +175,7 @@ impl Lexer {
         tokens
     }
 
-    fn scan_token_kind(&mut self) -> LResult<(TokenKind, token::Position, usize)> {
+    fn scan_token_kind(&mut self) -> LResult<(TokenKind, span::Position, usize)> {
         use PunctuatorKind::*;
         use SpecialKeywordKind::*;
         use TokenKind::*;
@@ -237,7 +239,7 @@ impl Lexer {
 
         let token = Token::new(
             token_kind,
-            Span::new(start_pos, end_pos),
+            span::Span::new(start_pos, end_pos),
             Whitespace::from((
                 *self.chars.get(start_index).unwrap_or(&' '),
                 *self.chars.get(end_index).unwrap_or(&' '),
