@@ -1,5 +1,5 @@
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
-use super::ast::{Expr, ExprKind, Identifier, Operator, Stmt};
+use super::ast::{Expr, Identifier, Operator, Stmt};
 
 use super::{PResult, Parser};
 
@@ -183,8 +183,7 @@ impl Parser {
             Keyword(Else) => Some(self.parse_expr_else().unwrap()),
             _ => None,
         };
-        let expr = Expr::if_(condition, then_branch, else_branch);
-        Ok(expr)
+        Ok(Expr::if_(condition, then_branch, else_branch))
     }
     fn parse_expr_else(&mut self) -> PResult<Expr> {
         use KeywordKind::*;
@@ -210,8 +209,7 @@ impl Parser {
             "Expect '}' after while body.",
         )
         .unwrap();
-        let expr = Expr::while_(condition, while_body);
-        Ok(expr)
+        Ok(Expr::while_(condition, while_body))
     }
     fn parse_expr_for(&mut self) -> PResult<Expr> {
         use KeywordKind::*;
@@ -241,8 +239,12 @@ impl Parser {
         )
         .unwrap();
 
-        let expr = Expr::for_(initilizer.unwrap(), condition, itr_expr, while_body);
-        Ok(expr)
+        Ok(Expr::for_(
+            initilizer.unwrap(),
+            condition,
+            itr_expr,
+            while_body,
+        ))
     }
 }
 impl Parser {

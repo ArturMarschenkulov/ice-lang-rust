@@ -9,7 +9,7 @@ mod ty;
 use error::Error;
 
 use super::lexer::token::Token;
-use ast::{Item, Module, Project};
+use ast::{Module, Project};
 
 #[allow(unused_macros)]
 macro_rules! get_function_name {
@@ -75,7 +75,7 @@ type PResult<T> = Result<T, Error>;
 /// It's most likely a temporary function, because we can only parse one file, meaning a file would be the whole project.
 /// In the future of course this would not be a thing.
 pub fn parse_project_from_file(tokens: Vec<Token>) -> PResult<Project> {
-    let mut parser = Parser::from_tokens(tokens);
+    let mut parser = Parser::new(tokens);
     parser.parse()
 }
 
@@ -88,7 +88,7 @@ struct Parser {
 
 /// This impl block is the entry block
 impl Parser {
-    fn from_tokens(tokens: Vec<Token>) -> Self {
+    fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
             current: 0,
@@ -96,15 +96,13 @@ impl Parser {
         }
     }
     fn parse(&mut self) -> PResult<Project> {
-        let mut items: Vec<Item> = Vec::new();
+        let mut items = Vec::new();
         while !self.is_at_end() {
             let item = self.parse_item().unwrap();
             items.push(item);
         }
-        let module = Module { items };
-        let project = Project {
-            modules: vec![module],
-        };
+        let module = Module::from(items);
+        let project = Project::from(vec![module]);
         Ok(project)
     }
 }

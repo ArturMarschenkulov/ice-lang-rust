@@ -1,5 +1,5 @@
-use super::ast::{ExprKind, Stmt, StmtKind};
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
+use super::ast::{Stmt, StmtKind};
 
 use super::{PResult, Parser};
 
@@ -13,14 +13,10 @@ impl Parser {
         let token = self.peek(0);
         let sk = match &token.unwrap().kind {
             Keyword(Var) => self.parse_stmt_var().unwrap(),
-            s if s.starts_item() => Stmt {
-                kind: StmtKind::Item(self.parse_item().unwrap()),
-            },
+            s if s.starts_item() => Stmt::item(self.parse_item().unwrap()),
             Punctuator(Semicolon) => {
                 self.advance();
-                Stmt {
-                    kind: StmtKind::NoOperation,
-                }
+                Stmt::noop()
             }
             _ => self.parse_stmt_expression().unwrap(),
         };
@@ -29,15 +25,12 @@ impl Parser {
                 let _ = self.eat(&Punctuator(Semicolon));
             }
             StmtKind::Expression(ref expr) => {
-                match expr.clone().kind {
-                    ExprKind::Block(..)
-                    | ExprKind::If(..)
-                    | ExprKind::While(..)
-                    | ExprKind::For(..) => {
+                match !expr.does_require_semicolon_if_in_stmt() {
+                    true => {
                         // self.eat_tok(&Punctuator(Semicolon))
                         //     .expect("Expected ';' after expression");
                     }
-                    _ => {
+                    false => {
                         self.eat(&Punctuator(Semicolon))
                             .expect("Expected ';' after expression");
                     }
@@ -47,25 +40,27 @@ impl Parser {
         }
         Ok(sk)
     }
+
+    /// Parses a statement which consists of an expression.
+    /// 
+    /// The main feature is that it does not declare anything.
+    /// 
+    /// This includes { ... } blocks, however also if, while, for, expressions, etc or simply stuff like `1 + 1;`
     pub fn parse_stmt_expression(&mut self) -> PResult<Stmt> {
         use PunctuatorKind::*;
         use TokenKind::*;
         let expr = self.parse_expr().unwrap();
 
-        let s = match expr.kind {
-            ExprKind::Block(..) | ExprKind::If(..) | ExprKind::While(..) | ExprKind::For(..) => {
-                StmtKind::Expression(Box::new(expr))
-            }
-            _ => {
+        let stmt = match !expr.does_require_semicolon_if_in_stmt() {
+            true => Stmt::expr(expr),
+            false => {
                 if self.eat(&Punctuator(Semicolon)).is_ok() {
-                    StmtKind::Expression(Box::new(expr))
+                    Stmt::expr(expr)
                 } else {
-                    StmtKind::ExpressionWithoutSemicolon(Box::new(expr))
+                    Stmt::expr_without_semicolon(expr)
                 }
             }
         };
-
-        let stmt = Stmt { kind: s };
         Ok(stmt)
     }
 }

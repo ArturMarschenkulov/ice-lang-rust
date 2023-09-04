@@ -1,5 +1,5 @@
 use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
-use super::ast::{Field, Identifier, Item, ItemKind, Parameter, Stmt, StmtKind, Ty};
+use super::ast::{Field, Identifier, Item, Parameter, Stmt, Ty};
 
 use super::{PResult, Parser};
 
@@ -34,8 +34,7 @@ impl Parser {
             })
             .collect::<Vec<_>>();
 
-        let strct = ItemKind::Struct { name, fields };
-        let item = Item { kind: strct };
+        let item = Item::struct_(name, fields);
         Ok(item)
     }
     pub fn parse_item_type(&mut self) -> PResult<Item> {
@@ -79,10 +78,10 @@ impl Parser {
 
         self.eat(&TokenKind::Keyword(Var)).unwrap();
 
-        let name = self
+        let ident = self
             .eat_identifier()
-            .expect("Expected variable name")
-            .clone();
+            .map(|name| Identifier::try_from(name.clone()).unwrap())
+            .expect("Expected variable name");
 
         self.eat(&TokenKind::Punctuator(Colon)).unwrap();
         let ty = self.parse_ty().ok();
@@ -93,16 +92,11 @@ impl Parser {
             Err(_) => panic!("Expected equal sign"),
         };
 
-        let var_decl = StmtKind::Var {
-            var: Identifier::try_from(name).unwrap(),
-            ty,
-            init: expr,
-        };
+        let stmt = Stmt::var(ident, ty, expr);
 
         self.check(&TokenKind::Punctuator(Semicolon), 0)
             .expect("Expected ';' after variable declaration");
 
-        let stmt = Stmt { kind: var_decl };
         Ok(stmt)
     }
     fn parse_delim_seq(
@@ -214,14 +208,7 @@ impl Parser {
         self.eat(&Punctuator(RightBrace))
             .expect("Expected '}' after function body");
 
-        let item = Item {
-            kind: ItemKind::Fn {
-                name,
-                params: parameters,
-                ret: ret_type,
-                body,
-            },
-        };
+        let item = Item::fn_(name, parameters, ret_type, *body);
         Ok(item)
     }
 }

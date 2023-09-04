@@ -1,5 +1,5 @@
-use super::ast::{Identifier, Ty, TyKind};
 use super::super::lexer::token::{PunctuatorKind, TokenKind};
+use super::ast::{Identifier, Ty};
 
 use super::error::*;
 use super::{PResult, Parser};
@@ -7,29 +7,20 @@ use super::{PResult, Parser};
 /// This impl block is for parsing the typess
 impl Parser {
     pub fn parse_ty(&mut self) -> PResult<Ty> {
-        let token = self.peek(0).unwrap();
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
+        let token = self.peek(0).unwrap().clone();
         let ty = match &token.kind {
-            TokenKind::Identifier(..) => {
-                let ty = Ty {
-                    kind: TyKind::Simple(Identifier::try_from(token.clone()).unwrap()),
-                };
-
+            TK::Identifier(..) => {
                 self.advance();
-                ty
+                Ty::simple(Identifier::try_from(token).unwrap())
             }
-            TokenKind::Punctuator(PunctuatorKind::LeftParen) => {
+            TK::Punctuator(PK::LeftParen) => {
                 self.advance();
-                let _ = self
-                    .eat(&TokenKind::Punctuator(PunctuatorKind::RightParen))
-                    .unwrap();
-                Ty {
-                    kind: TyKind::Tuple(Vec::new()),
-                }
+                let _ = self.eat(&TK::Punctuator(PK::RightParen)).unwrap();
+                Ty::unit()
             }
-            _ => Err(Error::new(format!(
-                "Expected a type, got {:?}",
-                token
-            )))?,
+            _ => Err(Error::new(format!("Expected a type, got {:?}", token)))?,
         };
         Ok(ty)
     }

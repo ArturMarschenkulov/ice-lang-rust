@@ -159,9 +159,20 @@ pub struct Parameter {
 pub struct Project {
     pub modules: Vec<Module>,
 }
+impl From<Vec<Module>> for Project {
+    fn from(module: Vec<Module>) -> Self {
+        Self { modules: module }
+    }
+}
 pub struct Module {
     pub items: Vec<Item>,
 }
+impl From<Vec<Item>> for Module {
+    fn from(item: Vec<Item>) -> Self {
+        Self { items: item }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum TyKind {
     /// A simple type `A`. It can be either custom or builtin/primitive.
@@ -216,6 +227,19 @@ impl TyKind {
 pub struct Ty {
     pub kind: TyKind,
 }
+
+impl Ty {
+    pub fn unit() -> Self {
+        Self {
+            kind: TyKind::Tuple(vec![]),
+        }
+    }
+    pub fn simple(name: Identifier) -> Self {
+        Self {
+            kind: TyKind::Simple(name),
+        }
+    }
+}
 #[derive(Clone, Debug)]
 pub struct Field {
     pub name: Identifier,
@@ -251,6 +275,24 @@ pub struct Item {
     pub kind: ItemKind,
 }
 
+impl Item {
+    pub fn fn_(name: Identifier, params: Vec<Parameter>, ret: Option<Ty>, body: Expr) -> Self {
+        Item {
+            kind: ItemKind::Fn {
+                name,
+                params,
+                ret,
+                body: Box::new(body),
+            },
+        }
+    }
+    pub fn struct_(name: Identifier, fields: Vec<Field>) -> Self {
+        Item {
+            kind: ItemKind::Struct { name, fields },
+        }
+    }
+}
+
 // The logic of the language and the way how it is parsed do not match.
 // `ExpressionWithoutSemicolon` is in this a statement, however
 // in the language itself it's an expression.
@@ -275,4 +317,34 @@ pub enum StmtKind {
 pub struct Stmt {
     pub kind: StmtKind,
     // pub span: Span,
+}
+
+impl Stmt {
+    pub fn noop() -> Self {
+        Self {
+            kind: StmtKind::NoOperation,
+        }
+    }
+    pub fn item(item: Item) -> Self {
+        Self {
+            kind: StmtKind::Item(item),
+        }
+    }
+
+    pub fn expr(expr: Expr) -> Self {
+        Self {
+            kind: StmtKind::Expression(Box::new(expr)),
+        }
+    }
+    pub fn expr_without_semicolon(expr: Expr) -> Self {
+        Self {
+            kind: StmtKind::ExpressionWithoutSemicolon(Box::new(expr)),
+        }
+    }
+
+    pub fn var(var: Identifier, ty: Option<Ty>, init: Option<Box<Expr>>) -> Self {
+        Self {
+            kind: StmtKind::Var { var, ty, init },
+        }
+    }
 }
