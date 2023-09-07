@@ -180,7 +180,7 @@ impl Lexer {
         use SpecialKeywordKind::*;
         use TokenKind::*;
 
-        // The assumption here is that `None` signifies the end of the file.
+        // The assumption here is that [`None`] signifies the end of the file.
         // Also, assuming that `'\0'` is not a valid character in the source code.
         let c = self.peek(0).unwrap_or('\0');
 
@@ -222,7 +222,7 @@ impl Lexer {
     /// This is one of the core functions of the lexer. Maybe in the future, in case the lexer becomes on demand,
     /// this will become the main function.
     ///
-    /// Starts to scan from [`Lexer::index`] until it has a valid token [`Token`]. If the token is invalid, it returns an error [`Error`].
+    /// Starts to scan from [`Lexer::index`] until it has a valid token [`Token`]. If the token is invalid, it returns an error [`Option::Some(Error)`] [`Error`].
     /// If the token is valid, it returns the token and the [`Lexer::index`] is set one position after the token, so that a new token can be scanned.
     // TODO: Add recovery.
     // TODO: The cursor/index should only here be moved to the position after the token. Make sure that it happens.
