@@ -1,12 +1,7 @@
-use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
+use super::super::lexer::token::{KeywordKind as KK, PunctuatorKind as PK, TokenKind as TK};
 use super::ast::{Expr, Identifier, Operator, Stmt};
 
 use super::{Error, PResult, Parser};
-
-use Associativity as Ass;
-use KeywordKind as KK;
-use PunctuatorKind as PK;
-use TokenKind as TK;
 
 #[derive(Clone, Copy)]
 enum Associativity {
@@ -86,6 +81,7 @@ impl BindingPower {
 impl BindingPower {
     pub fn infix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
+        use Associativity as Ass;
 
         let arr = [
             //
@@ -115,13 +111,14 @@ impl BindingPower {
     }
     pub fn postfix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
-        let arr: [(TokenKind, u32, Associativity); 0] = [];
+        let arr: [(TK, u32, Associativity); 0] = [];
         arr.iter()
             .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
     }
     pub fn prefix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
+        use Associativity as Ass;
 
         let arr = [
             (TK::Punctuator(PK::Plus), 6, Ass::Right),
