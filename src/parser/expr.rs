@@ -81,29 +81,31 @@ impl BindingPower {
 impl BindingPower {
     pub fn infix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
-        use Associativity::*;
-        use PunctuatorKind::*;
-        use TokenKind::*;
+
+        use Associativity as Ass;
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
+
         let arr = [
             //
-            (Punctuator(Asterisk), 7, Left),
-            (Punctuator(Slash), 7, Left),
-            (Punctuator(Percent), 7, Left),
+            (TK::Punctuator(PK::Asterisk), 7, Ass::Left),
+            (TK::Punctuator(PK::Slash), 7, Ass::Left),
+            (TK::Punctuator(PK::Percent), 7, Ass::Left),
             //
-            (Punctuator(Plus), 6, Left),
-            (Punctuator(Minus), 6, Left),
+            (TK::Punctuator(PK::Plus), 6, Ass::Left),
+            (TK::Punctuator(PK::Minus), 6, Ass::Left),
             //
-            (Punctuator(Less), 4, None),
-            (Punctuator(LessEqual), 4, None),
-            (Punctuator(Greater), 3, None),
-            (Punctuator(GreaterEqual), 4, None),
-            (Punctuator(EqualEqual), 4, None),
-            (Punctuator(BangEqual), 4, None),
+            (TK::Punctuator(PK::Less), 4, Ass::None),
+            (TK::Punctuator(PK::LessEqual), 4, Ass::None),
+            (TK::Punctuator(PK::Greater), 3, Ass::None),
+            (TK::Punctuator(PK::GreaterEqual), 4, Ass::None),
+            (TK::Punctuator(PK::EqualEqual), 4, Ass::None),
+            (TK::Punctuator(PK::BangEqual), 4, Ass::None),
             //
-            (Punctuator(Ampersand), 3, None),
-            (Punctuator(VerticalBar), 2, None),
+            (TK::Punctuator(PK::Ampersand), 3, Ass::None),
+            (TK::Punctuator(PK::VerticalBar), 2, Ass::None),
             //
-            (Punctuator(Equal), 1, Right),
+            (TK::Punctuator(PK::Equal), 1, Ass::Right),
         ];
         // Workaround, so that we don't have to implement stuff only for the HashMap.
         arr.iter()
@@ -119,10 +121,13 @@ impl BindingPower {
     }
     pub fn prefix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
-        use Associativity::*;
-        use PunctuatorKind::*;
-        use TokenKind::*;
-        let arr = [(Punctuator(Plus), 6, Right), (Punctuator(Minus), 6, Right)];
+        use Associativity as Ass;
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
+        let arr = [
+            (TK::Punctuator(PK::Plus), 6, Ass::Right),
+            (TK::Punctuator(PK::Minus), 6, Ass::Right),
+        ];
         arr.iter()
             .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
@@ -154,23 +159,23 @@ impl Parser {
 }
 
 fn parse_expr_block_(this: &mut Parser, text_0: &str, text_1: &str) -> PResult<Expr> {
-    use PunctuatorKind::*;
-    use TokenKind::*;
+    use PunctuatorKind as PK;
+    use TokenKind as TK;
 
-    this.check(&Punctuator(LeftBrace), 0).expect(text_0);
+    this.check(&TK::Punctuator(PK::LeftBrace), 0).expect(text_0);
     let block = this.parse_expr_block().unwrap();
-    this.check(&Punctuator(RightBrace), -1).expect(text_1);
-
+    this.check(&TK::Punctuator(PK::RightBrace), -1)
+        .expect(text_1);
     Ok(block)
 }
 
 /// This impl block is for parsing control flow expressions
 impl Parser {
     fn parse_expr_if(&mut self) -> PResult<Expr> {
-        use KeywordKind::*;
-        use TokenKind::*;
+        use KeywordKind as KK;
+        use TokenKind as TK;
 
-        self.eat(&Keyword(If)).expect("Expected 'if'");
+        self.eat(&TK::Keyword(KK::If)).expect("Expected 'if'");
         let condition = self.parse_expr()?;
         let then_branch = parse_expr_block_(
             self,
@@ -180,17 +185,18 @@ impl Parser {
         .unwrap();
 
         let else_branch = match self.peek(0).unwrap().kind {
-            Keyword(Else) => Some(self.parse_expr_else().unwrap()),
+            TK::Keyword(KK::Else) => Some(self.parse_expr_else().unwrap()),
             _ => None,
         };
         Ok(Expr::if_(condition, then_branch, else_branch))
     }
     fn parse_expr_else(&mut self) -> PResult<Expr> {
-        use KeywordKind::*;
-        use TokenKind::*;
-        self.eat(&Keyword(Else)).expect("Expected 'else'");
+        use KeywordKind as KK;
+        use TokenKind as TK;
+
+        self.eat(&TK::Keyword(KK::Else)).expect("Expected 'else'");
         match self.peek(0).unwrap().kind {
-            Keyword(If) => self.parse_expr_if(),
+            TK::Keyword(KK::If) => self.parse_expr_if(),
             _ => parse_expr_block_(
                 self,
                 "Expected '{' after else",
@@ -199,9 +205,9 @@ impl Parser {
         }
     }
     fn parse_expr_while(&mut self) -> PResult<Expr> {
-        use KeywordKind::*;
-        use TokenKind::*;
-        self.eat(&Keyword(While)).unwrap();
+        use KeywordKind as KK;
+        use TokenKind as TK;
+        self.eat(&TK::Keyword(KK::While)).unwrap();
         let condition = self.parse_expr().unwrap();
         let while_body = parse_expr_block_(
             self,
@@ -212,14 +218,14 @@ impl Parser {
         Ok(Expr::while_(condition, while_body))
     }
     fn parse_expr_for(&mut self) -> PResult<Expr> {
-        use KeywordKind::*;
-        use PunctuatorKind::*;
-        use TokenKind::*;
+        use KeywordKind as KK;
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
 
-        self.eat(&Keyword(For)).unwrap();
+        self.eat(&TK::Keyword(KK::For)).unwrap();
         let initilizer = match self.peek(0).unwrap().kind {
-            Keyword(Var) => Some(self.parse_stmt_var().unwrap()),
-            Punctuator(Semicolon) => {
+            TK::Keyword(KK::Var) => Some(self.parse_stmt_var().unwrap()),
+            TK::Punctuator(PK::Semicolon) => {
                 self.advance();
                 None
             }
@@ -227,7 +233,7 @@ impl Parser {
         };
 
         let condition = self.parse_expr().unwrap();
-        self.eat(&Punctuator(Semicolon))
+        self.eat(&TK::Punctuator(PK::Semicolon))
             .expect("Expected ';' after for condition");
 
         let itr_expr = self.parse_expr().unwrap();
@@ -249,17 +255,17 @@ impl Parser {
 }
 impl Parser {
     pub fn parse_expr_block(&mut self) -> PResult<Expr> {
-        use PunctuatorKind::*;
-        use TokenKind::*;
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
 
-        self.eat(&Punctuator(LeftBrace)).unwrap();
+        self.eat(&TK::Punctuator(PK::LeftBrace)).unwrap();
         let mut statements: Vec<Stmt> = Vec::new();
 
-        while !self.is_at_end() && self.check(&Punctuator(RightBrace), 0).is_err() {
+        while !self.is_at_end() && self.check(&TK::Punctuator(PK::RightBrace), 0).is_err() {
             statements.push(self.parse_stmt().unwrap());
         }
 
-        self.eat(&Punctuator(RightBrace)).unwrap();
+        self.eat(&TK::Punctuator(PK::RightBrace)).unwrap();
         let expr = Expr::block(statements);
         Ok(expr)
     }
@@ -330,53 +336,54 @@ impl Parser {
             .map(|token| Operator::try_from(token.clone()).expect("guaranteed"))
     }
     fn parse_symbol(&mut self) -> PResult<Expr> {
-        use PunctuatorKind::*;
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
         let mut ids = Vec::new();
         ids.push(self.parse_identifier()?);
 
-        while self.eat(&TokenKind::Punctuator(ColonColon)).is_ok() {
+        while self.eat(&TK::Punctuator(PK::ColonColon)).is_ok() {
             ids.push(self.parse_identifier()?);
         }
 
         let actual_id = ids.pop().expect("Expected identifier");
         let actual_path = if ids.is_empty() { None } else { Some(ids) };
 
-        let expr = Expr::symbol(actual_id, actual_path);
-        Ok(expr)
+        Ok(Expr::symbol(actual_id, actual_path))
     }
     fn parse_expr_primary(&mut self) -> PResult<Expr> {
-        use KeywordKind::*;
-        use PunctuatorKind::*;
+        use KeywordKind as KK;
+        use PunctuatorKind as PK;
+        use TokenKind as TK;
 
         let token = self.peek(0).unwrap().clone();
 
         let expr = match token.kind {
-            TokenKind::Literal(lit) => {
+            TK::Literal(lit) => {
                 self.advance();
                 Expr::literal(lit)
             }
-            TokenKind::Identifier(_) => {
-                if self.check(&TokenKind::Punctuator(LeftParen), 1).is_ok() {
+            TK::Identifier(_) => {
+                if self.check(&TK::Punctuator(PK::LeftParen), 1).is_ok() {
                     self.parse_expr_fn_call().unwrap()
                 } else {
                     self.parse_symbol()?
                 }
             }
 
-            TokenKind::Keyword(If) => self.parse_expr_if().unwrap(),
-            TokenKind::Keyword(While) => self.parse_expr_while().unwrap(),
-            TokenKind::Keyword(For) => self.parse_expr_for().unwrap(),
-            TokenKind::Punctuator(LeftParen) => {
-                self.eat(&TokenKind::Punctuator(LeftParen))
+            TK::Keyword(KK::If) => self.parse_expr_if().unwrap(),
+            TK::Keyword(KK::While) => self.parse_expr_while().unwrap(),
+            TK::Keyword(KK::For) => self.parse_expr_for().unwrap(),
+            TK::Punctuator(PK::LeftParen) => {
+                self.eat(&TK::Punctuator(PK::LeftParen))
                     .expect("Expected '(' before expression");
                 let left = self.parse_expr().unwrap();
-                self.eat(&TokenKind::Punctuator(RightParen))
+                self.eat(&TK::Punctuator(PK::RightParen))
                     .expect("Expected ')' after expression");
                 Expr::group(left)
             }
-            TokenKind::Punctuator(LeftBrace) => {
+            TK::Punctuator(PK::LeftBrace) => {
                 let stmts = self.parse_expr_block().unwrap();
-                self.check(&TokenKind::Punctuator(RightBrace), -1)
+                self.check(&TK::Punctuator(PK::RightBrace), -1)
                     .expect("Expected '}' after expression");
                 stmts
             }
