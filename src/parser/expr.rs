@@ -3,6 +3,11 @@ use super::ast::{Expr, Identifier, Operator, Stmt};
 
 use super::{Error, PResult, Parser};
 
+use Associativity as Ass;
+use KeywordKind as KK;
+use PunctuatorKind as PK;
+use TokenKind as TK;
+
 #[derive(Clone, Copy)]
 enum Associativity {
     Left,
@@ -82,10 +87,6 @@ impl BindingPower {
     pub fn infix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
 
-        use Associativity as Ass;
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
-
         let arr = [
             //
             (TK::Punctuator(PK::Asterisk), 7, Ass::Left),
@@ -121,9 +122,7 @@ impl BindingPower {
     }
     pub fn prefix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
-        use Associativity as Ass;
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
+
         let arr = [
             (TK::Punctuator(PK::Plus), 6, Ass::Right),
             (TK::Punctuator(PK::Minus), 6, Ass::Right),
@@ -159,9 +158,6 @@ impl Parser {
 }
 
 fn parse_expr_block_(this: &mut Parser, text_0: &str, text_1: &str) -> PResult<Expr> {
-    use PunctuatorKind as PK;
-    use TokenKind as TK;
-
     this.check(&TK::Punctuator(PK::LeftBrace), 0).expect(text_0);
     let block = this.parse_expr_block().unwrap();
     this.check(&TK::Punctuator(PK::RightBrace), -1)
@@ -172,9 +168,6 @@ fn parse_expr_block_(this: &mut Parser, text_0: &str, text_1: &str) -> PResult<E
 /// This impl block is for parsing control flow expressions
 impl Parser {
     fn parse_expr_if(&mut self) -> PResult<Expr> {
-        use KeywordKind as KK;
-        use TokenKind as TK;
-
         self.eat(&TK::Keyword(KK::If)).expect("Expected 'if'");
         let condition = self.parse_expr()?;
         let then_branch = parse_expr_block_(
@@ -191,9 +184,6 @@ impl Parser {
         Ok(Expr::if_(condition, then_branch, else_branch))
     }
     fn parse_expr_else(&mut self) -> PResult<Expr> {
-        use KeywordKind as KK;
-        use TokenKind as TK;
-
         self.eat(&TK::Keyword(KK::Else)).expect("Expected 'else'");
         match self.peek(0).unwrap().kind {
             TK::Keyword(KK::If) => self.parse_expr_if(),
@@ -205,8 +195,6 @@ impl Parser {
         }
     }
     fn parse_expr_while(&mut self) -> PResult<Expr> {
-        use KeywordKind as KK;
-        use TokenKind as TK;
         self.eat(&TK::Keyword(KK::While)).unwrap();
         let condition = self.parse_expr().unwrap();
         let while_body = parse_expr_block_(
@@ -218,10 +206,6 @@ impl Parser {
         Ok(Expr::while_(condition, while_body))
     }
     fn parse_expr_for(&mut self) -> PResult<Expr> {
-        use KeywordKind as KK;
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
-
         self.eat(&TK::Keyword(KK::For)).unwrap();
         let initilizer = match self.peek(0).unwrap().kind {
             TK::Keyword(KK::Var) => Some(self.parse_stmt_var().unwrap()),
@@ -255,9 +239,6 @@ impl Parser {
 }
 impl Parser {
     pub fn parse_expr_block(&mut self) -> PResult<Expr> {
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
-
         self.eat(&TK::Punctuator(PK::LeftBrace)).unwrap();
         let mut statements: Vec<Stmt> = Vec::new();
 
@@ -336,8 +317,6 @@ impl Parser {
             .map(|token| Operator::try_from(token.clone()).expect("guaranteed"))
     }
     fn parse_symbol(&mut self) -> PResult<Expr> {
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
         let mut ids = Vec::new();
         ids.push(self.parse_identifier()?);
 
@@ -351,10 +330,6 @@ impl Parser {
         Ok(Expr::symbol(actual_id, actual_path))
     }
     fn parse_expr_primary(&mut self) -> PResult<Expr> {
-        use KeywordKind as KK;
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
-
         let token = self.peek(0).unwrap().clone();
 
         let expr = match token.kind {
@@ -394,8 +369,6 @@ impl Parser {
         Ok(expr)
     }
     fn parse_expr_fn_call(&mut self) -> PResult<Expr> {
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
         let callee_name = self.parse_identifier()?;
 
         let callee = Expr::symbol(callee_name, None);
