@@ -2,12 +2,11 @@
 mod compiler;
 mod lexer;
 mod parser;
+mod tui;
 
 use std::fs::File;
 use std::io::Read;
-use std::time::Instant;
 
-use crate::parser::ast_print::DebugTreePrinter;
 //use crate::evaluator::get_evaluation_from_ast;
 use crate::lexer::lex_tokens_from_file;
 use crate::parser::parse_project_from_file;
@@ -21,72 +20,6 @@ var stur := "This\n is a string\n";
 // THis is a comment at the end
 "#;
 
-fn print_stage(stage: &str) {
-    println!();
-    println!("{} Stage:", stage);
-    println!();
-}
-
-fn print_time(vec: &Vec<(&str, std::time::Duration)>) {
-    let ansi_cyan = ansi_term::Color::Cyan;
-    let ansi_red = ansi_term::Color::Red;
-
-    for (stage, time) in vec {
-        let stage = ansi_cyan.paint(*stage).to_string();
-
-        let nano_t = ansi_red.paint(format!("{}", time.as_nanos())).to_string();
-        let micro_t = ansi_red.paint(format!("{}", time.as_micros())).to_string();
-        let mili_t = ansi_red.paint(format!("{}", time.as_millis())).to_string();
-        let sec_t = ansi_red.paint(format!("{}", time.as_secs())).to_string();
-
-        println!(
-            "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
-            stage, nano_t, micro_t, mili_t, sec_t
-        );
-    }
-    let s = vec
-        .clone()
-        .iter()
-        .map(|(_, t)| t)
-        .sum::<std::time::Duration>();
-    let stage = ansi_cyan.paint("all").to_string();
-    let nano_t = ansi_red.paint(format!("{}", s.as_nanos())).to_string();
-    let micro_t = ansi_red.paint(format!("{}", s.as_micros())).to_string();
-    let mili_t = ansi_red.paint(format!("{}", s.as_millis())).to_string();
-    let sec_t = ansi_red.paint(format!("{}", s.as_secs())).to_string();
-
-    println!(
-        "{:15} took {:>17}nanosec| {:>17}microsec| {:>17}milisec| {:>17}sec",
-        stage, nano_t, micro_t, mili_t, sec_t
-    );
-}
-fn print_token_stream(tokens: &Vec<lexer::token::Token>) {
-    println!("----Token Stream----");
-    for token in tokens {
-        println!(
-            "retat: {:?} {:?} {:?}",
-            &token.kind, &token.whitespace, &token.span
-        );
-    }
-    println!("~~~~Token Stream~~~~");
-}
-fn print_source_code(source: &str) {
-    println!();
-    println!("----Source Code----");
-    println!("{}", source);
-    println!("~~~~Source Code~~~~");
-    println!();
-}
-
-fn time_fn<F, A>(f: F) -> (A, std::time::Duration)
-where
-    F: FnOnce() -> A,
-{
-    let now = Instant::now();
-    let r = f();
-    let e = now.elapsed();
-    (r, e)
-}
 struct Ice {}
 impl Ice {
     // the entry point to the `Ice` instance
@@ -128,59 +61,37 @@ impl Ice {
         }
         contents
     }
-    fn format<T, E, F>(
-        name: &str,
-        show_stage: bool,
-        show_structure: bool,
-        f: F,
-        f2: fn(&T) -> (),
-    ) -> (Result<T, E>, std::time::Duration)
-    where
-        F: Fn() -> Result<T, E>,
-        E: std::fmt::Debug,
-    {
-        if show_stage {
-            let lexer_str = ansi_term::Color::Cyan.paint(name).to_string();
-            print_stage(&lexer_str);
-        }
-        let (res, time) = time_fn(f);
-        if show_structure {
-            f2(res.as_ref().unwrap())
-        }
-        (res, time)
-    }
+
     fn run(&mut self, text: &str) {
         let mut time_vec = Vec::<(&str, std::time::Duration)>::new();
 
-        print_source_code(text);
+        tui::print_source_code(text);
 
         let show_stages = true;
         let show_token_stream = true;
         let show_ast_tree = true;
 
-        let (tokens, lexer_time) = Ice::format(
+        let (tokens, lexer_time) = tui::format(
             "Lexer",
             show_stages,
             show_token_stream,
             || lex_tokens_from_file(text),
-            print_token_stream,
+            tui::print_token_stream,
         );
         time_vec.push(("Lexer", lexer_time));
         let tokens = tokens.unwrap();
 
-        let (_ast, parser_time) = Ice::format(
+        let (_ast, parser_time) = tui::format(
             "Parser",
             show_stages,
             show_ast_tree,
             || parse_project_from_file(tokens.clone()),
-            parser::ast::Project::print_debug_tree,
+            tui::print_ast_tree,
         );
         time_vec.push(("Parser", parser_time));
         let _ast = _ast.unwrap();
 
-        print_time(&time_vec);
-
-        //println!("{:?} milliseconds have passed", now.elapsed().as_nanos());
+        tui::print_time(&time_vec);
     }
 }
 
