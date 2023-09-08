@@ -1,4 +1,4 @@
-use super::super::lexer::token::{KeywordKind, PunctuatorKind, TokenKind};
+use super::super::lexer::token::{KeywordKind as KK, PunctuatorKind as PK, TokenKind as TK};
 use super::ast::{Field, Identifier, Item, Parameter, Stmt, Ty};
 
 use super::{Error, PResult, Parser};
@@ -6,23 +6,19 @@ use super::{Error, PResult, Parser};
 /// This impl block is for parsing items.
 impl Parser {
     pub fn parse_item_type_struct(&mut self) -> PResult<Item> {
-        use KeywordKind::*;
-        use PunctuatorKind::*;
-        //use TokenKind::*;
-
-        self.eat(&TokenKind::Keyword(Type)).unwrap();
+        self.eat(&TK::Keyword(KK::Type)).unwrap();
         let name = self.parse_identifier().unwrap();
 
-        let _ = self.eat(&TokenKind::Punctuator(Equal)).unwrap();
+        let _ = self.eat(&TK::Punctuator(PK::Equal)).unwrap();
 
-        self.eat(&TokenKind::Keyword(Struct)).unwrap();
-        self.eat(&TokenKind::Punctuator(LeftBrace)).unwrap();
+        self.eat(&TK::Keyword(KK::Struct)).unwrap();
+        self.eat(&TK::Punctuator(PK::LeftBrace)).unwrap();
 
         let fields = self
             .parse_delim_seq(
-                &TokenKind::Punctuator(LeftBrace),
-                &TokenKind::Punctuator(RightBrace),
-                &TokenKind::Punctuator(Comma),
+                &TK::Punctuator(PK::LeftBrace),
+                &TK::Punctuator(PK::RightBrace),
+                &TK::Punctuator(PK::Comma),
                 ("field", "name", "type"),
             )
             .unwrap();
@@ -38,27 +34,20 @@ impl Parser {
         Ok(item)
     }
     pub fn parse_item_type(&mut self) -> PResult<Item> {
-        use KeywordKind::*;
-        use PunctuatorKind::*;
-        use TokenKind::*;
-
         // NOTE: Right now no tokens are consumed in this function
         //       This should be delegated for now to other functions.
         //       This function only finds one to which function to dispatch to
 
-        let _ = self.check(&Keyword(Type), 0).unwrap();
-        let _ = self.check_with(1, TokenKind::is_identifier).unwrap();
-        let _ = self.check(&Punctuator(Equal), 2).unwrap();
+        let _ = self.check(&TK::Keyword(KK::Type), 0).unwrap();
+        let _ = self.check_with(1, TK::is_identifier).unwrap();
+        let _ = self.check(&TK::Punctuator(PK::Equal), 2).unwrap();
 
         match self.peek(3).unwrap().kind {
-            Keyword(Struct) => self.parse_item_type_struct(),
+            TK::Keyword(KK::Struct) => self.parse_item_type_struct(),
             _ => todo!(),
         }
     }
     pub fn parse_item(&mut self) -> PResult<Item> {
-        use KeywordKind as KK;
-        use TokenKind as TK;
-
         let item = match &self.peek(0).unwrap().kind {
             TK::Keyword(KK::Fn) => self.parse_item_fn(),
             TK::Keyword(KK::Type) => self.parse_item_type(),
@@ -72,18 +61,14 @@ impl Parser {
     /// 2. var <ident> : <type> = <expr>;
     /// 3. var <ident> : <type>;
     pub fn parse_stmt_var(&mut self) -> PResult<Stmt> {
-        use KeywordKind as KK;
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
-
-        self.eat(&TokenKind::Keyword(KK::Var)).unwrap();
+        self.eat(&TK::Keyword(KK::Var)).unwrap();
 
         let ident = self
             .eat_identifier()
             .map(|name| Identifier::try_from(name.clone()).unwrap())
             .expect("Expected variable name");
 
-        self.eat(&TokenKind::Punctuator(PK::Colon)).unwrap();
+        self.eat(&TK::Punctuator(PK::Colon)).unwrap();
         let ty = self.parse_ty().ok();
 
         let expr = match self.eat(&TK::Punctuator(PK::Equal)) {
@@ -94,21 +79,18 @@ impl Parser {
 
         let stmt = Stmt::var(ident, ty, expr);
 
-        self.check(&TokenKind::Punctuator(PK::Semicolon), 0)
+        self.check(&TK::Punctuator(PK::Semicolon), 0)
             .expect("Expected ';' after variable declaration");
 
         Ok(stmt)
     }
     fn parse_delim_seq(
         &mut self,
-        start: &TokenKind,
-        end: &TokenKind,
-        sep: &TokenKind,
+        start: &TK,
+        end: &TK,
+        sep: &TK,
         s: (&str, &str, &str),
     ) -> PResult<Vec<(Identifier, Ty)>> {
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
-
         let mut result = Vec::new();
         self.eat(start).unwrap();
         while self.check(end, 0).is_err() {
@@ -176,10 +158,6 @@ impl Parser {
     //     Ok(result)
     // }
     pub fn parse_item_fn(&mut self) -> PResult<Item> {
-        use KeywordKind as KK;
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
-
         self.eat(&TK::Keyword(KK::Fn)).unwrap();
 
         let name = self.parse_identifier().expect("Expected function name");
@@ -205,9 +183,11 @@ impl Parser {
             None
         };
 
-        self.check(&TK::Punctuator(PK::LeftBrace), 0).ok().or_else(|| {
-            panic!("{}", "Expected '{' after function name");
-        });
+        self.check(&TK::Punctuator(PK::LeftBrace), 0)
+            .ok()
+            .or_else(|| {
+                panic!("{}", "Expected '{' after function name");
+            });
 
         let body = Box::new(self.parse_expr_block().unwrap());
 

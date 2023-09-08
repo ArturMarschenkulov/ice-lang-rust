@@ -1,4 +1,4 @@
-use super::super::lexer::token::{PunctuatorKind, TokenKind};
+use super::super::lexer::token::{PunctuatorKind as PK, TokenKind as TK};
 use super::ast::{Identifier, Ty};
 
 use super::error::*;
@@ -7,8 +7,6 @@ use super::{PResult, Parser};
 /// This impl block is for parsing the typess
 impl Parser {
     pub fn parse_ty(&mut self) -> PResult<Ty> {
-        use PunctuatorKind as PK;
-        use TokenKind as TK;
         let token = self.peek(0).unwrap().clone();
         let ty = match &token.kind {
             TK::Identifier(..) => {
