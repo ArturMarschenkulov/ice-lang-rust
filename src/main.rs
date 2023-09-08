@@ -184,19 +184,6 @@ impl Ice {
     }
 }
 
-fn apply<A, B>(this: Option<A>, func: Option<fn(A) -> B>) -> Option<B> {
-    // lift_two(this, func, |a, f| f(a))
-    // this.lift_two(func, |a, f| f(a))
-    lift_two(this, func, |a, f| f(a))
-}
-
-fn lift_two<A, B, C>(this: Option<A>, right: Option<B>, func: fn(A, B) -> C) -> Option<C> {
-    match (this, right) {
-        (Some(a), Some(b)) => Some(func(a, b)),
-        _ => None,
-    }
-}
-
 /// Main entry point to the whole project/compiler
 fn main() {
     // std::env::set_var("RUST_BACKTRACE", "1");

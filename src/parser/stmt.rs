@@ -38,13 +38,11 @@ impl Parser {
     }
 
     /// Parses a statement which consists of an expression.
-    /// 
+    ///
     /// The main feature is that it does not declare anything.
-    /// 
+    ///
     /// This includes { ... } blocks, however also if, while, for, expressions, etc or simply stuff like `1 + 1;`
     pub fn parse_stmt_expression(&mut self) -> PResult<Stmt> {
-        use PunctuatorKind::*;
-        use TokenKind::*;
         let expr = self.parse_expr().unwrap();
 
         let stmt = match !expr.does_require_semicolon_if_in_stmt() {

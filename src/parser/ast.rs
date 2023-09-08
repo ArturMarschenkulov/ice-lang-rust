@@ -22,8 +22,7 @@ impl Identifier {
 impl TryFrom<crate::lexer::token::Token> for Identifier {
     type Error = &'static str;
     fn try_from(token: crate::lexer::token::Token) -> Result<Self, Self::Error> {
-        // // assert!(token.kind.is_identifier());
-        // Identifier { name: token }
+        assert!(token.kind.is_identifier());
         Some(Identifier { name: token }).ok_or("Expected identifier")
     }
 }
