@@ -1,12 +1,12 @@
 #![cfg(test)]
 
-use super::token::{KeywordKind, LiteralKind, NumberBase, PunctuatorKind, TokenKind};
+use super::token::NumberBase;
 use crate::lexer::Lexer;
 
 use super::*;
 
 /// Helper function to convert a string to a vector of token kinds.
-fn to_token_kinds(s: &str) -> Vec<TokenKind> {
+fn to_token_kinds(s: &str) -> Vec<TK> {
     Lexer::from(s)
         .scan_tokens()
         .iter()
@@ -114,16 +114,18 @@ mod cursor {
 #[test]
 fn test_scan_tokens() {
     use token::*;
-    use KeywordKind::*;
     use Whitespace::*;
 
-    use TokenKind::*;
     assert_eq!(
         Lexer::from("fn").scan_tokens(),
         vec![
-            Token::new(Keyword(Fn), span::Span::from(((1, 1), (1, 2))), NoBoth),
             Token::new(
-                SpecialKeyword(SpecialKeywordKind::Eof),
+                TK::Keyword(KK::Fn),
+                span::Span::from(((1, 1), (1, 2))),
+                NoBoth
+            ),
+            Token::new(
+                TK::SpecialKeyword(SKK::Eof),
                 span::Span::from(((1, 3), (1, 3))),
                 Both
             ),
@@ -132,32 +134,31 @@ fn test_scan_tokens() {
 }
 #[test]
 fn test_scan_token_kind() {
-    use SpecialKeywordKind::*;
-    use TokenKind::*;
     let txt = "";
     let mut lexer = Lexer::from(txt);
-    assert_eq!(lexer.scan_token().map(|x| x.kind), Ok(SpecialKeyword(Eof)));
+    assert_eq!(
+        lexer.scan_token().map(|x| x.kind),
+        Ok(TK::SpecialKeyword(SKK::Eof))
+    );
 }
 
 #[test]
 fn test_lex_char() {
     use crate::lexer::Error;
-    use LiteralKind::*;
-    use TokenKind::*;
 
     // Simple cases
     let txt = r#"'a'"#;
     let mut lexer = Lexer::from(txt);
-    assert_eq!(lexer.lex_char(), Ok(Literal(Char('a'))));
+    assert_eq!(lexer.lex_char(), Ok(TK::Literal(LK::Char('a'))));
 
     // Edge cases
     let txt = r#"'\\'"#;
     let mut lexer = Lexer::from(txt);
-    assert_eq!(lexer.lex_char(), Ok(Literal(Char('\\'))));
+    assert_eq!(lexer.lex_char(), Ok(TK::Literal(LK::Char('\\'))));
 
     let txt = r#"'\''"#;
     let mut lexer = Lexer::from(txt);
-    assert_eq!(lexer.lex_char(), Ok(Literal(Char('\''))));
+    assert_eq!(lexer.lex_char(), Ok(TK::Literal(LK::Char('\''))));
 
     // Handling errors
 
@@ -217,29 +218,28 @@ fn num_0_() {
 fn test_lex_number() {
     use crate::lexer::Error;
     use NumberBase::*;
-    use TokenKind::*;
 
     // Simple cases
     // Decimal numbers
 
     assert_eq!(
         Lexer::from("0").lex_number(),
-        Ok(Literal(LiteralKind::integer("0", None, None)))
+        Ok(TK::Literal(LK::integer("0", None, None)))
     );
 
     assert_eq!(
         Lexer::from("1").lex_number(),
-        Ok(Literal(LiteralKind::integer("1", None, None)))
+        Ok(TK::Literal(LK::integer("1", None, None)))
     );
 
     assert_eq!(
         Lexer::from("123").lex_number(),
-        Ok(Literal(LiteralKind::integer("123", None, None)))
+        Ok(TK::Literal(LK::integer("123", None, None)))
     );
 
     assert_eq!(
         Lexer::from("123456").lex_number(),
-        Ok(Literal(LiteralKind::integer("123456", None, None)))
+        Ok(TK::Literal(LK::integer("123456", None, None)))
     );
 
     // Error cases
@@ -288,56 +288,50 @@ mod num {
 
     #[test]
     fn t1() {
-        use PunctuatorKind::*;
-        use TokenKind::*;
         let txt = ".0";
         let t = Lexer::from(txt).scan_tokens();
         assert_eq!(t.len() - 1, 2);
-        assert_eq!(t[0].kind, Punctuator(Dot));
+        assert_eq!(t[0].kind, TK::Punctuator(PK::Dot));
     }
 }
 #[test]
 fn test_scan_tokens_KIND() {
     use token::*;
-    use KeywordKind::*;
-    use LiteralKind::*;
-    use PunctuatorKind::*;
-    use TokenKind::*;
 
     assert_eq!(
         to_token_kinds("var a := 2222;"),
         vec![
-            Keyword(Var),
-            Identifier(String::from("a")),
-            Punctuator(Colon),
-            Punctuator(Equal),
-            Literal(Number(token::Number::integer("2222", None, None))),
-            Punctuator(Semicolon),
-            SpecialKeyword(SpecialKeywordKind::Eof)
+            TK::Keyword(KK::Var),
+            TK::Identifier(String::from("a")),
+            TK::Punctuator(PK::Colon),
+            TK::Punctuator(PK::Equal),
+            TK::Literal(LK::Number(token::Number::integer("2222", None, None))),
+            TK::Punctuator(PK::Semicolon),
+            TK::SpecialKeyword(SKK::Eof)
         ]
     );
     assert_eq!(
         to_token_kinds(r#"var a := "hello";"#),
         vec![
-            Keyword(Var),
-            Identifier(String::from("a")),
-            Punctuator(Colon),
-            Punctuator(Equal),
-            Literal(Str("hello".to_owned())),
-            Punctuator(Semicolon),
-            SpecialKeyword(SpecialKeywordKind::Eof)
+            TK::Keyword(KK::Var),
+            TK::Identifier(String::from("a")),
+            TK::Punctuator(PK::Colon),
+            TK::Punctuator(PK::Equal),
+            TK::Literal(LK::Str("hello".to_owned())),
+            TK::Punctuator(PK::Semicolon),
+            TK::SpecialKeyword(SKK::Eof)
         ]
     );
     assert_eq!(
         to_token_kinds(r#"var a := ' ';"#),
         vec![
-            Keyword(Var),
-            Identifier(String::from("a")),
-            Punctuator(Colon),
-            Punctuator(Equal),
-            Literal(Char(' ')),
-            Punctuator(Semicolon),
-            SpecialKeyword(SpecialKeywordKind::Eof)
+            TK::Keyword(KK::Var),
+            TK::Identifier(String::from("a")),
+            TK::Punctuator(PK::Colon),
+            TK::Punctuator(PK::Equal),
+            TK::Literal(LK::Char(' ')),
+            TK::Punctuator(PK::Semicolon),
+            TK::SpecialKeyword(SKK::Eof)
         ]
     );
 
@@ -347,32 +341,32 @@ fn test_scan_tokens_KIND() {
         var a := ' ';"#
         ),
         vec![
-            Keyword(Var),
-            Identifier(String::from("a")),
-            Punctuator(Colon),
-            Punctuator(Equal),
-            Literal(Char(' ')),
-            Punctuator(Semicolon),
-            Keyword(Var),
-            Identifier(String::from("a")),
-            Punctuator(Colon),
-            Punctuator(Equal),
-            Literal(Char(' ')),
-            Punctuator(Semicolon),
-            SpecialKeyword(SpecialKeywordKind::Eof)
+            TK::Keyword(KK::Var),
+            TK::Identifier(String::from("a")),
+            TK::Punctuator(PK::Colon),
+            TK::Punctuator(PK::Equal),
+            TK::Literal(LK::Char(' ')),
+            TK::Punctuator(PK::Semicolon),
+            TK::Keyword(KK::Var),
+            TK::Identifier(String::from("a")),
+            TK::Punctuator(PK::Colon),
+            TK::Punctuator(PK::Equal),
+            TK::Literal(LK::Char(' ')),
+            TK::Punctuator(PK::Semicolon),
+            TK::SpecialKeyword(SKK::Eof)
         ]
     );
 
     assert_eq!(
         to_token_kinds("std::io::str;"),
         vec![
-            Identifier("std".to_owned()),
-            Punctuator(ColonColon),
-            Identifier("io".to_owned()),
-            Punctuator(ColonColon),
-            Identifier("str".to_owned()),
-            Punctuator(Semicolon),
-            SpecialKeyword(SpecialKeywordKind::Eof)
+            TK::Identifier("std".to_owned()),
+            TK::Punctuator(PK::ColonColon),
+            TK::Identifier("io".to_owned()),
+            TK::Punctuator(PK::ColonColon),
+            TK::Identifier("str".to_owned()),
+            TK::Punctuator(PK::Semicolon),
+            TK::SpecialKeyword(SpecialKeywordKind::Eof)
         ]
     );
 }
@@ -454,65 +448,60 @@ fn test_scan_tokens_SPAN() {
 #[test]
 fn test_complex_token_cooking() {
     use token::*;
-    use PunctuatorKind::*;
-    use TokenKind::*;
 
     assert_eq!(
         to_token_kinds(".."),
         vec![
-            Punctuator(PunctuatorKind::Complex(vec![
-                PunctuatorKind::Dot,
-                PunctuatorKind::Dot
+            TK::Punctuator(PK::Complex(vec![
+                PK::Dot,
+                PK::Dot
             ])),
-            SpecialKeyword(SpecialKeywordKind::Eof),
+            TK::SpecialKeyword(SKK::Eof),
         ],
     );
 
     assert_eq!(
         to_token_kinds("++"),
         vec![
-            Punctuator(PunctuatorKind::Complex(vec![
-                PunctuatorKind::Plus,
-                PunctuatorKind::Plus
-            ])),
-            SpecialKeyword(SpecialKeywordKind::Eof),
+            TK::Punctuator(PK::Complex(vec![PK::Plus, PK::Plus])),
+            TK::SpecialKeyword(SKK::Eof),
         ],
     );
 
     assert_eq!(
         to_token_kinds("=."),
         vec![
-            Punctuator(Equal),
-            Punctuator(Dot),
-            SpecialKeyword(SpecialKeywordKind::Eof),
+            TK::Punctuator(PK::Equal),
+            TK::Punctuator(PK::Dot),
+            TK::SpecialKeyword(SKK::Eof),
         ],
     );
 
     assert_eq!(
         to_token_kinds(".=."),
         vec![
-            Punctuator(Dot),
-            Punctuator(Equal),
-            Punctuator(Dot),
-            SpecialKeyword(SpecialKeywordKind::Eof),
+            TK::Punctuator(PK::Dot),
+            TK::Punctuator(PK::Equal),
+            TK::Punctuator(PK::Dot),
+            TK::SpecialKeyword(SKK::Eof),
         ],
     );
 
     assert_eq!(
         to_token_kinds(":=:"),
         vec![
-            Punctuator(Colon),
-            Punctuator(Equal),
-            Punctuator(Colon),
-            SpecialKeyword(SpecialKeywordKind::Eof),
+            TK::Punctuator(PK::Colon),
+            TK::Punctuator(PK::Equal),
+            TK::Punctuator(PK::Colon),
+            TK::SpecialKeyword(SKK::Eof),
         ],
     );
     assert_eq!(
         to_token_kinds(":="),
         vec![
-            Punctuator(Colon),
-            Punctuator(Equal),
-            SpecialKeyword(SpecialKeywordKind::Eof),
+            TK::Punctuator(PK::Colon),
+            TK::Punctuator(PK::Equal),
+            TK::SpecialKeyword(SKK::Eof),
         ],
     );
 }

@@ -87,8 +87,8 @@ impl Parser {
         }
     }
     pub fn is_at_end(&self) -> bool {
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
-        self.peek(0).unwrap().kind == SpecialKeyword(Eof)
+        use SpecialKeywordKind as SKK;
+        use TokenKind as TK;
+        self.peek(0).unwrap().kind == TK::SpecialKeyword(SKK::Eof)
     }
 }

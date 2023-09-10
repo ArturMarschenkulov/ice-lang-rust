@@ -13,8 +13,8 @@ mod span;
 pub mod token;
 
 use token::{
-    cook_tokens, CommentKind, KeywordKind, LiteralKind, NumberBase, PunctuatorKind,
-    SpecialKeywordKind, Token, TokenKind, Whitespace,
+    cook_tokens, CommentKind, KeywordKind as KK, LiteralKind as LK, NumberBase,
+    PunctuatorKind as PK, SpecialKeywordKind as SKK, Token, TokenKind as TK, Whitespace,
 };
 
 mod tests;
@@ -50,8 +50,6 @@ struct Lexer {
 }
 
 fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &mut Vec<Token>) {
-    use PunctuatorKind::*;
-    use TokenKind::*;
     // In this part we combine simple punctuator tokens to complex ones, if possible
 
     // `punc_cache` is where copies of the previous punctuators lie,
@@ -79,18 +77,18 @@ fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &
     }
 
     fn action_based_on_token_(punc_cache: &[Token], token: &Token) -> Action {
-        if let Punctuator(punc) = &token.kind {
+        if let TK::Punctuator(punc) = &token.kind {
             if punc.is_structural() {
                 let (is_last_p_same, is_last_p_colonequal) = punc_cache
                     .last()
                     .map(|p| {
                         (
-                            p.kind == Punctuator(punc.clone()),
-                            p.kind == Punctuator(Colon) && punc == &Equal,
+                            p.kind == TK::Punctuator(punc.clone()),
+                            p.kind == TK::Punctuator(PK::Colon) && punc == &PK::Equal,
                         )
                     })
                     .unwrap_or((false, false));
-                if [Dot, Colon].contains(punc)
+                if [PK::Dot, PK::Colon].contains(punc)
                     && (punc_cache.is_empty() || is_last_p_same || is_last_p_colonequal)
                 {
                     return Action::ToPuncCache;
@@ -105,7 +103,7 @@ fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &
 
     fn action_based_on_token(punc_cache: &[Token], token: &Token) -> Action {
         let mut action = Action::ToTokens;
-        if let Punctuator(punc) = &token.kind {
+        if let TK::Punctuator(punc) = &token.kind {
             action = Action::ToPuncCache;
             if punc.is_structural() {
                 action = Action::ToTokens;
@@ -113,12 +111,13 @@ fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &
                     .last()
                     .map(|p| {
                         (
-                            p.kind == Punctuator(punc.clone()),
-                            p.kind == Punctuator(Colon) && punc == &Equal,
+                            p.kind == TK::Punctuator(punc.clone()),
+                            p.kind == TK::Punctuator(PK::Colon) && punc == &PK::Equal,
                         )
                     })
                     .unwrap_or((false, false));
-                if [Dot, Colon].contains(punc) && (punc_cache.is_empty() || is_last_p_same) {
+                if [PK::Dot, PK::Colon].contains(punc) && (punc_cache.is_empty() || is_last_p_same)
+                {
                     action = Action::ToPuncCache;
                     if is_last_p_colonequal {
                         action = Action::ToTokens;
@@ -156,13 +155,11 @@ impl From<&str> for Lexer {
 
 impl Lexer {
     fn scan_tokens(&mut self) -> Vec<Token> {
-        use TokenKind::*;
-
         // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
         let mut punc_cache: Vec<Token> = Vec::with_capacity(5);
         let mut tokens = Vec::new();
         while let Ok(token) = self.scan_token() {
-            if token.kind == SpecialKeyword(SpecialKeywordKind::Eof) {
+            if token.kind == TK::SpecialKeyword(SKK::Eof) {
                 if !punc_cache.is_empty() {
                     tokens.push(cook_tokens(&punc_cache));
                     punc_cache.clear();
@@ -175,11 +172,7 @@ impl Lexer {
         tokens
     }
 
-    fn scan_token_kind(&mut self) -> LResult<(TokenKind, span::Position, usize)> {
-        use PunctuatorKind::*;
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
-
+    fn scan_token_kind(&mut self) -> LResult<(TK, span::Position, usize)> {
         // The assumption here is that [`None`] signifies the end of the file.
         // Also, assuming that `'\0'` is not a valid character in the source code.
         let c = self.peek(0).unwrap_or('\0');
@@ -188,22 +181,22 @@ impl Lexer {
             '/' => match self.peek(1) {
                 Some('/') => self.lex_comment_line()?,
                 Some('*') => self.lex_comment_block()?,
-                _ => Punctuator(Slash),
+                _ => TK::Punctuator(PK::Slash),
             },
             '"' => self.lex_string()?,
             '\'' => self.lex_char()?,
             '\0' => {
                 self.advance();
-                SpecialKeyword(Eof)
+                TK::SpecialKeyword(SKK::Eof)
             }
             // TODO: Once if let guards are available rewrite it as such
-            kw_punct if PunctuatorKind::try_from(kw_punct).is_ok() => {
+            kw_punct if PK::try_from(kw_punct).is_ok() => {
                 self.advance();
-                Punctuator(PunctuatorKind::try_from(kw_punct).unwrap())
+                TK::Punctuator(PK::try_from(kw_punct).unwrap())
             }
-            kw_special if SpecialKeywordKind::try_from(kw_special).is_ok() => {
+            kw_special if SKK::try_from(kw_special).is_ok() => {
                 self.advance();
-                SpecialKeyword(SpecialKeywordKind::try_from(kw_special).unwrap())
+                TK::SpecialKeyword(SKK::try_from(kw_special).unwrap())
             }
             digit if digit.is_ascii_digit() => self.lex_number()?,
             alpha if is_alpha(&alpha) => self.lex_identifier()?,
@@ -232,7 +225,7 @@ impl Lexer {
 
         let (token_kind, end_pos, end_index) = self.scan_token_kind()?;
 
-        if token_kind == TokenKind::SpecialKeyword(SpecialKeywordKind::Newline) {
+        if token_kind == TK::SpecialKeyword(SKK::Newline) {
             self.cursor.line += 1;
             self.cursor.column = 1;
         }
@@ -272,9 +265,7 @@ impl Lexer {
     ///
     /// # Panics
     /// If the first character is not `\'`.
-    fn lex_char(&mut self) -> LResult<TokenKind> {
-        use LiteralKind::*;
-        use TokenKind::*;
+    fn lex_char(&mut self) -> LResult<TK> {
         self.eat_char('\'')
             .map_err(|x| Error::expected_char('\'', x))?;
         // '\''
@@ -305,11 +296,10 @@ impl Lexer {
                 }
             }
         };
-        Ok(Literal(Char(c)))
+        Ok(TK::Literal(LK::Char(c)))
     }
-    fn lex_string(&mut self) -> LResult<TokenKind> {
-        use LiteralKind::*;
-        use TokenKind::*;
+
+    fn lex_string(&mut self) -> LResult<TK> {
         self.eat_char('\"')
             .map_err(|x| Error::expected_char('\"', x))?;
 
@@ -351,16 +341,14 @@ impl Lexer {
         if self.peek(0).is_none() {
             return Err(Error::unterminated_string());
         }
-        Ok(Literal(Str(string_content)))
+        Ok(TK::Literal(LK::Str(string_content)))
     }
 
     /// Lexes a line comment.
     ///
     /// # Panics
     /// If it doesn't start with `//`.
-    fn lex_comment_line(&mut self) -> LResult<TokenKind> {
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
+    fn lex_comment_line(&mut self) -> LResult<TK> {
         self.eat_str("//").unwrap();
 
         let mut comment_content = String::new();
@@ -371,15 +359,16 @@ impl Lexer {
             comment_content.push(c);
             self.advance();
         }
-        Ok(SpecialKeyword(Comment(CommentKind::Line(comment_content))))
+        Ok(TK::SpecialKeyword(SKK::Comment(CommentKind::Line(
+            comment_content,
+        ))))
     }
+    
     /// Lexes a block comment.
     ///
     /// # Panics
     /// If it doesn't start with `/*`.
-    fn lex_comment_block(&mut self) -> LResult<TokenKind> {
-        use SpecialKeywordKind::*;
-        use TokenKind::*;
+    fn lex_comment_block(&mut self) -> LResult<TK> {
         // TODO: Implement nested block comments
         self.eat_str("/*").unwrap();
 
@@ -404,12 +393,12 @@ impl Lexer {
                 comment_content.push(c);
             }
         }
-        Ok(SpecialKeyword(Comment(CommentKind::Block(comment_content))))
+        Ok(TK::SpecialKeyword(SKK::Comment(CommentKind::Block(
+            comment_content,
+        ))))
     }
 
-    fn lex_number(&mut self) -> LResult<TokenKind> {
-        use TokenKind::*;
-
+    fn lex_number(&mut self) -> LResult<TK> {
         fn process_prefix(this: &mut Lexer) -> Result<Option<NumberBase>, Error> {
             match (this.peek(0), this.peek(1)) {
                 (Some('0'), Some(c)) if c.is_alphabetic() => {
@@ -509,21 +498,20 @@ impl Lexer {
         }
         assert_ne!(string.len(), 0);
 
-        let lit = Literal(if is_floating {
-            LiteralKind::floating(&string, suffix)
+        let lit = TK::Literal(if is_floating {
+            LK::floating(&string, suffix)
         } else {
-            LiteralKind::integer(&string, number_base_prefix, suffix)
+            LK::integer(&string, number_base_prefix, suffix)
         });
 
         Ok(lit)
     }
 
-    fn lex_identifier(&mut self) -> LResult<TokenKind> {
-        use TokenKind::*;
+    fn lex_identifier(&mut self) -> LResult<TK> {
         let content = self.eat_while(is_alpha_numeric);
         let token = match content.as_ref() {
-            lit if is_lit_bool(lit) => LiteralKind::try_from(lit).map_or_else(Identifier, Literal),
-            kw => KeywordKind::try_from(kw).map_or_else(Identifier, Keyword),
+            lit if is_lit_bool(lit) => LK::try_from(lit).map_or_else(TK::Identifier, TK::Literal),
+            kw => KK::try_from(kw).map_or_else(TK::Identifier, TK::Keyword),
         };
         Ok(token)
     }
