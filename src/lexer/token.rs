@@ -485,25 +485,21 @@ impl TryFrom<char> for SpecialKeywordKind {
 /// Certain complex tokens are converted into a single token, which significes several tokens.
 /// If token slice has only one token, the singular token itself is returned.
 pub fn cook_tokens(tokens: &[Token]) -> Token {
-    let tok_kinds = tokens
-        .iter()
-        .map(|token| {
-            if let TK::Punctuator(kind) = token.kind.clone() {
-                kind
-            } else {
-                unreachable!()
-            }
-        })
-        .collect::<Vec<_>>();
-
-    match tokens.len() {
-        0 => unreachable!(),
-        1 => tokens.first().unwrap().clone(),
-        _ => {
+    match tokens {
+        [] => unreachable!(),
+        [single_token] => single_token.clone(),
+        [first_tok, .., last_tok] => {
+            let tok_kinds = tokens
+                .iter()
+                .map(|token| {
+                    if let TK::Punctuator(kind) = token.kind.clone() {
+                        kind
+                    } else {
+                        unreachable!()
+                    }
+                })
+                .collect::<Vec<_>>();
             let token_kind = TK::Punctuator(PK::Complex(tok_kinds).fuse());
-
-            let first_tok = tokens.first().unwrap();
-            let last_tok = tokens.last().unwrap();
             let bools = (
                 <(bool, bool)>::from(first_tok.whitespace).0,
                 <(bool, bool)>::from(last_tok.whitespace).1,
