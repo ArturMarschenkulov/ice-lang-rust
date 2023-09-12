@@ -20,10 +20,14 @@ impl Identifier {
 }
 
 impl TryFrom<crate::lexer::token::Token> for Identifier {
-    type Error = &'static str;
+    type Error = String;
     fn try_from(token: crate::lexer::token::Token) -> Result<Self, Self::Error> {
-        assert!(token.kind.is_identifier());
-        Some(Identifier { name: token }).ok_or("Expected identifier")
+        if token.kind.is_identifier() {
+            Ok(Self { name: token })
+        } else {
+            Err(format!("Expected identifier, got {:?}", token.kind))
+        }
+        
     }
 }
 
@@ -33,11 +37,14 @@ pub struct Operator {
 }
 
 impl TryFrom<crate::lexer::token::Token> for Operator {
-    type Error = &'static str;
+    type Error = String;
 
     fn try_from(token: crate::lexer::token::Token) -> Result<Self, Self::Error> {
-        assert!(token.kind.is_punctuator());
-        Some(Operator { name: token }).ok_or("Expected operator")
+        if token.kind.can_be_operator() {
+            Ok(Self { name: token })
+        } else {
+            Err(format!("Expected operator, got {:?}", token.kind))
+        }
     }
 }
 
@@ -51,26 +58,34 @@ struct Typed<T> {
     expr: T,
     ty: Ty,
 }
+struct TypedExpr {
+    expr: Expr,
+    ty: Ty,
+}
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     /// E.g., 3, 5.0, "hello", 'c', true, false
     Literal(crate::lexer::token::LiteralKind),
-    /// E.g., (3, 5, 6)
-    Grouping(Box<Expr>),
-    /// E.g., 3 + 5, 3 * 5, 3 / 5, 3 - 5                   
-    BinaryInfix(Box<Expr>, Operator, Box<Expr>),
-    /// E.g., -3, !true
-    UnaryPrefix(Operator, Box<Expr>),
-    /// E.g., 3!
-    UnaryPostfix(Box<Expr>, Operator),
+    /// E.g., x, x::y::z, ::x
     Symbol {
         name: Identifier,
         /// `None` means there is no path to this symbol (`x`)
         /// `Some` means there is a path to this symbol (`x::y::z`),
         /// however it can be also empty (`::x`)
         path: Option<Vec<Identifier>>,
-    }, // x, x::y::z, ::x
+    },
+    FnCall(Box<Expr>, Vec<Expr>),
+    /// E.g., (3, 5, 6)
+    Grouping(Box<Expr>),
+
+    /// E.g., 3 + 5, 3 * 5, 3 / 5, 3 - 5                   
+    BinaryInfix(Box<Expr>, Operator, Box<Expr>),
+    /// E.g., -3, !true
+    UnaryPrefix(Operator, Box<Expr>),
+    /// E.g., 3!
+    UnaryPostfix(Box<Expr>, Operator),
+
     // E.g., { stmt; stmt; stmt; }
     Block(Vec<Stmt>),
 
@@ -78,7 +93,6 @@ pub enum ExprKind {
     While(Box<Expr>, Box<Expr>),
     For(Box<Stmt>, Box<Expr>, Box<Expr>, Box<Expr>),
     // Ret(Option<Box<Expr>>),
-    FnCall(Box<Expr>, Vec<Expr>),
 }
 #[derive(Clone, Debug)]
 pub struct Expr {
