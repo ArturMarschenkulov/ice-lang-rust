@@ -40,20 +40,37 @@ pub struct BindingPower {
     left: f32,
     right: f32,
 }
+
+impl PartialEq for BindingPower {
+    fn eq(&self, other: &Self) -> bool {
+        self.right == other.left
+    }
+}
+
+impl PartialOrd for BindingPower {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if self.right == other.left {
+            Some(std::cmp::Ordering::Equal)
+        } else if self.right > other.left {
+            Some(std::cmp::Ordering::Greater)
+        } else if self.right < other.left {
+            Some(std::cmp::Ordering::Less)
+        } else {
+            None
+        }
+    }
+    fn lt(&self, other: &Self) -> bool {
+        self.right < other.left
+    }
+    fn gt(&self, other: &Self) -> bool {
+        self.right > other.left
+    }
+}
 impl BindingPower {
     fn new() -> Self {
         Self {
             left: 0.0,
             right: 0.0,
-        }
-    }
-    fn comp(bp_0: &BindingPower, bp_1: &BindingPower) -> std::cmp::Ordering {
-        use std::cmp::Ordering;
-        match (bp_0.left, bp_1.right) {
-            (l, r) if l > r => Ordering::Greater,
-            (l, r) if l < r => Ordering::Less,
-            (l, r) if l == r => Ordering::Equal,
-            _ => panic!("This should not happen"),
         }
     }
     fn from(precedence: u32, associativity: Associativity) -> Self {
@@ -259,7 +276,7 @@ impl Parser {
             .ok_or_else(super::Error::unexpected_eof)?
             .clone();
 
-        let mut left = if un_prefix.kind.is_punctuator() {
+        let mut left = if un_prefix.kind.can_be_operator() {
             let un_prefix = Operator::try_from(un_prefix).map_err(|x| {
                 super::Error::new(format!("Expected unary prefix operator, got {:?}", x))
             })?;
@@ -279,7 +296,12 @@ impl Parser {
 
         loop {
             let bin_infix = self.peek(0).unwrap();
-            let bin_infix = Operator::try_from(bin_infix.clone()).unwrap();
+            // let bin_infix = Operator::try_from(bin_infix.clone()).unwrap();
+            let bin_infix = if let Ok(bin_infix) = Operator::try_from(bin_infix.clone()) {
+                bin_infix
+            } else {
+                break;
+            };
             match infix_binding_power(self, &bin_infix) {
                 // This is not a binary infix operator.
                 None => break,
@@ -387,5 +409,30 @@ impl Parser {
 
         let expr = Expr::fn_call(callee, arguments);
         Ok(expr)
+    }
+}
+
+mod tests {
+    use super::super::super::lexer;
+    use super::*;
+    #[test]
+    fn test_expr_binary() {
+        let txt = "1 + 2";
+        let tokens = lexer::lex_tokens_from_file(txt).unwrap();
+        let mut parser = Parser::new(tokens);
+
+        let bin = parser.parse_expr_binary(BindingPower::new()).unwrap();
+        // let tree = Expr::binary_infix(
+        //     Expr::literal(LK::integer("1", None, None)),
+        //     Operator { name: Token::new(TK::Punctuator(PK::Plus), 0, 1) } },
+        //     Expr::literal(LK::integer("2", None, None)),
+        // );
+
+        // assert_eq!(
+        //     bin,
+        //     Expr {
+        //         kind: ExprKind::Literal(LiteralKind::Number(1.0))
+        //     }
+        // );
     }
 }
