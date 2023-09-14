@@ -102,35 +102,35 @@ impl BindingPower {
 
         let arr = [
             //
-            (TK::Punctuator(PK::Asterisk), 7, Ass::Left),
-            (TK::Punctuator(PK::Slash), 7, Ass::Left),
-            (TK::Punctuator(PK::Percent), 7, Ass::Left),
+            (PK::Asterisk, 7, Ass::Left),
+            (PK::Slash, 7, Ass::Left),
+            (PK::Percent, 7, Ass::Left),
             //
-            (TK::Punctuator(PK::Plus), 6, Ass::Left),
-            (TK::Punctuator(PK::Minus), 6, Ass::Left),
+            (PK::Plus, 6, Ass::Left),
+            (PK::Minus, 6, Ass::Left),
             //
-            (TK::Punctuator(PK::Less), 4, Ass::None),
-            (TK::Punctuator(PK::LessEqual), 4, Ass::None),
-            (TK::Punctuator(PK::Greater), 3, Ass::None),
-            (TK::Punctuator(PK::GreaterEqual), 4, Ass::None),
-            (TK::Punctuator(PK::EqualEqual), 4, Ass::None),
-            (TK::Punctuator(PK::BangEqual), 4, Ass::None),
+            (PK::Less, 4, Ass::None),
+            (PK::LessEqual, 4, Ass::None),
+            (PK::Greater, 3, Ass::None),
+            (PK::GreaterEqual, 4, Ass::None),
+            (PK::EqualEqual, 4, Ass::None),
+            (PK::BangEqual, 4, Ass::None),
             //
-            (TK::Punctuator(PK::Ampersand), 3, Ass::None),
-            (TK::Punctuator(PK::VerticalBar), 2, Ass::None),
+            (PK::Ampersand, 3, Ass::None),
+            (PK::VerticalBar, 2, Ass::None),
             //
-            (TK::Punctuator(PK::Equal), 1, Ass::Right),
+            (PK::Equal, 1, Ass::Right),
         ];
         // Workaround, so that we don't have to implement stuff only for the HashMap.
         arr.iter()
-            .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
+            .map(|(pk, prec, asso)| (format!("{:?}", TK::Punctuator(pk.clone())), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
     }
     pub fn postfix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
-        let arr: [(TK, u32, Associativity); 0] = [];
+        let arr: [(PK, u32, Associativity); 0] = [];
         arr.iter()
-            .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
+            .map(|(pk, prec, asso)| (format!("{:?}", TK::Punctuator(pk.clone())), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
     }
     pub fn prefix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
@@ -138,11 +138,11 @@ impl BindingPower {
         use Associativity as Ass;
 
         let arr = [
-            (TK::Punctuator(PK::Plus), 6, Ass::Right),
-            (TK::Punctuator(PK::Minus), 6, Ass::Right),
+            (PK::Plus, 6, Ass::Right),
+            (PK::Minus, 6, Ass::Right),
         ];
         arr.iter()
-            .map(|(tk, prec, asso)| (format!("{:?}", tk), BindingPower::from(*prec, *asso)))
+            .map(|(pk, prec, asso)| (format!("{:?}", TK::Punctuator(pk.clone())), BindingPower::from(*prec, *asso)))
             .collect::<HashMap<String, BindingPower>>()
     }
 }
