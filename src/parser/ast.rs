@@ -27,7 +27,6 @@ impl TryFrom<crate::lexer::token::Token> for Identifier {
         } else {
             Err(format!("Expected identifier, got {:?}", token.kind))
         }
-        
     }
 }
 
@@ -48,6 +47,26 @@ impl TryFrom<crate::lexer::token::Token> for Operator {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Literal {
+    pub kind: crate::lexer::token::LiteralKind,
+}
+
+impl From<crate::lexer::token::LiteralKind> for Literal {
+    fn from(kind: crate::lexer::token::LiteralKind) -> Self {
+        Self { kind }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Symbol {
+    pub name: Identifier,
+    /// `None` means there is no path to this symbol (`x`)
+    /// `Some` means there is a path to this symbol (`x::y::z`),
+    /// however it can be also empty (`::x`)
+    pub path: Option<Vec<Identifier>>,
+}
+
 // enum Delimiter {
 //     Parenthesis, // ( )
 //     Brace,       // { }
@@ -66,15 +85,9 @@ struct TypedExpr {
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     /// E.g., 3, 5.0, "hello", 'c', true, false
-    Literal(crate::lexer::token::LiteralKind),
+    Literal(Literal),
     /// E.g., x, x::y::z, ::x
-    Symbol {
-        name: Identifier,
-        /// `None` means there is no path to this symbol (`x`)
-        /// `Some` means there is a path to this symbol (`x::y::z`),
-        /// however it can be also empty (`::x`)
-        path: Option<Vec<Identifier>>,
-    },
+    Symbol(Symbol),
     FnCall(Box<Expr>, Vec<Expr>),
     /// E.g., (3, 5, 6)
     Grouping(Box<Expr>),
@@ -101,7 +114,7 @@ pub struct Expr {
 }
 /// Impl block for constructors of `Expr`.
 impl Expr {
-    pub fn literal(literal: crate::lexer::token::LiteralKind) -> Self {
+    pub fn literal(literal: Literal) -> Self {
         Expr {
             kind: ExprKind::Literal(literal),
         }
@@ -150,7 +163,7 @@ impl Expr {
 
     pub fn symbol(name: Identifier, path: Option<Vec<Identifier>>) -> Self {
         Expr {
-            kind: ExprKind::Symbol { name, path },
+            kind: ExprKind::Symbol(Symbol { name, path }),
         }
     }
 

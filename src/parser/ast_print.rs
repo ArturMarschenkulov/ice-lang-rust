@@ -1,5 +1,5 @@
 //! AST Debug Tree Printer
-//! 
+//!
 //! This module contains the implementation of the `DebugTreePrinter` trait for the AST. This trait is used to print the AST
 //! in a tree-like structure.
 use super::ast::*;
@@ -58,11 +58,11 @@ impl DebugTreePrinter for Expr {
                 debug_tree::add_branch!("Unary: {:?}", op.name.kind);
                 expr.print_debug_tree();
             }
-            ExprKind::UnaryPostfix(expr,op) => {
+            ExprKind::UnaryPostfix(expr, op) => {
                 debug_tree::add_branch!("Unary: {:?}", op.name.kind);
                 expr.print_debug_tree();
             }
-            ExprKind::Symbol { name, path } => {
+            ExprKind::Symbol(Symbol { name, path }) => {
                 let s = if path.is_some() {
                     let s = path
                         .clone()

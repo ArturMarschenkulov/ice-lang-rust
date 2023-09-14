@@ -1,5 +1,5 @@
 use super::super::lexer::token::{KeywordKind as KK, PunctuatorKind as PK, TokenKind as TK};
-use super::ast::{Expr, Identifier, Operator, Stmt};
+use super::ast::{Expr, Identifier, Literal, Operator, Stmt};
 
 use super::{Error, PResult, Parser};
 
@@ -354,6 +354,7 @@ impl Parser {
         let expr = match token.kind {
             TK::Literal(lit) => {
                 self.advance();
+                let lit = Literal::from(lit);
                 Expr::literal(lit)
             }
             TK::Identifier(_) => {
