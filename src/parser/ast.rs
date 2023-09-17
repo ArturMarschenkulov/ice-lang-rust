@@ -82,6 +82,7 @@ struct TypedExpr {
     ty: Ty,
 }
 
+
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     /// E.g., 3, 5.0, "hello", 'c', true, false
@@ -92,16 +93,23 @@ pub enum ExprKind {
     /// E.g., (3, 5, 6)
     Grouping(Box<Expr>),
 
-    /// E.g., 3 + 5, 3 * 5, 3 / 5, 3 - 5                   
+    /// E.g., 3 + 5, 3 * 5, 3 / 5, 3 - 5
+    ///
+    /// Note, that this will correctly evaluated only in the semantic analysis part.               
     BinaryInfix(Box<Expr>, Operator, Box<Expr>),
     /// E.g., -3, !true
+    ///
+    /// Note, that this will correctly evaluated only in the semantic analysis part.  
     UnaryPrefix(Operator, Box<Expr>),
     /// E.g., 3!
+    ///
+    /// Note, that this will correctly evaluated only in the semantic analysis part.
     UnaryPostfix(Box<Expr>, Operator),
 
     // E.g., { stmt; stmt; stmt; }
     Block(Vec<Stmt>),
 
+    /// E.g., if expr { stmt; stmt; stmt; } else { stmt; stmt; stmt; }
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     While(Box<Expr>, Box<Expr>),
     For(Box<Stmt>, Box<Expr>, Box<Expr>, Box<Expr>),

@@ -24,8 +24,8 @@ use error::Error;
 type LResult<T> = Result<T, Error>;
 
 fn is_alpha(c: &char) -> bool {
-    let minor_case = ('a'..='z').contains(c);
-    let major_case = ('A'..='Z').contains(c);
+    let minor_case = c.is_ascii_lowercase();
+    let major_case = c.is_ascii_uppercase();
     let underscore = c == &'_';
     minor_case || major_case || underscore
 }
@@ -366,7 +366,7 @@ impl Lexer {
             comment_content,
         ))))
     }
-    
+
     /// Lexes a block comment.
     ///
     /// # Panics

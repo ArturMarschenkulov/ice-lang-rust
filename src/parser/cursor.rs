@@ -57,7 +57,7 @@ impl Parser {
         // but for now we'll just use this.
         // TODO: If polonius is ready, use the better version.
 
-        if let Ok(..) = self.check_with(0, &pred) {
+        if self.check_with(0, &pred).is_ok() {
             self.advance()
         }
 
