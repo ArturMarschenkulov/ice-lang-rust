@@ -2,6 +2,11 @@
 //!
 //! The cursor is the part of the lexer that keeps track of the current position in the source code
 //! It is used to advance the lexer and to peek at the next character.
+//! 
+//! There are 3 main types, `peek`, `check` and `eat`.
+//! - Peeking just describes the act of looking without doing anything.
+//! - Checking is the act of peeking and then checking whether the peeked character agrees with a given predicate.
+//! - Eating is the act of checking and then advancing the cursor if the check was successful.
 
 use super::Lexer;
 
