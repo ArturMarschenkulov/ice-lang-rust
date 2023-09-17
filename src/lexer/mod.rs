@@ -47,6 +47,8 @@ struct Lexer {
 
     index: usize,
     cursor: span::Position,
+
+    errors: Vec<Error>,
 }
 
 fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &mut Vec<Token>) {
@@ -149,6 +151,7 @@ impl From<&str> for Lexer {
             chars: source.chars().collect(),
             index: 0,
             cursor: span::Position::new(1, 1),
+            errors: Vec::new(),
         }
     }
 }
@@ -409,7 +412,7 @@ impl Lexer {
                             this.advance();
                             Some(x)
                         })
-                        .map_err(|_| Error::not_recognized_base_prefix(&pot_prefix))
+                        .map_err(|_| Error::not_recognized_base_prefix(pot_prefix))
                 }
                 _ => Ok(None),
             }
@@ -490,12 +493,17 @@ impl Lexer {
             return Err(Error::invalid_digit_base_prefix(number_base_prefix));
         }
 
-        let possible_suffixes = [
-            "", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
-        ];
-        if !possible_suffixes.contains(&suffix.clone().unwrap_or_default().as_str()) {
-            return Err(Error::invalid_digit_type_suffix(suffix));
+        if let Some(suffix) = &suffix {
+            let possible_suffixes = [
+                "i8", "i16", "i32", "i64", // signed integers
+                "u8", "u16", "u32", "u64", // unsigned integers
+                "f32", "f64", // floating point numbers
+            ];
+            if !possible_suffixes.contains(&suffix.clone().as_str()) {
+                return Err(Error::invalid_digit_type_suffix(suffix.clone()));
+            }
         }
+
         assert_ne!(string.len(), 0);
 
         let lit = TK::Literal(if is_floating {
