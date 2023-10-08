@@ -59,3 +59,7 @@ Since this language is writtein in Rust, projects of languages written in Rust a
 - [inko](https://github.com/YorickPeterse/inko)
 - [crunch-lang](https://github.com/Kixiron/crunch-lang)
 
+
+# Projects which might be interesting to look into, but are not compilers
+- [ariadne](https://github.com/zesterer/ariadne)
+

@@ -44,8 +44,23 @@ fn foo_2(f: fn(i32, i32): i32, x: i32): i32 {
 
 I'm torn on whether we should just use `:` for denoting the function return type, or stick to `->` or even no punctuator at all.
 
+
+### `->`
+`fn add(x: i32, y: i32) -> i32`
+
+`fn foo<T>(x: T, func: fn(i32, i32) -> i32) -> i32`
 `->` looks prettier in my eyes, however introduces a new structural token.
+
+### `:`
+`fn add(x: i32, y: i32): i32`
+`fn foo<T>(x: T, func: fn(i32, i32): i32): i32`
 `:` on the other hand looks less prettier, but it does not introduce a new token, it reused a token which is already used to signify the types of variables.
+
+### ` `
+`fn add(x: i32, y: i32) i32`
+`fn foo<T>(x: T, func: fn(i32, i32) i32) i32`
+Another option is to not use anything. I find this quite ugly and inconsistent.
+
 
 For now we stick with `:`
 

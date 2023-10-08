@@ -53,57 +53,94 @@ fn id<T>(a: T): T {
 fn const<T, U>(a: T, b: U): T {
     a
 }
-type Functor<T<_>> = trait {
+type Functor<T<A>> = trait {
     type Self = T<_>;
-    fn map<A, B>(self: Self<A>, f: fn(A): B): Self<B>;
+    fn map<B>(self: Self, f: fn(A): B): Self<B>;
 
-    // <$
-    fn replace_with<A, B>(self: Self<A>, a: A): Self<B> {
+    // (<$) :: a -> f b -> f a
+    fn replace_with<B>(self: Self, a: A): Self<B> {
         self.map(|_| a)
     }
+
+    // --
+
+    // void :: Functor f => f a -> f ()
+    fn void(self: Self) -> Self<()> {
+        self.replace_with(())
+    }
 }
-type Applicative<T<_>> = trait
-where T<_>: Functor<T<_>> {
+type Applicative<T<A>> = trait
+where T<A>: Functor<T<A>> {
     type Self = T<_>;
 
-    fn pure<A>(a: A) -> Self<A>;
+    fn pure(a: A) -> Self;
 
     // (<*>) :: f (a -> b) -> f a -> f b
     // f <*> x = liftA2 id f x
-    fn apply<A, B>(self: Self<A>, func: Self<fn(A): B>): Self<B> {
+    fn apply<B>(self: Self, func: Self<fn(A): B>): Self<B> {
         self.lift_two(func, |a, f| f(a))
     }
 
     // liftA2 func right self = (<*>) (fmap func right) self
-    fn lift_two<A, B, C>(self: Self<A>, right: Self<B>, func: fn(A, B): C): Self<C> {
+    fn lift_two<B, C>(self: Self, right: Self<B>, func: fn(A, B): C): Self<C> {
         self.apply(right.map(func))
     }
     // *>
-    fn discard_left<A, B>(self: Self<A>, right: Self<B>): T<B> {
+    fn discard_left<B>(self: Self, right: Self<B>): Self<B> {
         // self.lift_two(right, |_, b| b)
         self.replace_with(right)
     }
     // <*
-    fn discard_right<A, B>(self: Self<A>, right: Self<B>): T<A> {
+    fn discard_right<B>(self: Self, right: Self<B>): Self {
         self.lift_two(right, |a, _| a)
+    }
+
+    // --
+
+    // join :: Monad m => m (m a) -> m a 
+    fn join(self: Self<Self>): Self {
+        self.bind(|x| x)
+    }
+
+    // liftM   :: (Monad m) => (a1 -> r) -> m a1 -> m r
+    fn lift_m_1<B>(self: Self, f: fn(A): B): Self<B> {
+        self.bind(|a| Self::return(f(a)))
+    }
+
+    // liftM2  :: (Monad m) => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
+    fn lift_m_2<B, C>(self: Self, right: Self<B>, f: fn(A, B): C): Self<C> {
+        self.bind(|a| 
+            right.bind(|b| 
+                Self::return(f(a, b))
+            )
+        )
+    }
+
+    // ap :: Monad m => m (a -> b) -> m a -> m b
+    fn ap<A, B>(self: Self<fn(A): B>, right: Self<A>): Self<B> {
+        self.bind(|f| 
+            right.bind(|a| 
+                Self::return(f(a))
+            )
+        )
     }
 }
 
-type Monad<T<_>> = trait
-where T<_>: Applicative<T<_>> {
+type Monad<T<A>> = trait
+where T<A>: Applicative<T<_>> {
     type Self = T<_>;
 
     // (>>=) :: m a -> (a -> m b) -> m b
-    fn bind<A, B>(self: Self<A>, f: fn(A): Self<B>): Self<B>;
+    fn bind<B>(self: Self, f: fn(A): Self<B>): Self<B>;
     
     // (>>) :: m a -> m b -> m b
-    fn then<A, B>(self: Self<A>, right: Self<B>): Self<B>  {
+    fn then<B>(self: Self, right: Self<B>): Self<B>  {
         self.bind(|_| right)
     }
 
     // return :: a -> m a
-    fn return<A>(a: A): T<A> {
-        T::pure(a)
+    fn return(a: A): T<A> {
+        Self::pure(a)
     }
 }
 ```
@@ -198,7 +235,7 @@ impl Monad<Option<_>> for Option {
     // None.bind(|x| Some(x + 1)) == None
     // Some(1).bind(|x| None) == None
     // None.bind(|x| None) == None
-    // (>>=)       :: forall a b. m a -> (a -> m b) -> m b
+    // (>>=)       :: m a -> (a -> m b) -> m b
     fn bind<A, B>(self: Self<A>, func: fn(A): Self<B>): Self<B> {
         match self {
             Some(a) => self.map(func),
@@ -223,7 +260,52 @@ impl Monad<Option<_>> for Option {
     }
     // Option::return(1) == Some(1)
 }
+```
 
+Now let's do the same but for Semigroups and Monoids.
+
+```haskell
+
+class Semigroup a where
+    {-# MINIMAL (<>) | sconcat #-}
+
+    (<>) :: a -> a -> a
+    a <> b = sconcat (a :| [ b ])
+
+    sconcat :: NonEmpty a -> a
+    sconcat (a :| as) = go a as where
+      go b (c:cs) = b <> go c cs
+      go b []     = b
+
+    stimes :: Integral b => b -> a -> a
+    stimes = stimesDefault
+        
+```
+
+```rust
+
+type List = enum {
+    Nil,
+    Cons(T, List),
+}
+
+type NonEmpty<T> = enum {
+    NonEmpty(T, List<T>),
+}
+type Semigroup<A> = trait {
+    fn combine(self: Self<A>, right: Self<A>) -> Self<A> {
+
+    }
+
+    fn concatenate(self: Self) -> Self
+        where Self: NonEmpty<A> {
+        
+    }
+
+    fn repeat_times(self: Self, n: usize) -> Self {
+
+    }
+}
 ```
 Rust:
 
