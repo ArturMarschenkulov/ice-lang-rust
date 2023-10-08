@@ -1,11 +1,11 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 mod compiler;
 mod lexer;
 mod parser;
 mod tui;
 
-use std::fs::File;
-use std::io::Read;
+use std::fs;
+use std::io;
 
 //use crate::evaluator::get_evaluation_from_ast;
 use crate::lexer::lex_tokens_from_file;
@@ -20,7 +20,28 @@ var stur := "This\n is a string\n";
 // THis is a comment at the end
 "#;
 
-struct Ice {}
+fn time_fn<F, A>(f: F) -> (A, std::time::Duration)
+where
+    F: FnOnce() -> A,
+{
+    use std::time::Instant;
+    let start_time = Instant::now();
+    let result = f();
+    let elapsed_time = start_time.elapsed();
+    (result, elapsed_time)
+}
+
+pub fn read_file(path: &str) -> io::Result<String> {
+    fs::read_to_string(path).and_then(|contents| {
+        if contents.is_empty() {
+            Err(io::Error::new(io::ErrorKind::InvalidData, "File is empty"))
+        } else {
+            Ok(contents)
+        }
+    })
+}
+
+struct Ice;
 impl Ice {
     // the entry point to the `Ice` instance
     fn main(&mut self) {
@@ -29,7 +50,7 @@ impl Ice {
             2 => {
                 println!("from file");
                 let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
-                Ice::read_file(text_from_file)
+                read_file(text_from_file)
             }
             1 => {
                 let run_test_file = true;
@@ -38,58 +59,54 @@ impl Ice {
                     // The actual end product should not have this branch
 
                     let file = "tests\\test.ice";
-                    Ice::read_file(&mut file.to_owned())
+                    read_file(file)
                 } else {
                     println!("from memory");
-                    String::from(TEXT)
+                    Ok(TEXT.to_string())
                 }
             }
             _ => unreachable!(),
-        };
-        self.run(&source);
-    }
-    fn read_file(path: &mut String) -> String {
-        let error_string = path.to_string();
-
-        let mut contents = String::new();
-        let _num_byte_appended = File::open(path)
-            .unwrap_or_else(|_| panic!("{}", error_string))
-            .read_to_string(&mut contents)
-            .expect("something went wrong reading the file");
-        if contents.is_empty() {
-            ::std::process::exit(0)
         }
-        contents
+        .unwrap_or_else(|e| panic!("{}", e));
+        self.run(&source);
     }
 
     fn run(&mut self, text: &str) {
         let mut time_vec = Vec::<(&str, std::time::Duration)>::new();
 
+        struct PrintConfig {
+            show_stages: bool,
+            show_token_stream: bool,
+            show_ast_tree: bool,
+        }
+        let print_config = PrintConfig {
+            show_stages: true,
+            show_token_stream: true,
+            show_ast_tree: true,
+        };
+
+        let (token_stream, token_stream_time) = time_fn(|| lex_tokens_from_file(text));
+
         tui::print_source_code(text);
-
-        let show_stages = true;
-        let show_token_stream = true;
-        let show_ast_tree = true;
-
-        let (tokens, lexer_time) = tui::format(
+        time_vec.push(("Lexer", token_stream_time));
+        tui::format_(
             "Lexer",
-            show_stages,
-            show_token_stream,
-            || lex_tokens_from_file(text),
+            print_config.show_stages,
+            print_config.show_token_stream,
+            token_stream.clone(),
             tui::print_token_stream,
         );
-        time_vec.push(("Lexer", lexer_time));
-        let tokens = tokens.unwrap();
+        let (ast_tree, ast_tree_time) =
+            time_fn(|| parse_project_from_file(token_stream.clone().unwrap()));
+        time_vec.push(("Parser", ast_tree_time));
 
-        let (_ast, parser_time) = tui::format(
+        tui::format_(
             "Parser",
-            show_stages,
-            show_ast_tree,
-            || parse_project_from_file(tokens.clone()),
+            print_config.show_stages,
+            print_config.show_ast_tree,
+            ast_tree,
             tui::print_ast_tree,
         );
-        time_vec.push(("Parser", parser_time));
-        let _ast = _ast.unwrap();
 
         tui::print_time(&time_vec);
     }

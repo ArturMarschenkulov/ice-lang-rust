@@ -77,24 +77,20 @@ pub fn print_source_code(source: &str) {
     println!();
 }
 
-pub fn format<T, E, F>(
+pub fn format_<T, E>(
     name: &str,
     show_stage: bool,
     show_structure: bool,
-    f: F,
+    res: Result<T, E>,
     f2: fn(&T) -> (),
-) -> (Result<T, E>, std::time::Duration)
-where
-    F: Fn() -> Result<T, E>,
+) where
     E: std::fmt::Debug,
 {
     if show_stage {
         let lexer_str = ansi_term::Color::Cyan.paint(name).to_string();
         print_stage(&lexer_str);
     }
-    let (res, time) = time_fn(f);
     if show_structure {
-        f2(res.as_ref().unwrap())
+        f2(res.as_ref().unwrap());
     }
-    (res, time)
 }
