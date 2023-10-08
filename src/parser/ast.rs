@@ -3,6 +3,15 @@
 //! This module contains types that form the language AST.
 //!
 //! The AST is the representation of the source code in a tree-like structure.
+//! 
+//! [`Identifier`], [`Operator`] and [`Literal`] represent the terminal nodes of the tree.
+
+
+enum Terminal {
+    Identifier(Identifier),
+    Operator(Operator),
+    Literal(Literal),
+}
 
 #[derive(Clone, Debug)]
 pub struct Identifier {
@@ -58,6 +67,11 @@ impl From<crate::lexer::token::LiteralKind> for Literal {
     }
 }
 
+/// Represents a symbol in the AST.
+/// 
+/// A symbol is a path to a variable, function, struct, enum, etc.
+/// If the path is empty, it means that the symbol is in the current scope (e.g., `x`).
+/// If the path is not empty, it means that the symbol is in a different scope (e.g., `x::y::z`).
 #[derive(Clone, Debug)]
 pub struct Symbol {
     pub name: Identifier,
@@ -81,7 +95,6 @@ struct TypedExpr {
     expr: Expr,
     ty: Ty,
 }
-
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
@@ -236,7 +249,7 @@ impl TyKind {
         match self.name() {
             Some(ty) => match ty {
                 ty if ty == "bool" => true,
-                ty if ["i", "u", "f"].contains(&ty.get(..0).unwrap()) => true,
+                ty if ["i", "u", "f"].iter().any(|x| ty.starts_with(x)) => true,
                 ty if ty == "()" => true,
                 _ => false,
             },

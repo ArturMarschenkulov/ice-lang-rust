@@ -56,31 +56,35 @@ impl Parser {
         item
     }
 
+    /// Parse a variable declaration statement.
+    ///
     /// There 3 variable declaration types.
-    /// 1. var <ident> := <expr>;
-    /// 2. var <ident> : <type> = <expr>;
+    /// 1. var <ident> : <type> = <expr>;
+    /// 2. var <ident> := <expr>;
     /// 3. var <ident> : <type>;
+    /// 4. var <ident>; ???
     pub fn parse_stmt_var(&mut self) -> PResult<Stmt> {
-        self.eat(&TK::Keyword(KK::Var)).unwrap();
-
-        let ident = self
-            .eat_identifier()
-            .map(|name| Identifier::try_from(name.clone()).unwrap())
-            .expect("Expected variable name");
-
+        self.eat(&TK::Keyword(KK::Var))
+            .expect("guaranteed if called correctly");
+        let ident = self.parse_identifier()?;
         self.eat(&TK::Punctuator(PK::Colon)).unwrap();
+
         let ty = self.parse_ty().ok();
 
         let expr = match self.eat(&TK::Punctuator(PK::Equal)) {
-            Ok(_) => Some(Box::new(self.parse_expr().unwrap())),
+            Ok(_) => Some(Box::new(self.parse_expr()?)),
             Err(_) if ty.is_some() => None,
-            Err(_) => panic!("Expected equal sign"),
+            Err(_) => return Err(Error::new(format!("Expected '=', found '{}'", "EOF"))),
         };
 
         let stmt = Stmt::var(ident, ty, expr);
 
         self.check(&TK::Punctuator(PK::Semicolon), 0)
-            .expect("Expected ';' after variable declaration");
+            .map_err(|k| match k {
+                Some(it) => format!("Expected ';', found '{}'", it.kind.as_str()),
+                None => format!("Expected ';', found {:?}", "EOF"),
+            })
+            .map_err(Error::new)?;
 
         Ok(stmt)
     }

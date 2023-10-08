@@ -8,7 +8,7 @@ impl Parser {
     pub fn parse_stmt(&mut self) -> PResult<Stmt> {
         let token = self.peek(0);
         let sk = match &token.unwrap().kind {
-            TK::Keyword(KK::Var) => self.parse_stmt_var().unwrap(),
+            TK::Keyword(KK::Var) => self.parse_stmt_var()?,
             s if s.starts_item() => Stmt::item(self.parse_item().unwrap()),
             TK::Punctuator(PK::Semicolon) => {
                 self.advance();

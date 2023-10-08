@@ -42,6 +42,12 @@ impl Parser {
     pub fn eat_punctuator(&mut self) -> Result<&Token, Option<&Token>> {
         self.eat_with(TokenKind::is_punctuator)
     }
+    pub fn eat_punctuator_with(
+        &mut self,
+        pred: impl Fn(&TokenKind) -> bool,
+    ) -> Result<&Token, Option<&Token>> {
+        self.eat_with(|t| TokenKind::is_punctuator(t) && pred(t))
+    }
 
     /// Eats the next token if it matches the given predicate.
     ///
