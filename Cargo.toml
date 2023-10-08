@@ -2,7 +2,7 @@
 name = "ice-lang-rust"
 version = "0.1.0"
 authors = ["Artur <ArturMarschals@web.de>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,9 +10,10 @@ edition = "2018"
 debug = true
 
 [dependencies]
-debug_tree = { git = "https://github.com/martypapa/debug-tree", branch = "master" }
+debug_tree = "0.4.0"
+# debug_tree = { git = "https://github.com/martypapa/debug-tree", branch = "master" }
 unicode-xid = "0.2.0"
-#llvm-sys = "100"
+# llvm-sys = "100"
 ansi_term = "0.12.1"
-
-
+# inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm10-0"] }
+# once_cell = "1.13.0"
