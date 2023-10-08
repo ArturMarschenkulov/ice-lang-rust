@@ -47,3 +47,8 @@ impl From<((u32, u32), (u32, u32))> for Span {
         }
     }
 }
+
+/// NOTE: To be used in the future
+struct SourceMap {
+    // files: HashMap<String, FileId>,
+}

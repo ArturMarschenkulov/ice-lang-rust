@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use super::token::NumberBase;
+use super::token::NumberError;
 use crate::lexer::Lexer;
 
 use super::*;
@@ -216,7 +217,7 @@ fn num_0_() {
 #[test]
 
 fn test_lex_number() {
-    use crate::lexer::Error;
+    use crate::lexer::token::Number;
     use NumberBase::*;
 
     // Simple cases
@@ -224,33 +225,47 @@ fn test_lex_number() {
 
     assert_eq!(
         Lexer::from("0").lex_number(),
-        Ok(TK::Literal(LK::integer("0", None, None)))
+        TK::Literal(LK::integer("0", None, None))
     );
 
     assert_eq!(
         Lexer::from("1").lex_number(),
-        Ok(TK::Literal(LK::integer("1", None, None)))
+        TK::Literal(LK::integer("1", None, None))
     );
 
     assert_eq!(
         Lexer::from("123").lex_number(),
-        Ok(TK::Literal(LK::integer("123", None, None)))
+        TK::Literal(LK::integer("123", None, None))
     );
 
     assert_eq!(
         Lexer::from("123456").lex_number(),
-        Ok(TK::Literal(LK::integer("123456", None, None)))
+        TK::Literal(LK::integer("123456", None, None))
     );
 
     // Error cases
     // Invalid binary number
     assert_eq!(
         Lexer::from("0b22").lex_number(),
-        Err(Error::invalid_digit_base_prefix(Some(Binary)))
+        TK::Literal(LK::Number(Number::new(
+            "22".into(),
+            Some(Binary),
+            None,
+            false,
+            Some(NumberError::NumberNotInBase)
+        ))),
+        // Error::invalid_digit_base_prefix(Some(Binary))
     );
     assert_eq!(
         Lexer::from("0o8").lex_number(),
-        Err(Error::invalid_digit_base_prefix(Some(Octal)))
+        TK::Literal(LK::Number(Number::new(
+            "8".into(),
+            Some(Octal),
+            None,
+            false,
+            Some(NumberError::NumberNotInBase)
+        ))),
+        // Err(Error::invalid_digit_base_prefix(Some(Octal)))
     );
     // assert_eq!(
     //     Lexer::new_from_str("0xg").lex_number(),
@@ -259,7 +274,14 @@ fn test_lex_number() {
 
     assert_eq!(
         Lexer::from("0x0.0").lex_number(),
-        Err(Error::floats_dont_have_base_prefix(Some(Hexadecimal)))
+        TK::Literal(LK::Number(Number::new(
+            "0.0".into(),
+            Some(Hexadecimal),
+            None,
+            true,
+            Some(NumberError::FloatWithPrefix)
+        ))),
+        // Err(Error::floats_dont_have_base_prefix(Some(Hexadecimal)))
     );
 
     // assert_eq!(
@@ -267,7 +289,7 @@ fn test_lex_number() {
     //     Err(LexerError::invalid_digit_base_prefix(Some(Decimal)))
     // );
 
-    assert!(Lexer::from("0.").lex_number().is_err());
+    // assert!(Lexer::from("0.").lex_number().is_err());
 
     // assert_eq!(
     //     Lexer::new_from_str("0b").lex_number(),
@@ -452,10 +474,7 @@ fn test_complex_token_cooking() {
     assert_eq!(
         to_token_kinds(".."),
         vec![
-            TK::Punctuator(PK::Complex(vec![
-                PK::Dot,
-                PK::Dot
-            ])),
+            TK::Punctuator(PK::Complex(vec![PK::Dot, PK::Dot])),
             TK::SpecialKeyword(SKK::Eof),
         ],
     );

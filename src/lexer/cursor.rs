@@ -8,7 +8,7 @@
 //! - Checking is the act of peeking and then checking whether the peeked character agrees with a given predicate.
 //! - Eating is the act of checking and then advancing the cursor if the check was successful.
 
-use super::Lexer;
+use super::{Lexer, span};
 
 /// Adjusts the given index by the given offset safely.
 ///
@@ -20,6 +20,13 @@ fn adjust_index_safely(index: usize, offset: isize) -> Option<usize> {
         true => index.checked_add(offset as usize),
         false => index.checked_sub(-offset as usize),
     }
+}
+
+/// NOTE: To be used in the future
+struct Cursor {
+    index: usize,
+    cursor: span::Position,
+    chars: Vec<char>,
 }
 
 /// This impl is the cursor part for the lexer.

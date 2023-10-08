@@ -145,15 +145,48 @@ pub enum PunctuatorKind {
     ColonColon, // ::
 }
 
+impl TryFrom<&[PunctuatorKind]> for PunctuatorKind {
+    type Error = String;
+    fn try_from(slice: &[PunctuatorKind]) -> Result<Self, Self::Error> {
+        if slice.is_empty() {
+            return Err("PunctuatorKind::try_from: slice must not be empty".to_owned());
+        }
+
+        Ok(match slice {
+            [single] => single.clone(),
+            [PK::Equal, PK::Equal] => PK::EqualEqual,
+            [PK::Exclamation, PK::Equal] => PK::BangEqual,
+            [PK::Greater, PK::Equal] => PK::GreaterEqual,
+            [PK::Less, PK::Equal] => PK::LessEqual,
+            [PK::Ampersand, PK::Ampersand] => PK::AmpersandAmpersand,
+            [PK::VerticalBar, PK::VerticalBar] => PK::PipePipe,
+
+            [PK::Minus, PK::Greater] => PK::MinusGreater,
+            [PK::Colon, PK::Colon] => PK::ColonColon,
+
+            [PK::Plus, PK::Equal] => PK::PlusEqual,
+            [PK::Minus, PK::Equal] => PK::MinusEqual,
+            [PK::Asterisk, PK::Equal] => PK::StarEqual,
+            [PK::Slash, PK::Equal] => PK::SlashEqual,
+
+            slice => PK::Complex(slice.to_vec()),
+        })
+    }
+}
+
 impl PunctuatorKind {
+    fn complex(x: &[PunctuatorKind]) -> Self {
+        PK::Complex(x.to_vec())
+    }
     // fn from_self_slice(slice: &[Self]) -> Self {
     //     assert!(slice.len() > 0, "PunctuatorKind::from_self_slice: slice must have at least length 1");
 
     //     let c = PunctuatorKind::Complex(slice.to_vec());
     // }
+
     // 'fuses' simple complex tokens into fused complex tokens, if possible. Otherwise it does nothing.
-    fn fuse(self) -> PunctuatorKind {
-        match &self {
+    fn try_fuse(self) -> Option<PunctuatorKind> {
+        Some(match &self {
             PK::Complex(c) => match *c.as_slice() {
                 [PK::Equal, PK::Equal] => PK::EqualEqual,
                 [PK::Exclamation, PK::Equal] => PK::BangEqual,
@@ -169,33 +202,35 @@ impl PunctuatorKind {
                 [PK::Minus, PK::Equal] => PK::MinusEqual,
                 [PK::Asterisk, PK::Equal] => PK::StarEqual,
                 [PK::Slash, PK::Equal] => PK::SlashEqual,
-                _ => self,
+                _ => return None,
             },
-            _ => self,
-        }
+            _ => return None,
+        })
     }
     // 'unfuses' fused complex tokens into simple complex tokens, if possible. Otherwise it does nothing.
-    pub fn unfuse(self) -> PunctuatorKind {
-        match self {
-            PK::EqualEqual => PK::Complex(vec![PK::Equal, PK::Equal]),
-            PK::BangEqual => PK::Complex(vec![PK::Exclamation, PK::Equal]),
-            PK::GreaterEqual => PK::Complex(vec![PK::Greater, PK::Equal]),
-            PK::LessEqual => PK::Complex(vec![PK::Less, PK::Equal]),
-            PK::AmpersandAmpersand => PK::Complex(vec![PK::Ampersand, PK::Ampersand]),
-            PK::PipePipe => PK::Complex(vec![PK::VerticalBar, PK::VerticalBar]),
+    pub fn try_unfuse(self) -> Option<PunctuatorKind> {
+        Some(match self {
+            PK::EqualEqual => PK::complex(&[PK::Equal, PK::Equal]),
+            PK::BangEqual => PK::complex(&[PK::Exclamation, PK::Equal]),
+            PK::GreaterEqual => PK::complex(&[PK::Greater, PK::Equal]),
+            PK::LessEqual => PK::complex(&[PK::Less, PK::Equal]),
+            PK::AmpersandAmpersand => PK::complex(&[PK::Ampersand, PK::Ampersand]),
+            PK::PipePipe => PK::complex(&[PK::VerticalBar, PK::VerticalBar]),
 
-            PK::MinusGreater => PK::Complex(vec![PK::Minus, PK::Greater]),
-            PK::ColonColon => PK::Complex(vec![PK::Colon, PK::Colon]),
+            PK::MinusGreater => PK::complex(&[PK::Minus, PK::Greater]),
+            PK::ColonColon => PK::complex(&[PK::Colon, PK::Colon]),
 
-            PK::PlusEqual => PK::Complex(vec![PK::Plus, PK::Equal]),
-            PK::MinusEqual => PK::Complex(vec![PK::Minus, PK::Equal]),
-            PK::StarEqual => PK::Complex(vec![PK::Asterisk, PK::Equal]),
-            PK::SlashEqual => PK::Complex(vec![PK::Slash, PK::Equal]),
-            _ => self,
-        }
+            PK::PlusEqual => PK::complex(&[PK::Plus, PK::Equal]),
+            PK::MinusEqual => PK::complex(&[PK::Minus, PK::Equal]),
+            PK::StarEqual => PK::complex(&[PK::Asterisk, PK::Equal]),
+            PK::SlashEqual => PK::complex(&[PK::Slash, PK::Equal]),
+            _ => return None,
+        })
     }
     fn is_simple(&self) -> bool {
-        !matches!(self.clone().unfuse(), PK::Complex(_))
+        let is_complex_fused = self.clone().try_unfuse().is_some();
+        let is_complex_unfused = matches!(self, PK::Complex(_));
+        !is_complex_fused && !is_complex_unfused
     }
     fn is_complex(&self) -> bool {
         !self.is_simple()
@@ -203,7 +238,7 @@ impl PunctuatorKind {
     fn is_complex_fused(&self) -> bool {
         match self.clone() {
             PK::Complex(_) => false,
-            token => !token.unfuse().is_simple(),
+            token => token.try_unfuse().is_some(),
         }
     }
 
@@ -225,9 +260,13 @@ impl PunctuatorKind {
     /// Right now those tokens are `.`, `,`, `;`, `:`, `->`, `::`, `=>`.
     pub fn is_structural(&self) -> bool {
         match self {
+            // . , ; : =
             PK::Dot | PK::Comma | PK::Semicolon | PK::Colon | PK::Equal => true,
+            // ) ] }
             PK::RightParen | PK::RightBracket | PK::RightBrace => true,
+            // ( [ {
             PK::LeftParen | PK::LeftBracket | PK::LeftBrace => true,
+            // -> ::
             PK::MinusGreater | PK::ColonColon => true,
             PK::Complex(complex) => {
                 matches!(
@@ -499,7 +538,11 @@ pub fn cook_tokens(tokens: &[Token]) -> Token {
                     }
                 })
                 .collect::<Vec<_>>();
-            let token_kind = TK::Punctuator(PK::Complex(tok_kinds).fuse());
+            let token_kind = TK::Punctuator(
+                PK::complex(&tok_kinds)
+                    .try_fuse()
+                    .unwrap_or(PK::complex(&tok_kinds)),
+            );
             let bools = (
                 <(bool, bool)>::from(first_tok.whitespace).0,
                 <(bool, bool)>::from(last_tok.whitespace).1,
@@ -576,44 +619,63 @@ impl From<NumberBase> for &str {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NumberError {
+    /// There is only a number prefix without an actual number, `0x`, `0b`, `0o`, `0d`.
+    PrefixWithoutNumber,
+    /// A prefix is detected, but it is not a valid one, `0q10`.
+    ///
+    /// NOTE: This will probably be removed, because the idea is to interpret `0q10` as having a suffix.
+    /// As a user could define such a custom suffix.
+    InvaidPrefix,
+    InvalidSuffix,
+    FloatWithPrefix,
+    NumberNotInBase,
+}
+/// Represents a number literal.
+///
+/// An erroneous number literal is represented with the `is_error` field.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Number {
-    content: String,
+    number: String,
     prefix: Option<NumberBase>,
     suffix: Option<String>,
+    /// Shows whether [`Number::number`] contains one dot, which is interpreted as a floating point number.
     is_float: bool,
+    has_error: Option<NumberError>,
 }
 
 impl Number {
     pub fn new(
-        content: &str,
+        number: String,
         prefix: Option<NumberBase>,
         suffix: Option<String>,
         is_float: bool,
+        has_error: Option<NumberError>,
     ) -> Self {
-        if is_float && prefix.is_some() {
-            panic!("Floating point numbers cannot have a prefix");
-        }
         Self {
-            content: content.to_owned(),
+            number,
             prefix,
             suffix,
             is_float,
+            has_error,
         }
     }
     pub fn integer(content: &str, prefix: Option<NumberBase>, suffix: Option<String>) -> Self {
         Self {
-            content: content.to_owned(),
+            number: content.to_owned(),
             prefix,
             suffix,
             is_float: false,
+            has_error: None,
         }
     }
     pub fn floating(content: &str, suffix: Option<String>) -> Self {
         Self {
-            content: content.to_owned(),
+            number: content.to_owned(),
             prefix: None,
             suffix,
             is_float: true,
+            has_error: None,
         }
     }
 }
@@ -628,7 +690,7 @@ impl From<Number> for String {
             Some(s) => s,
             None => "".to_owned(),
         };
-        format!("{}{}{}", prefix, number.content, suffix)
+        format!("{}{}{}", prefix, number.number, suffix)
     }
 }
 
@@ -752,7 +814,7 @@ impl Token {
             })
             .collect::<Vec<_>>();
 
-        let c = PunctuatorKind::Complex(toks);
+        let c = PK::complex(&toks);
 
         let left = slice.first().unwrap();
         let right = slice.last().unwrap();

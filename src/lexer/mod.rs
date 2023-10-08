@@ -2,10 +2,9 @@
 //!
 //! TODO:
 //!
-//! - [ ] Maybe in the future, this module should be elevated into one's own crate.
 //! - [ ] Make it possible to be an on demand lexer.
 //! - [ ] Implement nested comments.
-//! - [ ] Consider adding different comment styles.
+//! - [ ] Implement recovery.
 
 mod cursor;
 mod error;
@@ -161,16 +160,21 @@ impl Lexer {
         // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
         let mut punc_cache: Vec<Token> = Vec::with_capacity(5);
         let mut tokens = Vec::new();
-        while let Ok(token) = self.scan_token() {
-            if token.kind == TK::SpecialKeyword(SKK::Eof) {
-                if !punc_cache.is_empty() {
-                    tokens.push(cook_tokens(&punc_cache));
-                    punc_cache.clear();
+        loop {
+            match self.scan_token() {
+                Ok(token) => {
+                    if token.kind == TK::SpecialKeyword(SKK::Eof) {
+                        if !punc_cache.is_empty() {
+                            tokens.push(cook_tokens(&punc_cache));
+                            punc_cache.clear();
+                        }
+                        tokens.push(token);
+                        break;
+                    }
+                    maybe_add_to_token_cache(&mut punc_cache, token, &mut tokens);
                 }
-                tokens.push(token);
-                break;
+                Err(e) => self.errors.push(e),
             }
-            maybe_add_to_token_cache(&mut punc_cache, token, &mut tokens);
         }
         tokens
     }
@@ -195,13 +199,13 @@ impl Lexer {
             // TODO: Once if let guards are available rewrite it as such
             kw_punct if PK::try_from(kw_punct).is_ok() => {
                 self.advance();
-                TK::Punctuator(PK::try_from(kw_punct).unwrap())
+                TK::Punctuator(PK::try_from(kw_punct).expect("guaranteed"))
             }
             kw_special if SKK::try_from(kw_special).is_ok() => {
                 self.advance();
-                TK::SpecialKeyword(SKK::try_from(kw_special).unwrap())
+                TK::SpecialKeyword(SKK::try_from(kw_special).expect("guaranteed"))
             }
-            digit if digit.is_ascii_digit() => self.lex_number()?,
+            digit if digit.is_ascii_digit() => self.lex_number(),
             alpha if is_alpha(&alpha) => self.lex_identifier()?,
             unknown => return Err(Error::unknown_character(unknown, self.cursor)),
         };
@@ -314,7 +318,7 @@ impl Lexer {
 
             match c {
                 '\\' => {
-                    let escape_char = self.lex_escape_char().unwrap();
+                    let escape_char = self.lex_escape_char()?;
                     string_content.push(escape_char);
                 }
                 '\n' => {
@@ -352,7 +356,7 @@ impl Lexer {
     /// # Panics
     /// If it doesn't start with `//`.
     fn lex_comment_line(&mut self) -> LResult<TK> {
-        self.eat_str("//").unwrap();
+        self.eat_str("//").expect("this was checked before");
 
         let mut comment_content = String::new();
         while let Some(c) = self.peek(0) {
@@ -373,7 +377,7 @@ impl Lexer {
     /// If it doesn't start with `/*`.
     fn lex_comment_block(&mut self) -> LResult<TK> {
         // TODO: Implement nested block comments
-        self.eat_str("/*").unwrap();
+        self.eat_str("/*").expect("this was checked before");
 
         let mut comment_content = String::new();
         while let Some(c) = self.peek(0) {
@@ -401,30 +405,38 @@ impl Lexer {
         ))))
     }
 
-    fn lex_number(&mut self) -> LResult<TK> {
-        fn process_prefix(this: &mut Lexer) -> Result<Option<NumberBase>, Error> {
+    fn lex_number(&mut self) -> TK {
+        assert!(
+            self.peek(0).unwrap().is_ascii_digit(),
+            "this was checked before"
+        );
+        /// Processes the prefix of a number.
+        ///
+        /// The valid prefixes are: `0b`, `0o`, `0d`, `0x`.
+        /// These prefixes are hardcoded, thus `0q` in `0q01` can never be a valid prefix.
+        /// However, suffixes are not hardcoded (at least they are not planned to),
+        /// thus the previous number, `0q01`, could actually potentially be the number literal `0` with the suffix `q01`.
+        /// Because of that, if no prefix is recognized, we simply skip the prefix processing, to give a change to parse it as a suffix.
+        fn process_prefix(this: &mut Lexer) -> Option<NumberBase> {
             match (this.peek(0), this.peek(1)) {
                 (Some('0'), Some(c)) if c.is_alphabetic() => {
-                    let pot_prefix = "0".to_owned() + &c.to_string();
-                    NumberBase::try_from(pot_prefix.as_str())
+                    let prefix = format!("0{}", c);
+                    NumberBase::try_from(prefix.as_str())
                         .map(|x| {
                             this.advance();
                             this.advance();
-                            Some(x)
+                            x
                         })
-                        .map_err(|_| Error::not_recognized_base_prefix(pot_prefix))
+                        .ok()
                 }
-                _ => Ok(None),
+                _ => None,
             }
         }
 
-        fn process_number_body(
-            this: &mut Lexer,
-            allow_letters: bool,
-        ) -> Result<(String, bool, bool), Error> {
+        fn process_number_body(this: &mut Lexer, allow_letters: bool) -> (String, bool, bool) {
             let mut is_after_dot = false;
             let mut is_floating = false;
-            let mut mode_parse_suffix = false;
+            let mut has_suffix = false;
             let mut string = String::new();
 
             while let Some(peeked) = this.peek(0) {
@@ -441,7 +453,7 @@ impl Lexer {
                     }
                     // this parses a potential suffix
                     c if is_alpha(&c) => {
-                        mode_parse_suffix = true;
+                        has_suffix = true;
                         break;
                     }
                     // in a number there can be only one dot
@@ -455,12 +467,13 @@ impl Lexer {
                     '_' if !is_after_dot => Ok(()),
                     _ => break,
                 };
-                if let Err(e) = res {
-                    return Err(e);
-                }
+                // if let Err(e) = res {
+                //     return Err(e);
+                // }
+                res.unwrap();
                 this.advance();
             }
-            Ok((string, is_floating, mode_parse_suffix))
+            (string, is_floating, has_suffix)
         }
 
         fn process_suffix(this: &mut Lexer, mode_parse_suffix: bool) -> Option<String> {
@@ -475,44 +488,74 @@ impl Lexer {
                 None
             }
         }
+        fn check_for_errors(
+            string: String,
+            is_floating: bool,
+            suffix: Option<String>,
+            prefix: Option<NumberBase>,
+        ) -> Vec<token::NumberError> {
+            let mut errors = Vec::new();
 
-        let number_base_prefix = process_prefix(self)?;
-        let (string, is_floating, mode_parse_suffix) =
-            process_number_body(self, number_base_prefix.is_some())?;
-        let suffix = process_suffix(self, mode_parse_suffix);
-
-        // Error handling
-        if number_base_prefix.is_some() && is_floating {
-            return Err(Error::floats_dont_have_base_prefix(number_base_prefix));
-        }
-        if !string.chars().all(|c| {
-            number_base_prefix
-                .unwrap_or(NumberBase::Decimal)
-                .is_char_in(c)
-        }) {
-            return Err(Error::invalid_digit_base_prefix(number_base_prefix));
-        }
-
-        if let Some(suffix) = &suffix {
-            let possible_suffixes = [
-                "i8", "i16", "i32", "i64", // signed integers
-                "u8", "u16", "u32", "u64", // unsigned integers
-                "f32", "f64", // floating point numbers
-            ];
-            if !possible_suffixes.contains(&suffix.clone().as_str()) {
-                return Err(Error::invalid_digit_type_suffix(suffix.clone()));
+            if string.is_empty() && prefix.is_some() {
+                errors.push(token::NumberError::PrefixWithoutNumber);
             }
+
+            // Ox10.10 is not valid, because floating point numbers can't have a prefix or rather have to be decimal.
+            // NOTE: Maybe, the prefix `0d` will be allowed, because it is the decimal prefix.
+            if prefix.is_some() && is_floating {
+                errors.push(token::NumberError::FloatWithPrefix);
+            }
+
+            // Ob45 is not valid, because binary numbers can only have 0 and 1 as digits.
+            if !string.chars().all(|c| {
+                prefix.unwrap_or(NumberBase::Decimal).is_char_in(c) || c == '.' || c == '_'
+            }) {
+                errors.push(token::NumberError::NumberNotInBase);
+            }
+            if let Some(suffix) = &suffix {
+                // TODO: Move this part to the semantic analysis. These hardcoded suffixes are only temporary
+                //     The goal is to have al suffixes be custom.
+                let possible_suffixes = [
+                    "i8", "i16", "i32", "i64", // signed integers
+                    "u8", "u16", "u32", "u64", // unsigned integers
+                    "f32", "f64", // floating point numbers
+                ];
+                if !possible_suffixes.contains(&suffix.clone().as_str()) {
+                    errors.push(token::NumberError::InvalidSuffix);
+                }
+            }
+            errors
         }
 
-        assert_ne!(string.len(), 0);
+        let number_base_prefix = process_prefix(self);
+        let (string, is_floating, has_suffix) =
+            process_number_body(self, number_base_prefix.is_some());
+        let suffix = process_suffix(self, has_suffix);
 
-        let lit = TK::Literal(if is_floating {
+        // Error handling.
+        // Right now it can only handle one error, but in the future it should be able to handle multiple errors.
+        let errors = check_for_errors(
+            string.clone(),
+            is_floating,
+            suffix.clone(),
+            number_base_prefix,
+        );
+        assert!(errors.len() < 2, "there can be only one error at a time");
+        let lit = if errors.len() == 1 {
+            let number_with_error = token::Number::new(
+                string.clone(),
+                number_base_prefix,
+                suffix.clone(),
+                is_floating,
+                Some(errors[0].clone()),
+            );
+            LK::Number(number_with_error)
+        } else if is_floating {
             LK::floating(&string, suffix)
         } else {
             LK::integer(&string, number_base_prefix, suffix)
-        });
-
-        Ok(lit)
+        };
+        TK::Literal(lit)
     }
 
     fn lex_identifier(&mut self) -> LResult<TK> {

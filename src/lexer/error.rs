@@ -38,10 +38,20 @@ enum ErrorKind {
     ///
     /// NOTE: Recoverable.
     InvalidDigitBasePrefix(Option<token::NumberBase>),
-    InvalidDigitTypeSuffix(Option<String>),
+    InvalidDigitTypeSuffix(String),
 
     /// NOTE: This error is mostly a placeholder. In the end, no error should be of this kind.
     Generic(String),
+}
+impl ErrorKind {
+    fn is_recoverable(&self) -> bool {
+        !matches!(
+            self,
+            ErrorKind::UnterminatedCharLiteral
+                | ErrorKind::UnterminatedString
+                | ErrorKind::UnterminatedBlockComment
+        )
+    }
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Error {
@@ -141,7 +151,7 @@ impl Error {
     pub fn invalid_digit_type_suffix(suffix: String) -> Self {
         // Self::new(format!("invalid suffix `{}` for numeric literal", suffix))
         Self {
-            kind: ErrorKind::InvalidDigitTypeSuffix(Some(suffix)),
+            kind: ErrorKind::InvalidDigitTypeSuffix(suffix),
         }
     }
     // General
