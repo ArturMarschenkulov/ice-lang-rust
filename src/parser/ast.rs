@@ -248,9 +248,9 @@ impl TyKind {
     pub fn is_buildin(&self) -> bool {
         match self.name() {
             Some(ty) => match ty {
-                ty if ty == "bool" => true,
+                "bool" => true,
                 ty if ["i", "u", "f"].iter().any(|x| ty.starts_with(x)) => true,
-                ty if ty == "()" => true,
+                "()" => true,
                 _ => false,
             },
             _ => false,
