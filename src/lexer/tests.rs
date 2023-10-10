@@ -10,6 +10,7 @@ use super::*;
 fn to_token_kinds(s: &str) -> Vec<TK> {
     Lexer::from(s)
         .scan_tokens()
+        .tokens
         .iter()
         .map(|t| t.kind.clone())
         .collect::<Vec<_>>()
@@ -19,6 +20,7 @@ fn to_token_kinds(s: &str) -> Vec<TK> {
 fn to_token_spans(s: &str) -> Vec<span::Span> {
     Lexer::from(s)
         .scan_tokens()
+        .tokens
         .iter()
         .map(|t| t.span)
         .collect::<Vec<_>>()
@@ -118,7 +120,7 @@ fn test_scan_tokens() {
     use Whitespace::*;
 
     assert_eq!(
-        Lexer::from("fn").scan_tokens(),
+        Lexer::from("fn").scan_tokens().tokens,
         vec![
             Token::new(
                 TK::Keyword(KK::Fn),
@@ -304,14 +306,14 @@ mod num {
     #[should_panic]
     fn invalid_float() {
         let txt = "0.";
-        let t = Lexer::from(txt).scan_tokens();
+        let t = Lexer::from(txt).scan_tokens().tokens;
         assert_ne!(t.len() - 1, 1);
     }
 
     #[test]
     fn t1() {
         let txt = ".0";
-        let t = Lexer::from(txt).scan_tokens();
+        let t = Lexer::from(txt).scan_tokens().tokens;
         assert_eq!(t.len() - 1, 2);
         assert_eq!(t[0].kind, TK::Punctuator(PK::Dot));
     }

@@ -53,9 +53,9 @@ pub fn print_time(vec: &Vec<(&str, std::time::Duration)>) {
     );
 }
 
-pub fn print_token_stream(tokens: &Vec<lexer::token::Token>) {
+pub fn print_token_stream(tokens: &lexer::token::TokenStream) {
     println!("----Token Stream----");
-    for token in tokens {
+    for token in tokens.tokens.clone() {
         println!(
             "retat: {:?} {:?} {:?}",
             &token.kind, &token.whitespace, &token.span

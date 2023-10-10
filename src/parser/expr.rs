@@ -420,7 +420,7 @@ mod tests {
     fn test_expr_binary() {
         let txt = "1 + 2";
         let tokens = lexer::lex_tokens_from_file(txt).unwrap();
-        let mut parser = Parser::new(tokens);
+        let mut parser = Parser::new(tokens.tokens);
 
         let bin = parser.parse_expr_binary(BindingPower::new()).unwrap();
         // let tree = Expr::binary_infix(

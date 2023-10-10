@@ -13,7 +13,7 @@ pub mod token;
 
 use token::{
     cook_tokens, CommentKind, KeywordKind as KK, LiteralKind as LK, NumberBase,
-    PunctuatorKind as PK, SpecialKeywordKind as SKK, Token, TokenKind as TK, Whitespace,
+    PunctuatorKind as PK, SpecialKeywordKind as SKK, Token, TokenStream, TokenKind as TK, Whitespace,
 };
 
 mod tests;
@@ -36,7 +36,7 @@ fn is_lit_bool(s: &str) -> bool {
     ["true", "false"].contains(&s)
 }
 
-pub fn lex_tokens_from_file(source: &str) -> LResult<Vec<Token>> {
+pub fn lex_tokens_from_file(source: &str) -> LResult<TokenStream> {
     let tokens = Lexer::from(source).scan_tokens();
     Ok(tokens)
 }
@@ -156,7 +156,7 @@ impl From<&str> for Lexer {
 }
 
 impl Lexer {
-    fn scan_tokens(&mut self) -> Vec<Token> {
+    fn scan_tokens(&mut self) -> TokenStream {
         // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
         let mut punc_cache: Vec<Token> = Vec::with_capacity(5);
         let mut tokens = Vec::new();
@@ -176,7 +176,7 @@ impl Lexer {
                 Err(e) => self.errors.push(e),
             }
         }
-        tokens
+        TokenStream::from(tokens)
     }
 
     fn scan_token_kind(&mut self) -> LResult<(TK, span::Position, usize)> {
