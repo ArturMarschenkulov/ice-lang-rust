@@ -2,13 +2,13 @@
 //!
 //! The cursor is the part of the lexer that keeps track of the current position in the source code
 //! It is used to advance the lexer and to peek at the next character.
-//! 
+//!
 //! There are 3 main types, `peek`, `check` and `eat`.
 //! - Peeking just describes the act of looking without doing anything.
 //! - Checking is the act of peeking and then checking whether the peeked character agrees with a given predicate.
 //! - Eating is the act of checking and then advancing the cursor if the check was successful.
 
-use super::{Lexer, span};
+use super::span;
 
 /// Adjusts the given index by the given offset safely.
 ///
@@ -23,16 +23,26 @@ fn adjust_index_safely(index: usize, offset: isize) -> Option<usize> {
 }
 
 /// NOTE: To be used in the future
-struct Cursor {
-    index: usize,
-    cursor: span::Position,
-    chars: Vec<char>,
+pub struct Cursor {
+    pub index: usize,
+    pub cursor: span::Position,
+    pub chars: Vec<char>,
+}
+
+impl Cursor {
+    pub fn new(chars: Vec<char>) -> Self {
+        Self {
+            index: 0,
+            cursor: span::Position::new(0, 0),
+            chars,
+        }
+    }
 }
 
 /// This impl is the cursor part for the lexer.
 ///
 ///
-impl Lexer {
+impl Cursor {
     /// Advances the cursor by one.
     pub fn advance(&mut self) {
         if let Some(i) = adjust_index_safely(self.index, 1) {

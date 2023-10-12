@@ -32,85 +32,85 @@ mod cursor {
     fn test_peek() {
         let txt = "a";
         let lexer = Lexer::from(txt);
-        assert_eq!(lexer.peek(0), Some('a'));
-        assert_eq!(lexer.peek(1), None);
+        assert_eq!(lexer.cursor.peek(0), Some('a'));
+        assert_eq!(lexer.cursor.peek(1), None);
 
         let txt = "abc";
         let mut lexer = Lexer::from(txt);
-        lexer.advance();
-        assert_eq!(lexer.peek(0), Some('b'));
-        assert_eq!(lexer.peek(1), Some('c'));
-        assert_eq!(lexer.peek(-1), Some('a'));
-        assert_eq!(lexer.peek(-2), None);
-        assert_eq!(lexer.peek(2), None);
-        assert_eq!(lexer.peek(-3), None);
-        assert_eq!(lexer.peek(3), None);
+        lexer.cursor.advance();
+        assert_eq!(lexer.cursor.peek(0), Some('b'));
+        assert_eq!(lexer.cursor.peek(1), Some('c'));
+        assert_eq!(lexer.cursor.peek(-1), Some('a'));
+        assert_eq!(lexer.cursor.peek(-2), None);
+        assert_eq!(lexer.cursor.peek(2), None);
+        assert_eq!(lexer.cursor.peek(-3), None);
+        assert_eq!(lexer.cursor.peek(3), None);
     }
 
     #[test]
     fn test_check_with() {
         let txt = "a";
         let lexer = Lexer::from(txt);
-        assert_eq!(lexer.check_with(0, |x| x == &'a'), Ok('a'));
-        assert_eq!(lexer.check_with(0, |x| x == &'b'), Err(Some('a')));
-        assert_eq!(lexer.check_with(1, |x| x == &'a'), Err(None));
-        assert_eq!(lexer.check_with(1, |x| x == &'b'), Err(None));
-        assert_eq!(lexer.check_with(-1, |x| x == &'a'), Err(None));
-        assert_eq!(lexer.check_with(-1, |x| x == &'b'), Err(None));
+        assert_eq!(lexer.cursor.check_with(0, |x| x == &'a'), Ok('a'));
+        assert_eq!(lexer.cursor.check_with(0, |x| x == &'b'), Err(Some('a')));
+        assert_eq!(lexer.cursor.check_with(1, |x| x == &'a'), Err(None));
+        assert_eq!(lexer.cursor.check_with(1, |x| x == &'b'), Err(None));
+        assert_eq!(lexer.cursor.check_with(-1, |x| x == &'a'), Err(None));
+        assert_eq!(lexer.cursor.check_with(-1, |x| x == &'b'), Err(None));
 
         let txt = "abc";
         let mut lexer = Lexer::from(txt);
-        assert_eq!(lexer.check_with(0, |x| x == &'a'), Ok('a'));
-        assert_eq!(lexer.check_with(1, |x| x == &'b'), Ok('b'));
-        assert_eq!(lexer.check_with(2, |x| x == &'c'), Ok('c'));
-        assert_eq!(lexer.check_with(3, |x| x == &'d'), Err(None));
-        assert_eq!(lexer.check_with(-1, |x| x == &'a'), Err(None));
-        assert_eq!(lexer.check_with(-2, |x| x == &'b'), Err(None));
-        assert_eq!(lexer.check_with(-3, |x| x == &'c'), Err(None));
-        assert_eq!(lexer.check_with(-4, |x| x == &'d'), Err(None));
-        lexer.advance();
-        assert_eq!(lexer.check_with(0, |x| x == &'b'), Ok('b'));
-        assert_eq!(lexer.check_with(1, |x| x == &'c'), Ok('c'));
-        assert_eq!(lexer.check_with(2, |x| x == &'d'), Err(None));
-        assert_eq!(lexer.check_with(-1, |x| x == &'a'), Ok('a'));
-        assert_eq!(lexer.check_with(-2, |x| x == &'b'), Err(None));
+        assert_eq!(lexer.cursor.check_with(0, |x| x == &'a'), Ok('a'));
+        assert_eq!(lexer.cursor.check_with(1, |x| x == &'b'), Ok('b'));
+        assert_eq!(lexer.cursor.check_with(2, |x| x == &'c'), Ok('c'));
+        assert_eq!(lexer.cursor.check_with(3, |x| x == &'d'), Err(None));
+        assert_eq!(lexer.cursor.check_with(-1, |x| x == &'a'), Err(None));
+        assert_eq!(lexer.cursor.check_with(-2, |x| x == &'b'), Err(None));
+        assert_eq!(lexer.cursor.check_with(-3, |x| x == &'c'), Err(None));
+        assert_eq!(lexer.cursor.check_with(-4, |x| x == &'d'), Err(None));
+        lexer.cursor.advance();
+        assert_eq!(lexer.cursor.check_with(0, |x| x == &'b'), Ok('b'));
+        assert_eq!(lexer.cursor.check_with(1, |x| x == &'c'), Ok('c'));
+        assert_eq!(lexer.cursor.check_with(2, |x| x == &'d'), Err(None));
+        assert_eq!(lexer.cursor.check_with(-1, |x| x == &'a'), Ok('a'));
+        assert_eq!(lexer.cursor.check_with(-2, |x| x == &'b'), Err(None));
     }
 
     #[test]
     fn test_eat_with() {
         let txt = "a";
         let mut lexer = Lexer::from(txt);
-        assert_eq!(lexer.eat_with(|x| x == &'b'), Err(Some('a')));
-        assert_eq!(lexer.eat_with(|x| x == &'a'), Ok('a'));
-        assert_eq!(lexer.eat_with(|x| x == &'b'), Err(None));
-        assert_eq!(lexer.eat_with(|x| x == &'a'), Err(None));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'b'), Err(Some('a')));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'a'), Ok('a'));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'b'), Err(None));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'a'), Err(None));
 
         let txt = "abc";
         let mut lexer = Lexer::from(txt);
-        assert_eq!(lexer.eat_with(|x| x == &'a'), Ok('a'));
-        assert_eq!(lexer.eat_with(|x| x == &'b'), Ok('b'));
-        assert_eq!(lexer.eat_with(|x| x == &'c'), Ok('c'));
-        assert_eq!(lexer.eat_with(|x| x == &'d'), Err(None));
-        assert_eq!(lexer.eat_with(|x| x == &'a'), Err(None));
-        assert_eq!(lexer.eat_with(|x| x == &'b'), Err(None));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'a'), Ok('a'));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'b'), Ok('b'));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'c'), Ok('c'));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'d'), Err(None));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'a'), Err(None));
+        assert_eq!(lexer.cursor.eat_with(|x| x == &'b'), Err(None));
     }
     #[test]
     fn test_eat_while() {
         let txt = "abc504";
         let mut lexer = Lexer::from(txt);
-        assert_eq!(lexer.eat_while(|x| x == &'a'), "a".to_string());
-        assert_eq!(lexer.eat_while(|x| x.is_alphabetic()), "bc".to_string());
-        assert_eq!(lexer.eat_while(|x| x.is_alphanumeric()), "504".to_string());
-        assert_eq!(lexer.eat_while(|x| x.is_numeric()), "".to_string());
+        assert_eq!(lexer.cursor.eat_while(|x| x == &'a'), "a".to_string());
+        assert_eq!(lexer.cursor.eat_while(|x| x.is_alphabetic()), "bc".to_string());
+        assert_eq!(lexer.cursor.eat_while(|x| x.is_alphanumeric()), "504".to_string());
+        assert_eq!(lexer.cursor.eat_while(|x| x.is_numeric()), "".to_string());
     }
     #[test]
     fn test_eat_str() {
         let txt = "abc";
         let mut lexer = Lexer::from(txt);
-        assert_eq!(lexer.eat_str("bc"), None);
-        assert_eq!(lexer.eat_str("ab"), Some("ab".to_string()));
-        assert_eq!(lexer.eat_str("bc"), None);
-        assert_eq!(lexer.eat_str("c"), Some("c".to_string()));
+        assert_eq!(lexer.cursor.eat_str("bc"), None);
+        assert_eq!(lexer.cursor.eat_str("ab"), Some("ab".to_string()));
+        assert_eq!(lexer.cursor.eat_str("bc"), None);
+        assert_eq!(lexer.cursor.eat_str("c"), Some("c".to_string()));
     }
 }
 
