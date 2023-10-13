@@ -8,6 +8,8 @@ Probably we will come up with syntax which is basically like a "rustified" Scala
 
 Here are some articles which could be relevant to work this out.
 
+
+
 Haskell:
 
 ```haskell
@@ -371,7 +373,7 @@ typeclass monad<arrow<type, type> t> m {
 // Functor::<List<_>>::compose::<Option<_>>::map(list_option, _ + 1);
 // Functor{List{_}}::compose{Option{_}}::map(list_option, _ + 1);
 
-type Monad<F<_>> = trait
+type Monad<F<_>> : trait
     where
         
 {
@@ -395,4 +397,40 @@ fn tuple<F<_>, A, B>(x: F<A>, y: F<B>): F<(A, B)> {
 
 }
 
+```
+
+# Kinds
+- \* = F
+- \* -> * = F<_>
+- \* -> * -> * = F<_, _>
+- (* -> *) -> * = F<B<>>
+
+
+```haskell
+data App unt z = Z (unt z)
+```
+
+```rust
+type App<Unt, Z> = enum {
+    Z(Unt<Z>),
+}
+type App<Unt, Z> = struct
+where: 
+    Unt: Fn(Z) -> Z {
+    z: Unt<Z>,
+}
+```
+
+
+```haskell
+data Tree (z :: k) = Leaf | Fork (Tree z) (Tree z)
+type FunnyTree = Tree []     -- OK
+```
+
+```rust
+type Tree<T> = enum {
+    Leaf,
+    Fork(*Tree<T>, *Tree<T>),
+}
+type FunnyTree<F> = Tree<Vec<F>>;
 ```
