@@ -13,7 +13,8 @@ pub mod token;
 
 use token::{
     cook_tokens, CommentKind, KeywordKind as KK, LiteralKind as LK, NumberBase,
-    PunctuatorKind as PK, SpecialKeywordKind as SKK, Token, TokenStream, TokenKind as TK, Whitespace,
+    PunctuatorKind as PK, SpecialKeywordKind as SKK, Token, TokenKind as TK, TokenStream,
+    Whitespace,
 };
 
 mod tests;
@@ -177,7 +178,7 @@ impl Lexer {
     fn scan_token_kind(&mut self) -> LResult<(TK, span::Position, usize)> {
         // The assumption here is that [`None`] signifies the end of the file.
         // Also, assuming that `'\0'` is not a valid character in the source code.
-        let c = self.cursor.peek(0).unwrap_or('\0');
+        let c = *self.cursor.peek(0).unwrap_or(&'\0');
 
         let kind = match c {
             '/' => match self.cursor.peek(1) {
@@ -245,8 +246,9 @@ impl Lexer {
     }
 
     fn lex_escape_char(&mut self) -> LResult<char> {
-        self.cursor.eat_char('\\')
-            .map_err(|x| Error::expected_char('\\', x))?;
+        self.cursor
+            .eat_char('\\')
+            .map_err(|x| Error::expected_char('\\', x.copied()))?;
 
         let escaped_char = match self.cursor.peek(0) {
             Some('n') => '\n',
@@ -256,7 +258,7 @@ impl Lexer {
             Some('\'') => '\'',
             Some('"') => '"',
             Some('0') => '\0',
-            Some(c) => return Err(Error::unknown_escape_char(c)),
+            Some(c) => return Err(Error::unknown_escape_char(*c)),
             None => return Err(Error::unterminated_char_lit()),
         };
         self.cursor.advance();
@@ -268,8 +270,9 @@ impl Lexer {
     /// # Panics
     /// If the first character is not `\'`.
     fn lex_char(&mut self) -> LResult<TK> {
-        self.cursor.eat_char('\'')
-            .map_err(|x| Error::expected_char('\'', x))?;
+        self.cursor
+            .eat_char('\'')
+            .map_err(|x| Error::expected_char('\'', x.copied()))?;
         // '\''
         let mut escaped_char = false;
         let c = match self.cursor.peek(0) {
@@ -282,8 +285,9 @@ impl Lexer {
                 x
             }
             Some(c) => {
+                let cc = *c;
                 self.cursor.advance();
-                c
+                cc
             }
         };
 
@@ -302,12 +306,13 @@ impl Lexer {
     }
 
     fn lex_string(&mut self) -> LResult<TK> {
-        self.cursor.eat_char('\"')
-            .map_err(|x| Error::expected_char('\"', x))?;
+        self.cursor
+            .eat_char('\"')
+            .map_err(|x| Error::expected_char('\"', x.copied()))?;
 
         let mut string_content = String::new();
         while let Some(c) = self.cursor.peek(0) {
-            if c == '"' {
+            if c == &'"' {
                 break;
             }
 
@@ -332,13 +337,14 @@ impl Lexer {
                     self.cursor.cursor.column = 1;
                 }
                 _ => {
-                    string_content.push(c);
+                    string_content.push(*c);
                     self.cursor.advance();
                 }
             }
         }
-        self.cursor.eat_char('\"')
-            .map_err(|x| Error::expected_char('\"', x))?;
+        self.cursor
+            .eat_char('\"')
+            .map_err(|x| Error::expected_char('\"', x.copied()))?;
 
         if self.cursor.peek(0).is_none() {
             return Err(Error::unterminated_string());
@@ -355,10 +361,10 @@ impl Lexer {
 
         let mut comment_content = String::new();
         while let Some(c) = self.cursor.peek(0) {
-            if c == '\n' || c == '\r' || c == '\0' {
+            if c == &'\n' || c == &'\r' || c == &'\0' {
                 break;
             }
-            comment_content.push(c);
+            comment_content.push(*c);
             self.cursor.advance();
         }
         Ok(TK::SpecialKeyword(SKK::Comment(CommentKind::Line(
@@ -376,23 +382,24 @@ impl Lexer {
 
         let mut comment_content = String::new();
         while let Some(c) = self.cursor.peek(0) {
-            if c == '*' && self.cursor.check_char(1, '/').is_ok() {
+            if c == &'*' && self.cursor.check_char(1, '/').is_ok() {
                 self.cursor.eat_str("*/").expect("this was checked before");
                 break;
             }
-            if c == '\0' {
+            if c == &'\0' {
                 return Err(Error::unterminated_block_comment());
             }
 
-            if c == '\r' && self.cursor.check_char(1, '\n').is_ok() {
+            if c == &'\r' && self.cursor.check_char(1, '\n').is_ok() {
                 self.cursor.advance();
                 self.cursor.advance();
                 self.cursor.cursor.line += 1;
                 self.cursor.cursor.column = 1;
                 comment_content.push('\n');
             } else {
+                let cc = *c;
                 self.cursor.advance();
-                comment_content.push(c);
+                comment_content.push(cc);
             }
         }
         Ok(TK::SpecialKeyword(SKK::Comment(CommentKind::Block(
@@ -440,20 +447,20 @@ impl Lexer {
                     c if (allow_letters && c.is_ascii_hexdigit())
                         || (!allow_letters && c.is_ascii_digit()) =>
                     {
-                        string.push(c);
+                        string.push(*c);
                         if is_after_dot {
                             is_after_dot = false;
                         }
                         Ok(())
                     }
                     // this parses a potential suffix
-                    c if is_alpha(&c) => {
+                    c if is_alpha(c) => {
                         has_suffix = true;
                         break;
                     }
                     // in a number there can be only one dot
                     '.' if !is_floating && this.cursor.check_char(1, '.').ok().is_none() => {
-                        string.push(peeked);
+                        string.push(*peeked);
                         is_floating = true;
                         is_after_dot = true;
                         Ok(())
@@ -475,7 +482,7 @@ impl Lexer {
             if mode_parse_suffix {
                 let mut suffix: String = String::new();
                 while this.cursor.peek(0).unwrap().is_alphanumeric() {
-                    suffix.push(this.cursor.peek(0).unwrap());
+                    suffix.push(*this.cursor.peek(0).unwrap());
                     this.cursor.advance();
                 }
                 Some(suffix)
@@ -554,7 +561,12 @@ impl Lexer {
     }
 
     fn lex_identifier(&mut self) -> LResult<TK> {
-        let content = self.cursor.eat_while(is_alpha_numeric);
+        let content: String = self
+            .cursor
+            .eat_while(is_alpha_numeric)
+            .into_iter()
+            .collect();
+
         let token = match content.as_ref() {
             lit if is_lit_bool(lit) => LK::try_from(lit).map_or_else(TK::Identifier, TK::Literal),
             kw => KK::try_from(kw).map_or_else(TK::Identifier, TK::Keyword),
