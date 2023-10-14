@@ -8,7 +8,7 @@ mod stmt;
 mod ty;
 use error::Error;
 
-use super::lexer::token::Token;
+use super::lexer::token::{Token, TokenStream};
 use ast::{Module, Project};
 
 #[allow(unused_macros)]
@@ -74,8 +74,8 @@ type PResult<T> = Result<T, Error>;
 /// Parses a `Project` from a file.
 /// It's most likely a temporary function, because we can only parse one file, meaning a file would be the whole project.
 /// In the future of course this would not be a thing.
-pub fn parse_project_from_file(tokens: Vec<Token>) -> PResult<Project> {
-    let mut parser = Parser::new(tokens);
+pub fn parse_project_from_file(tokens: TokenStream) -> PResult<Project> {
+    let mut parser = Parser::new(tokens.tokens);
     parser.parse()
 }
 

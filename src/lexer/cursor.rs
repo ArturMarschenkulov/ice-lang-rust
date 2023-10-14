@@ -2,13 +2,13 @@
 //!
 //! The cursor is the part of the lexer that keeps track of the current position in the source code
 //! It is used to advance the lexer and to peek at the next character.
-//! 
+//!
 //! There are 3 main types, `peek`, `check` and `eat`.
 //! - Peeking just describes the act of looking without doing anything.
 //! - Checking is the act of peeking and then checking whether the peeked character agrees with a given predicate.
 //! - Eating is the act of checking and then advancing the cursor if the check was successful.
 
-use super::{Lexer, span};
+use super::span;
 
 /// Adjusts the given index by the given offset safely.
 ///
@@ -22,17 +22,47 @@ fn adjust_index_safely(index: usize, offset: isize) -> Option<usize> {
     }
 }
 
-/// NOTE: To be used in the future
-struct Cursor {
-    index: usize,
-    cursor: span::Position,
-    chars: Vec<char>,
+// This is the attempt to abstract away the cursor or to create a common interface.
+// This is not used yet and might also not used in the future.
+// But for the time being, it is here.
+pub trait CursorTrait<T> {
+    fn advance(&mut self);
+    fn peek(&self, offset: isize) -> Option<T>;
+    fn check_with<F>(&self, offset: isize, pred: F) -> Result<T, Option<T>>
+    where
+        Self: Sized,
+        F: Fn(&T) -> bool,
+    {
+        self.peek(offset)
+            .map(|c| if pred(&c) { Ok(c) } else { Err(Some(c)) })
+            .unwrap_or(Err(None))
+    }
+    fn eat_with<F>(&mut self, pred: F) -> Result<T, Option<T>>
+    where
+        F: Fn(&T) -> bool;
+}
+
+#[derive(Debug, Clone)]
+pub struct Cursor {
+    pub index: usize,
+    pub cursor: span::Position,
+    pub chars: Vec<char>,
+}
+
+impl Cursor {
+    pub fn new(chars: Vec<char>) -> Self {
+        Self {
+            index: 0,
+            cursor: span::Position::new(0, 0),
+            chars,
+        }
+    }
 }
 
 /// This impl is the cursor part for the lexer.
 ///
 ///
-impl Lexer {
+impl Cursor {
     /// Advances the cursor by one.
     pub fn advance(&mut self) {
         if let Some(i) = adjust_index_safely(self.index, 1) {
@@ -47,8 +77,8 @@ impl Lexer {
     /// at the position that's at `index + offset`. If the calculated index is out of
     /// bounds (either less than zero or greater than or equal to the length of the
     /// characters array), it returns `None`.
-    pub fn peek(&self, offset: isize) -> Option<char> {
-        adjust_index_safely(self.index, offset).and_then(|index| self.chars.get(index).copied())
+    pub fn peek(&self, offset: isize) -> Option<&char> {
+        adjust_index_safely(self.index, offset).and_then(|index| self.chars.get(index))
     }
 
     /// Checks whether the character at the given offset agrees with the provided predicate.
@@ -57,53 +87,59 @@ impl Lexer {
     ///
     /// Peeks at the offset `offset`. If the peeked char agrees with the given predicate, it returns it wrapped in a `Ok`,
     /// otherwise it returns the peeked char wrapped in a `Err`.
-    pub fn check_with<F>(&self, offset: isize, pred: F) -> Result<char, Option<char>>
+    pub fn check_with<F>(&self, offset: isize, pred: F) -> Result<&char, Option<&char>>
     where
         Self: Sized,
         F: Fn(&char) -> bool,
     {
         self.peek(offset)
-            .map(|c| if pred(&c) { Ok(c) } else { Err(Some(c)) })
+            .map(|c| if pred(c) { Ok(c) } else { Err(Some(c)) })
             .unwrap_or(Err(None))
     }
 
     /// Checks the char at offset `n`. If the char is the same as the given char, it returns it wrapped in a `Some`, otherwise `None`.
-    pub fn check_char(&self, n: isize, c: char) -> Result<char, Option<char>> {
+    pub fn check_char(&self, n: isize, c: char) -> Result<&char, Option<&char>> {
         self.check_with(n, |x| x == &c)
     }
 
     /// Matches a terminal character. If the character is matched, it is eaten and return wrapped in a `Ok`,
     /// else an `Err(Some)` is returned if the character is not matched and an `Err(None)` is returned if the end of the file is reached
-    pub fn eat_char(&mut self, ch: char) -> Result<char, Option<char>> {
+    pub fn eat_char(&mut self, ch: char) -> Result<&char, Option<&char>> {
         self.eat_with(|x| x == &ch)
     }
 
     /// Checks the charachter at the current index with a given function.
     /// If the function returns true, the current char is "eaten" and returned wrapped in a `Some`, otherwise `None`.
-    pub fn eat_with<F>(&mut self, pred: F) -> Result<char, Option<char>>
+    pub fn eat_with<F>(&mut self, pred: F) -> Result<&char, Option<&char>>
     where
         F: Fn(&char) -> bool,
     {
-        self.check_with(0, &pred).map(|char| {
+        if self.check_with(0, &pred).is_ok() {
             self.advance();
-            char
-        })
+            match self.peek(-1) {
+                Some(c) if pred(c) => Ok(c),
+                peeked @ Some(..) => Err(peeked),
+                None => Err(None),
+            }
+        } else {
+            Err(self.peek(0))
+        }
     }
 
-    pub fn eat_while<F>(&mut self, pred: F) -> String
+    pub fn eat_while<F>(&mut self, pred: F) -> Vec<char>
     where
-        F: Fn(&char) -> bool,
+        F: Fn(&char) -> bool + Clone,
     {
         (0..)
-            .map(|_| self.eat_with(&pred))
-            .take_while(Result::is_ok)
-            .filter_map(Result::ok)
+            .map(|_| self.eat_with(&pred).copied().ok())
+            .take_while(Option::is_some)
+            .flatten()
             .collect()
     }
-
+    // TODO: Probably remove this. Usecase is very limited.
     pub fn eat_str(&mut self, str: &str) -> Option<String> {
         str.chars()
-            .map(|ch| self.eat_char(ch).ok())
+            .map(|ch| self.eat_char(ch).copied().ok())
             .collect::<Option<String>>()
     }
 }

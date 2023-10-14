@@ -781,6 +781,18 @@ impl From<(char, char)> for Whitespace {
         Whitespace::from((is_left, is_right))
     }
 }
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenStream {
+    pub tokens: Vec<Token>,
+}
+
+impl From<Vec<Token>> for TokenStream {
+    fn from(tokens: Vec<Token>) -> Self {
+        Self { tokens }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
