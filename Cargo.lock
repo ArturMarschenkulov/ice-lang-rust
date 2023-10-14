@@ -13,8 +13,9 @@ dependencies = [
 
 [[package]]
 name = "debug_tree"
-version = "0.3.1"
-source = "git+https://github.com/martypapa/debug-tree?branch=master#08b1b62e437947af95c8546249d0b7f6a3526424"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d1ec383f2d844902d3c34e4253ba11ae48513cdaddc565cf1a6518db09a8e57"
 dependencies = [
  "once_cell",
 ]
