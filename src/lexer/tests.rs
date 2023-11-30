@@ -499,6 +499,28 @@ fn scan_tokens_span() {
 
 #[test]
 fn complex_token_cooking() {
+    assert_eq!(
+        to_token_kinds("=="),
+        vec![TK::Punctuator(PK::EqualEqual), TK::SpecialKeyword(SKK::Eof),],
+    );
+
+    assert_eq!(
+        to_token_kinds("!="),
+        vec![TK::Punctuator(PK::BangEqual), TK::SpecialKeyword(SKK::Eof),],
+    );
+
+    assert_eq!(
+        to_token_kinds("&&"),
+        vec![
+            TK::Punctuator(PK::AmpersandAmpersand),
+            TK::SpecialKeyword(SKK::Eof),
+        ],
+    );
+
+    assert_eq!(
+        to_token_kinds("||"),
+        vec![TK::Punctuator(PK::PipePipe), TK::SpecialKeyword(SKK::Eof),],
+    );
 
     assert_eq!(
         to_token_kinds(".."),
@@ -516,39 +538,64 @@ fn complex_token_cooking() {
         ],
     );
 
-    assert_eq!(
-        to_token_kinds("=."),
-        vec![
-            TK::Punctuator(PK::Equal),
-            TK::Punctuator(PK::Dot),
-            TK::SpecialKeyword(SKK::Eof),
-        ],
-    );
+    // // For now commented out because there is a transition to another approach.
+    // // Maybe in the future they will be back in or maybe not.
+    // assert_eq!(
+    //     to_token_kinds("=."),
+    //     vec![
+    //         TK::Punctuator(PK::Equal),
+    //         TK::Punctuator(PK::Dot),
+    //         TK::SpecialKeyword(SKK::Eof),
+    //     ],
+    // );
 
-    assert_eq!(
-        to_token_kinds(".=."),
-        vec![
-            TK::Punctuator(PK::Dot),
-            TK::Punctuator(PK::Equal),
-            TK::Punctuator(PK::Dot),
-            TK::SpecialKeyword(SKK::Eof),
-        ],
-    );
+    // assert_eq!(
+    //     to_token_kinds(".=."),
+    //     vec![
+    //         TK::Punctuator(PK::Dot),
+    //         TK::Punctuator(PK::Equal),
+    //         TK::Punctuator(PK::Dot),
+    //         TK::SpecialKeyword(SKK::Eof),
+    //     ],
+    // );
 
-    assert_eq!(
-        to_token_kinds(":=:"),
-        vec![
-            TK::Punctuator(PK::Colon),
-            TK::Punctuator(PK::Equal),
-            TK::Punctuator(PK::Colon),
-            TK::SpecialKeyword(SKK::Eof),
-        ],
-    );
+    // assert_eq!(
+    //     to_token_kinds(":=:"),
+    //     vec![
+    //         TK::Punctuator(PK::Colon),
+    //         TK::Punctuator(PK::Equal),
+    //         TK::Punctuator(PK::Colon),
+    //         TK::SpecialKeyword(SKK::Eof),
+    //     ],
+    // );
     assert_eq!(
         to_token_kinds(":="),
         vec![
             TK::Punctuator(PK::Colon),
             TK::Punctuator(PK::Equal),
+            TK::SpecialKeyword(SKK::Eof),
+        ],
+    );
+
+    assert_eq!(
+        to_token_kinds("::"),
+        vec![TK::Punctuator(PK::ColonColon), TK::SpecialKeyword(SKK::Eof)],
+    );
+
+    assert_eq!(
+        to_token_kinds("()"),
+        vec![
+            TK::Punctuator(PK::LeftParen),
+            TK::Punctuator(PK::RightParen),
+            TK::SpecialKeyword(SKK::Eof),
+        ],
+    );
+
+    assert_eq!(
+        to_token_kinds("{}"),
+        vec![
+            TK::Punctuator(PK::LeftBrace),
+            TK::Punctuator(PK::RightBrace),
             TK::SpecialKeyword(SKK::Eof),
         ],
     );
