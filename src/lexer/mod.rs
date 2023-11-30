@@ -142,6 +142,59 @@ fn maybe_add_to_token_cache(punc_cache: &mut Vec<Token>, token: Token, tokens: &
     }
 }
 
+fn handle_punc_cache(punc_cache: &Vec<Token>) -> Vec<Token> {
+    if punc_cache.is_empty() {
+        return Vec::new();
+    }
+    let punc_cache_kind = punc_cache
+        .iter()
+        .map(|x| {
+            if let TK::Punctuator(punc) = &x.kind {
+                punc
+            } else {
+                unreachable!()
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let _: Vec<Token> = match punc_cache_kind.as_slice() {
+        &[PK::Colon, PK::Equal] => {
+            let pk_0 = punc_cache[0].clone();
+            let pk_1 = punc_cache[1].clone();
+            return vec![pk_0, pk_1];
+        }
+        &[PK::Equal, PK::Equal]
+        | &[PK::Exclamation, PK::Equal]
+        | &[PK::Dot, PK::Dot]
+        | &[PK::Colon, PK::Colon] => {
+            let pk_0 = punc_cache[0].clone();
+            let pk_1 = punc_cache[1].clone();
+            return vec![cook_tokens(&vec![pk_0, pk_1])];
+        }
+        // handles if any of the tokens is .is_punctuator() == true.
+        a if a.iter().any(|x| x.is_structural()) => {
+            let mut tokens = Vec::new();
+            let mut non_struct_tokens = Vec::new();
+            let mut i = 0;
+            while i < punc_cache.len() {
+                if !punc_cache_kind[i].is_structural() {
+                    non_struct_tokens.push(punc_cache[i].clone());
+                } else {
+                    if !non_struct_tokens.is_empty() {
+                        tokens.push(cook_tokens(&non_struct_tokens));
+                        non_struct_tokens.clear();
+                    }
+                    tokens.push(punc_cache[i].clone());
+                }
+                i += 1;
+            }
+            return tokens;
+        }
+        _ => {
+            return vec![cook_tokens(punc_cache)];
+        }
+    };
+}
 impl From<&str> for Lexer {
     fn from(source: &str) -> Self {
         Self {
@@ -155,19 +208,29 @@ impl Lexer {
     fn scan_tokens(&mut self) -> TokenStream {
         // NOTE: `punc_cache` has the magic number 5 as its capacity, because the assumption is that complex tokens will rarely be more than 5 symbols long.
         let mut punc_cache: Vec<Token> = Vec::with_capacity(5);
-        let mut tokens = Vec::new();
+        let mut tokens: Vec<Token> = Vec::new();
         loop {
             match self.scan_token() {
                 Ok(token) => {
-                    if token.kind == TK::SpecialKeyword(SKK::Eof) {
+                    if token.kind.is_punctuator() {
+                        punc_cache.push(token);
+                    } else {
+                        // If the `punc_cache` is not empty and the token is not a punctuator,
+                        // it means that it just switched, thus it is time to interpret the `punc_cache`.
                         if !punc_cache.is_empty() {
-                            tokens.push(cook_tokens(&punc_cache));
+                            let handled_tokens = handle_punc_cache(&punc_cache);
+                            for handled_token in handled_tokens {
+                                tokens.push(handled_token);
+                            }
                             punc_cache.clear();
                         }
-                        tokens.push(token);
-                        break;
+                        if !token.kind.is_to_skip() {
+                            tokens.push(token.clone());
+                        }
+                        if token.kind == TK::SpecialKeyword(SKK::Eof) {
+                            break;
+                        }
                     }
-                    maybe_add_to_token_cache(&mut punc_cache, token, &mut tokens);
                 }
                 Err(e) => self.errors.push(e),
             }
