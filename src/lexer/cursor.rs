@@ -53,7 +53,7 @@ impl Cursor {
     pub fn new(chars: Vec<char>) -> Self {
         Self {
             index: 0,
-            cursor: span::Position::new(0, 0),
+            cursor: span::Position::new(1, 1),
             chars,
         }
     }
