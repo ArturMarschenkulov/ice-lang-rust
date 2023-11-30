@@ -417,7 +417,7 @@ mod tests {
     use super::super::super::lexer;
     use super::*;
     #[test]
-    fn test_expr_binary() {
+    fn expr_binary() {
         let txt = "1 + 2";
         let tokens = lexer::lex_tokens_from_file(txt).unwrap();
         let mut parser = Parser::new(tokens.tokens);

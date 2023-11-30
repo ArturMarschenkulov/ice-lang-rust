@@ -29,7 +29,7 @@ fn to_token_spans(s: &str) -> Vec<span::Span> {
 mod cursor {
     use super::*;
     #[test]
-    fn test_peek() {
+    fn peek() {
         let txt = "a";
         let lexer = Lexer::from(txt);
         assert_eq!(lexer.cursor.peek(0), Some(&'a'));
@@ -48,7 +48,7 @@ mod cursor {
     }
 
     #[test]
-    fn test_check_with() {
+    fn check_with() {
         let txt = "a";
         let lexer = Lexer::from(txt);
         assert_eq!(lexer.cursor.check_with(0, |x| x == &'a'), Ok(&'a'));
@@ -77,7 +77,7 @@ mod cursor {
     }
 
     #[test]
-    fn test_eat_with() {
+    fn eat_with() {
         let txt = "a";
         let mut lexer = Lexer::from(txt);
         assert_eq!(lexer.cursor.eat_with(|x| x == &'b'), Err(Some(&'a')));
@@ -95,7 +95,7 @@ mod cursor {
         assert_eq!(lexer.cursor.eat_with(|x| x == &'b'), Err(None));
     }
     #[test]
-    fn test_eat_while() {
+    fn eat_while() {
         let txt = "abc504";
         let mut lexer = Lexer::from(txt);
         assert_eq!(
@@ -132,7 +132,7 @@ mod cursor {
         );
     }
     #[test]
-    fn test_eat_str() {
+    fn eat_str() {
         let txt = "abc";
         let mut lexer = Lexer::from(txt);
         assert_eq!(lexer.cursor.eat_str("bc"), None);
@@ -143,7 +143,7 @@ mod cursor {
 }
 
 #[test]
-fn test_scan_tokens() {
+fn scan_tokens() {
     use token::*;
     use Whitespace::*;
 
@@ -164,7 +164,7 @@ fn test_scan_tokens() {
     );
 }
 #[test]
-fn test_scan_token_kind() {
+fn scan_token_kind() {
     let txt = "";
     let mut lexer = Lexer::from(txt);
     assert_eq!(
@@ -174,7 +174,7 @@ fn test_scan_token_kind() {
 }
 
 #[test]
-fn test_lex_char() {
+fn lex_char() {
     use crate::lexer::Error;
 
     // Simple cases
@@ -220,9 +220,9 @@ fn test_lex_char() {
     // assert_eq!(lexer.lex_char(), Err(LexerError::unterminated_char_lit()));
 }
 #[test]
-fn test_lex_str() {}
+fn lex_str() {}
 #[test]
-fn test_comment_line() {
+fn comment_line() {
     let txt = "//";
     let _ = Lexer::from(txt).scan_tokens();
 
@@ -233,7 +233,7 @@ fn test_comment_line() {
     let _ = Lexer::from(txt).scan_tokens();
 }
 #[test]
-fn test_comment_block() {
+fn comment_block() {
     let txt = "/* This is a line comment*/";
     let _ = Lexer::from(txt).scan_tokens();
 }
@@ -246,7 +246,7 @@ fn num_0_() {
 
 #[test]
 
-fn test_lex_number() {
+fn lex_number() {
     use crate::lexer::token::Number;
     use NumberBase::*;
 
@@ -347,7 +347,7 @@ mod num {
     }
 }
 #[test]
-fn test_scan_tokens_KIND() {
+fn scan_tokens_kind() {
     use token::*;
 
     assert_eq!(
@@ -423,7 +423,7 @@ fn test_scan_tokens_KIND() {
     );
 }
 #[test]
-fn test_scan_tokens_SPAN() {
+fn scan_tokens_span() {
     use span::*;
     assert_eq!(
         to_token_spans("var a := 2222;"),
@@ -498,8 +498,7 @@ fn test_scan_tokens_SPAN() {
 }
 
 #[test]
-fn test_complex_token_cooking() {
-    use token::*;
+fn complex_token_cooking() {
 
     assert_eq!(
         to_token_kinds(".."),
