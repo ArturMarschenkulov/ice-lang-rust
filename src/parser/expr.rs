@@ -49,12 +49,13 @@ impl PartialEq for BindingPower {
 
 impl PartialOrd for BindingPower {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use std::cmp::Ordering::*;
         if self.right == other.left {
-            Some(std::cmp::Ordering::Equal)
+            Some(Equal)
         } else if self.right > other.left {
-            Some(std::cmp::Ordering::Greater)
+            Some(Greater)
         } else if self.right < other.left {
-            Some(std::cmp::Ordering::Less)
+            Some(Less)
         } else {
             None
         }
@@ -123,26 +124,38 @@ impl BindingPower {
         ];
         // Workaround, so that we don't have to implement stuff only for the HashMap.
         arr.iter()
-            .map(|(pk, prec, asso)| (format!("{:?}", TK::Punctuator(pk.clone())), BindingPower::from(*prec, *asso)))
+            .map(|(pk, prec, asso)| {
+                (
+                    format!("{:?}", TK::Punctuator(pk.clone())),
+                    BindingPower::from(*prec, *asso),
+                )
+            })
             .collect::<HashMap<String, BindingPower>>()
     }
     pub fn postfix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
         let arr: [(PK, u32, Associativity); 0] = [];
         arr.iter()
-            .map(|(pk, prec, asso)| (format!("{:?}", TK::Punctuator(pk.clone())), BindingPower::from(*prec, *asso)))
+            .map(|(pk, prec, asso)| {
+                (
+                    format!("{:?}", TK::Punctuator(pk.clone())),
+                    BindingPower::from(*prec, *asso),
+                )
+            })
             .collect::<HashMap<String, BindingPower>>()
     }
     pub fn prefix_binding_powers() -> std::collections::HashMap<String, BindingPower> {
         use std::collections::HashMap;
         use Associativity as Ass;
 
-        let arr = [
-            (PK::Plus, 6, Ass::Right),
-            (PK::Minus, 6, Ass::Right),
-        ];
+        let arr = [(PK::Plus, 6, Ass::Right), (PK::Minus, 6, Ass::Right)];
         arr.iter()
-            .map(|(pk, prec, asso)| (format!("{:?}", TK::Punctuator(pk.clone())), BindingPower::from(*prec, *asso)))
+            .map(|(pk, prec, asso)| {
+                (
+                    format!("{:?}", TK::Punctuator(pk.clone())),
+                    BindingPower::from(*prec, *asso),
+                )
+            })
             .collect::<HashMap<String, BindingPower>>()
     }
 }
