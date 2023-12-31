@@ -1,5 +1,5 @@
 use super::super::lexer::token::{KeywordKind as KK, PunctuatorKind as PK, TokenKind as TK};
-use super::ast::{Field, Identifier, Item, Parameter, Stmt, Ty};
+use super::ast::{Expr, Field, Identifier, Item, Parameter, Stmt, Ty};
 
 use super::{Error, PResult, Parser};
 
@@ -15,11 +15,10 @@ impl Parser {
         self.eat(&TK::Punctuator(PK::LeftBrace)).unwrap();
 
         let fields = self
-            .parse_delim_seq(
+            .parse_delim_seq_ident_and_type(
                 &TK::Punctuator(PK::LeftBrace),
                 &TK::Punctuator(PK::RightBrace),
                 &TK::Punctuator(PK::Comma),
-                ("field", "name", "type"),
             )
             .unwrap();
         let fields = fields
@@ -88,90 +87,16 @@ impl Parser {
 
         Ok(stmt)
     }
-    fn parse_delim_seq(
-        &mut self,
-        start: &TK,
-        end: &TK,
-        sep: &TK,
-        s: (&str, &str, &str),
-    ) -> PResult<Vec<(Identifier, Ty)>> {
-        let mut result = Vec::new();
-        self.eat(start).unwrap();
-        while self.check(end, 0).is_err() {
-            let name = self
-                .parse_identifier()
-                .map_err(|_| Error::new(format!("Expected {} {}", s.0, s.1)))?;
-
-            self.eat(&TK::Punctuator(PK::Colon))
-                .map_err(|_| Error::new(format!("Expected ':' after {} {}", s.0, s.1)))?;
-
-            let ty = self.parse_ty().unwrap();
-
-            match self.eat(sep) {
-                Ok(..) => (),
-                Err(..) => {
-                    let _ = self.check(end, 0).map_err(|_| {
-                        Error::new(format!("Expected '{}' after {} {}", end.as_str(), s.0, s.1))
-                    });
-                }
-            }
-            result.push((name, ty));
-        }
-        self.eat(end).map_err(|_| {
-            Error::new(format!(
-                "Expected '{}' after {} parameters",
-                end.as_str(),
-                s.0
-            ))
-        })?;
-        Ok(result)
-    }
-    // fn parse_delim_seq_(
-    //     &mut self,
-    //     start: &TokenKind,
-    //     end: &TokenKind,
-    //     sep: &TokenKind,
-    //     s: (&str, &str, &str),
-    // ) -> PResult<Vec<(Identifier, Ty)>> {
-    //     use PunctuatorKind::*;
-    //     //use TokenKind::*;
-
-    //     let mut result = Vec::new();
-    //     self.eat(start).unwrap();
-    //     while self.check(end, 0).is_err() {
-    //         let name = self
-    //             .parse_identifier()
-    //             .unwrap_or_else(|_| panic!("Expected {} {}", s.0, s.1));
-
-    //         self.eat(&TokenKind::Punctuator(Colon))
-    //             .unwrap_or_else(|_| panic!("Expected ':' after {} {}", s.0, s.1));
-    //         let ty = self.parse_ty().unwrap();
-
-    //         match self.eat(sep) {
-    //             Ok(..) => (),
-    //             Err(..) => {
-    //                 let _ = self.check(end, 0).unwrap_or_else(|_| {
-    //                     panic!("Expected '{}' after {} {}", end.as_str(), s.0, s.1)
-    //                 });
-    //             }
-    //         }
-    //         result.push((name, ty));
-    //     }
-    //     self.eat(end)
-    //         .unwrap_or_else(|_| panic!("Expected '{}' after {} parameters", end.as_str(), s.0));
-    //     Ok(result)
-    // }
     pub fn parse_item_fn(&mut self) -> PResult<Item> {
         self.eat(&TK::Keyword(KK::Fn)).unwrap();
 
         let name = self.parse_identifier().expect("Expected function name");
 
         let parameters = self
-            .parse_delim_seq(
+            .parse_delim_seq_ident_and_type(
                 &TK::Punctuator(PK::LeftParen),
                 &TK::Punctuator(PK::RightParen),
                 &TK::Punctuator(PK::Comma),
-                ("parameter", "name", "type"),
             )
             .unwrap()
             .iter()
@@ -200,5 +125,74 @@ impl Parser {
 
         let item = Item::fn_(name, parameters, ret_type, *body);
         Ok(item)
+    }
+}
+
+#[derive(Debug)]
+pub enum DelimError {
+    Start,
+    End,
+    Sep,
+    Inner,
+}
+
+/* The delim parsing needs to be more generic to reduce code duplication.
+
+*/
+// The different tyeps of delim sequences
+// (a, b, c): simply a list of items. Those items are however expressions and thus could be arbitrarily complex.
+// (a: b, c: d): a list of items, where each item is a pair of an identifier and a type.
+
+impl Parser {
+    pub fn parse_delim_seq<T>(
+        &mut self,
+        start: &TK,
+        end: &TK,
+        sep: Option<&TK>,
+        parser: impl Fn(&mut Parser) -> PResult<T>,
+    ) -> Result<Vec<T>, DelimError> {
+        let mut result = Vec::new();
+        self.eat(start).map_err(|_| DelimError::Start)?;
+        while self.check(end, 0).is_err() {
+            let item = parser(self).map_err(|_| DelimError::Inner)?;
+            result.push(item);
+            if let Some(sep) = sep {
+                match self.eat(sep) {
+                    Ok(..) => (),
+                    Err(..) => {
+                        let _ = self.check(end, 0).map_err(|_| DelimError::End);
+                    }
+                }
+            }
+        }
+        self.eat(end).map_err(|_| DelimError::End)?;
+        Ok(result)
+    }
+    fn parse_delim_seq_ident_and_type(
+        &mut self,
+        start: &TK,
+        end: &TK,
+        sep: &TK,
+    ) -> Result<Vec<(Identifier, Ty)>, DelimError> {
+        fn parse_ident_and_type(this: &mut Parser) -> PResult<(Identifier, Ty)> {
+            let name = this.parse_identifier().unwrap();
+            this.eat(&TK::Punctuator(PK::Colon)).unwrap();
+            let ty = this.parse_ty().unwrap();
+
+            return Ok((name, ty));
+        }
+        self.parse_delim_seq(start, end, Some(sep), parse_ident_and_type)
+    }
+
+    pub fn parse_delim_seq_expr(
+        &mut self,
+        start: &TK,
+        end: &TK,
+        sep: &TK,
+    ) -> Result<Vec<Expr>, DelimError> {
+        fn parse_expr(this: &mut Parser) -> PResult<Expr> {
+            this.parse_expr()
+        }
+        self.parse_delim_seq(start, end, Some(sep), parse_expr)
     }
 }

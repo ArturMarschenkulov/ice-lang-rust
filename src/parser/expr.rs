@@ -266,14 +266,15 @@ impl Parser {
 }
 impl Parser {
     pub fn parse_expr_block(&mut self) -> PResult<Expr> {
-        self.eat(&TK::Punctuator(PK::LeftBrace)).unwrap();
-        let mut statements: Vec<Stmt> = Vec::new();
+        let statements = self
+            .parse_delim_seq(
+                &TK::Punctuator(PK::LeftBrace),
+                &TK::Punctuator(PK::RightBrace),
+                None,
+                |x| x.parse_stmt(),
+            )
+            .unwrap();
 
-        while !self.is_at_end() && self.check(&TK::Punctuator(PK::RightBrace), 0).is_err() {
-            statements.push(self.parse_stmt().unwrap());
-        }
-
-        self.eat(&TK::Punctuator(PK::RightBrace)).unwrap();
         let expr = Expr::block(statements);
         Ok(expr)
     }
@@ -380,7 +381,7 @@ impl Parser {
                 if self.check(&TK::Punctuator(PK::LeftParen), 1).is_ok() {
                     self.parse_expr_fn_call().unwrap()
                 } else {
-                    self.parse_symbol()?
+                    self.parse_expr_symbol()?
                 }
             }
 
@@ -407,25 +408,20 @@ impl Parser {
         };
         Ok(expr)
     }
+
     fn parse_expr_fn_call(&mut self) -> PResult<Expr> {
         let callee_name = self.parse_identifier()?;
 
-        let callee = Expr::symbol(callee_name, None);
+        let callee = Expr::symbol_(callee_name, None);
 
-        self.eat(&TK::Punctuator(PK::LeftParen))
-            .expect("Expected '(' after function name");
-
-        let mut arguments: Vec<Expr> = Vec::new();
-        while self.check(&TK::Punctuator(PK::RightParen), 0).is_err() {
-            arguments.push(self.parse_expr().unwrap());
-            if self.check(&TK::Punctuator(PK::RightParen), 0).is_ok() {
-                self.eat(&TK::Punctuator(PK::Comma))
-                    .expect("Expected ',' after argument");
-            }
-        }
-
-        self.eat(&TK::Punctuator(PK::RightParen))
-            .expect("Expected ')' after arguments");
+        let arguments = self
+            .parse_delim_seq(
+                &TK::Punctuator(PK::LeftParen),
+                &TK::Punctuator(PK::RightParen),
+                Some(&TK::Punctuator(PK::Comma)),
+                |x| x.parse_expr(),
+            )
+            .unwrap();
 
         let expr = Expr::fn_call(callee, arguments);
         Ok(expr)
