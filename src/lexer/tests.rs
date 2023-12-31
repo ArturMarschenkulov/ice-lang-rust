@@ -96,40 +96,19 @@ mod cursor {
     }
     #[test]
     fn eat_while() {
+        fn foo<F>(lexer: &mut Lexer, f: F) -> String
+        where
+            F: Fn(&char) -> bool + Clone,
+        {
+            lexer.cursor.eat_while(f).into_iter().collect::<String>()
+        }
+
         let txt = "abc504";
         let mut lexer = Lexer::from(txt);
-        assert_eq!(
-            lexer
-                .cursor
-                .eat_while(|x| x == &'a')
-                .into_iter()
-                .collect::<String>(),
-            "a".to_string()
-        );
-        assert_eq!(
-            lexer
-                .cursor
-                .eat_while(|x| x.is_alphabetic())
-                .into_iter()
-                .collect::<String>(),
-            "bc".to_string()
-        );
-        assert_eq!(
-            lexer
-                .cursor
-                .eat_while(|x| x.is_alphanumeric())
-                .into_iter()
-                .collect::<String>(),
-            "504".to_string()
-        );
-        assert_eq!(
-            lexer
-                .cursor
-                .eat_while(|x| x.is_numeric())
-                .into_iter()
-                .collect::<String>(),
-            "".to_string()
-        );
+        assert_eq!(foo(&mut lexer, |x| x == &'a'), "a".to_string());
+        assert_eq!(foo(&mut lexer, |x| x.is_alphabetic()), "bc".to_string());
+        assert_eq!(foo(&mut lexer, |x| x.is_alphanumeric()), "504".to_string());
+        assert_eq!(foo(&mut lexer, |x| x.is_numeric()), "".to_string());
     }
     #[test]
     fn eat_str() {
