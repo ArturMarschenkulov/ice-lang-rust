@@ -9,7 +9,7 @@ impl Parser {
         self.eat(&TK::Keyword(KK::Type)).unwrap();
         let name = self.parse_identifier().unwrap();
 
-        let _ = self.eat(&TK::Punctuator(PK::Equal)).unwrap();
+        let _ = self.eat(&TK::Punctuator(PK::Colon)).unwrap();
 
         self.eat(&TK::Keyword(KK::Struct)).unwrap();
         self.eat(&TK::Punctuator(PK::LeftBrace)).unwrap();
@@ -40,7 +40,7 @@ impl Parser {
 
         let _ = self.check(&TK::Keyword(KK::Type), 0).unwrap();
         let _ = self.check_with(1, TK::is_identifier).unwrap();
-        let _ = self.check(&TK::Punctuator(PK::Equal), 2).unwrap();
+        let _ = self.check(&TK::Punctuator(PK::Colon), 2).unwrap();
 
         match self.peek(3).unwrap().kind {
             TK::Keyword(KK::Struct) => self.parse_item_type_struct(),
