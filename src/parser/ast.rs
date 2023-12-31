@@ -3,9 +3,8 @@
 //! This module contains types that form the language AST.
 //!
 //! The AST is the representation of the source code in a tree-like structure.
-//! 
+//!
 //! [`Identifier`], [`Operator`] and [`Literal`] represent the terminal nodes of the tree.
-
 
 enum Terminal {
     Identifier(Identifier),
@@ -68,7 +67,7 @@ impl From<crate::lexer::token::LiteralKind> for Literal {
 }
 
 /// Represents a symbol in the AST.
-/// 
+///
 /// A symbol is a path to a variable, function, struct, enum, etc.
 /// If the path is empty, it means that the symbol is in the current scope (e.g., `x`).
 /// If the path is not empty, it means that the symbol is in a different scope (e.g., `x::y::z`).
@@ -213,6 +212,7 @@ pub struct Parameter {
 // NOTE: This is a placeholder name, since right now, we can only parse one file, so a whole project will always be a file.
 // Later on, one should change the name, maybe 'Crate', 'Project', 'Package', 'Program', 'Module' etc.
 // In Rust terms: `Project` is a `Crate` and `Module` is a `Module`.
+#[derive(Clone, Debug)]
 pub struct Project {
     pub modules: Vec<Module>,
 }
@@ -221,6 +221,7 @@ impl From<Vec<Module>> for Project {
         Self { modules: module }
     }
 }
+#[derive(Clone, Debug)]
 pub struct Module {
     pub items: Vec<Item>,
 }
