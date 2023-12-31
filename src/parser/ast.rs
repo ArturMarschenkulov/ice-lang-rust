@@ -181,9 +181,14 @@ impl Expr {
         }
     }
 
-    pub fn symbol(name: Identifier, path: Option<Vec<Identifier>>) -> Self {
+    pub fn symbol_(name: Identifier, path: Option<Vec<Identifier>>) -> Self {
         Expr {
             kind: ExprKind::Symbol(Symbol { name, path }),
+        }
+    }
+    pub fn symbol(symbol: Symbol) -> Self {
+        Expr {
+            kind: ExprKind::Symbol(symbol),
         }
     }
 

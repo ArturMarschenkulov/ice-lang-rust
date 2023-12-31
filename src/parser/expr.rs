@@ -1,5 +1,5 @@
 use super::super::lexer::token::{KeywordKind as KK, PunctuatorKind as PK, TokenKind as TK};
-use super::ast::{Expr, Identifier, Literal, Operator, Stmt};
+use super::ast::{Expr, Identifier, Literal, Operator, Symbol};
 
 use super::{Error, PResult, Parser};
 
@@ -348,7 +348,7 @@ impl Parser {
             .map_err(|token| Error::new(format!("Expected operator, got {:?}", token)))
             .map(|token| Operator::try_from(token.clone()).expect("guaranteed"))
     }
-    fn parse_symbol(&mut self) -> PResult<Expr> {
+    fn parse_symbol(&mut self) -> PResult<Symbol> {
         let mut ids = Vec::new();
         ids.push(self.parse_identifier()?);
 
@@ -359,7 +359,13 @@ impl Parser {
         let actual_id = ids.pop().expect("Expected identifier");
         let actual_path = if ids.is_empty() { None } else { Some(ids) };
 
-        Ok(Expr::symbol(actual_id, actual_path))
+        Ok(Symbol {
+            name: actual_id,
+            path: actual_path,
+        })
+    }
+    fn parse_expr_symbol(&mut self) -> PResult<Expr> {
+        Ok(Expr::symbol(self.parse_symbol()?))
     }
     fn parse_expr_primary(&mut self) -> PResult<Expr> {
         let token = self.peek(0).unwrap().clone();
