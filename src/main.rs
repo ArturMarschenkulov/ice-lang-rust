@@ -14,12 +14,18 @@ use crate::parser::parse_project_from_file;
 
 //use crate::compiler::get_asm_from_ast;
 
-static TEXT: &str = r#"
+// static TEXT: &str =
+// r#"// THis is a comment at the end
+// var stur := "This\n is a string\n";
+// // THis is a comment at the end"#;
 
-// THis is a comment at the end
-var stur := "This\n is a string\n";
-// THis is a comment at the end
-"#;
+static TEXT: &str = r#"this
+
+is
+
+a
+
+test"#;
 
 fn time_fn<F, A>(f: F) -> (A, std::time::Duration)
 where
@@ -45,21 +51,22 @@ pub fn read_file(path: &str) -> io::Result<String> {
 struct Ice;
 impl Ice {
     // the entry point to the `Ice` instance
-    fn main(&mut self) {
+    fn main(&mut self, text: Option<&str>) {
         let num_arg = std::env::args().count();
-        let source = match num_arg {
-            2 => {
+        let source = match (num_arg, text) {
+            (_, Some(text)) => Ok(text.to_string()),
+            (2, _) => {
                 println!("from file");
                 let text_from_file = &mut std::env::args().collect::<Vec<String>>()[1];
                 read_file(text_from_file)
             }
-            1 => {
+            (1, _) => {
                 let run_test_file = true;
                 if run_test_file {
                     // This is mainly for convenience
                     // The actual end product should not have this branch
 
-                    let file = "tests\\test.ice";
+                    let file = "tests/test.ice";
                     read_file(file)
                 } else {
                     println!("from memory");
@@ -114,11 +121,61 @@ impl Ice {
     }
 }
 
+const foo: i32 = 1;
+
 /// Main entry point to the whole project/compiler
 fn main() {
+
     // std::env::set_var("RUST_BACKTRACE", "1");
     println!("------------------------------------------------------------");
     let mut ice = Ice {};
-    ice.main();
+    ice.main(None);
     println!("------------------------------------------------------------");
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn random() {
+        // raw string in rust
+        let text = r#"
+        type Person: struct {
+            name: u32,
+            age: i32
+        }
+        fn add(x: u32, y: u32): u32 {
+            return x + y;
+        }
+        fn main(): () {
+            var p: u32 = 22;
+
+            if p == 22 {
+                var x := 22;
+            } else {
+                var x := add(32, 24);
+            }
+        }
+        "#;
+        Ice.main(Some(text));
+    }
+
+
+    #[test]
+    #[should_panic]
+    fn multiple_symbols() {
+        let text = r#"
+        type Person: struct {
+            name: u32,
+            age: i32
+        }
+        type Person: struct {
+            name: u32,
+            age: i32
+        }
+        fn main(): () {
+        }
+        "#;
+        Ice.main(Some(text));
+    }
 }
