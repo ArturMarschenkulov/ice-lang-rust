@@ -333,6 +333,16 @@ pub enum ItemKind {
     //     name: Identifier,
     // },
 }
+
+impl ItemKind {
+    pub fn name(&self) -> &str {
+        match self {
+            ItemKind::Fn { name, .. } => name.name(),
+            ItemKind::Struct { name, .. } => name.name(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Item {
     pub kind: ItemKind,

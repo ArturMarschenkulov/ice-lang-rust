@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+mod check;
 mod compiler;
 mod lexer;
 mod parser;
@@ -100,6 +101,7 @@ impl Ice {
             time_fn(|| parse_project_from_file(token_stream.clone().unwrap()));
         time_vec.push(("Parser", ast_tree_time));
 
+        let x = check::check_project(&ast_tree.clone().unwrap()).unwrap();
         tui::format_(
             "Parser",
             print_config.show_stages,
