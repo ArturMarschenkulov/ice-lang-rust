@@ -6,8 +6,8 @@ use super::{PResult, Parser};
 /// This impl block is for parsing statements
 impl Parser {
     pub fn parse_stmt(&mut self) -> PResult<Stmt> {
-        let token = self.peek(0);
-        let sk = match &token.unwrap().kind {
+        let token = self.peek(0).unwrap();
+        let sk = match &token.kind {
             TK::Keyword(KK::Var) => self.parse_stmt_var()?,
             s if s.starts_item() => Stmt::item(self.parse_item().unwrap()),
             TK::Punctuator(PK::Semicolon) => {
@@ -21,14 +21,16 @@ impl Parser {
                 let _ = self.eat(&TK::Punctuator(PK::Semicolon));
             }
             StmtKind::Expression(ref expr) => {
-                match !expr.does_require_semicolon_if_in_stmt() {
-                    true => {
+                match expr.does_require_semicolon_if_in_stmt() {
+                    false => {
                         // self.eat_tok(&Punctuator(Semicolon))
                         //     .expect("Expected ';' after expression");
                     }
-                    false => {
+                    true => {
                         self.eat(&TK::Punctuator(PK::Semicolon))
-                            .expect("Expected ';' after expression");
+                            .unwrap_or_else(|e| {
+                                panic!("Expected ';' after expression, but got {:?}", e)
+                            });
                     }
                 }
             }

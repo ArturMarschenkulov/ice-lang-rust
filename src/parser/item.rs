@@ -12,16 +12,15 @@ impl Parser {
         let _ = self.eat(&TK::Punctuator(PK::Colon)).unwrap();
 
         self.eat(&TK::Keyword(KK::Struct)).unwrap();
-        self.eat(&TK::Punctuator(PK::LeftBrace)).unwrap();
 
+        self.check(&TK::Punctuator(PK::LeftBrace), 0).unwrap();
         let fields = self
             .parse_delim_seq_ident_and_type(
                 &TK::Punctuator(PK::LeftBrace),
                 &TK::Punctuator(PK::RightBrace),
                 &TK::Punctuator(PK::Comma),
             )
-            .unwrap();
-        let fields = fields
+            .unwrap()
             .iter()
             .map(|(name, ty)| Field {
                 name: name.clone(),
@@ -120,9 +119,6 @@ impl Parser {
 
         let body = Box::new(self.parse_expr_block().unwrap());
 
-        self.eat(&TK::Punctuator(PK::RightBrace))
-            .expect("Expected '}' after function body");
-
         let item = Item::fn_(name, parameters, ret_type, *body);
         Ok(item)
     }
@@ -130,58 +126,79 @@ impl Parser {
 
 #[derive(Debug)]
 pub enum DelimError {
-    Start,
-    End,
-    Sep,
-    Inner,
+    /// The start token kind was not found, instead this one.
+    Start(TK),
+    /// The end token kind was not found, instead this one.
+    End(TK),
+    /// The separator token kind was not found, instead this one.
+    Sep(TK),
+    /// An error occured while parsing the inner item.
+    Inner(Error),
 }
 
 /* The delim parsing needs to be more generic to reduce code duplication.
 
 */
-// The different tyeps of delim sequences
+// The different types of delim sequences
 // (a, b, c): simply a list of items. Those items are however expressions and thus could be arbitrarily complex.
 // (a: b, c: d): a list of items, where each item is a pair of an identifier and a type.
 
 impl Parser {
+    /// Parses a delim sequences.
+    ///
+    /// A delim sequence is a sequence of items, where each item is separated by a separator.
+    /// The sequence is surrounded by a start and end token.
+    ///
+    /// NOTE: When `sep == None`, it amounts to being separated by whitespace.
     pub fn parse_delim_seq<T>(
         &mut self,
         start: &TK,
         end: &TK,
         sep: Option<&TK>,
         parser: impl Fn(&mut Parser) -> PResult<T>,
-    ) -> Result<Vec<T>, DelimError> {
+    ) -> Result<Vec<T>, (Vec<T>, DelimError)>
+    where
+        T: Clone,
+    {
         let mut result = Vec::new();
-        self.eat(start).map_err(|_| DelimError::Start)?;
+        self.eat(start)
+            .map_err(|e| (result.clone(), DelimError::Start(e.unwrap().kind.clone())))?;
         while self.check(end, 0).is_err() {
-            let item = parser(self).map_err(|_| DelimError::Inner)?;
+            let item = parser(self).map_err(|e| (result.clone(), DelimError::Inner(e)))?;
             result.push(item);
+
             if let Some(sep) = sep {
                 match self.eat(sep) {
                     Ok(..) => (),
-                    Err(..) => {
-                        let _ = self.check(end, 0).map_err(|_| DelimError::End);
+                    Err(None) => panic!("Expected separator, got unexpected EOF"),
+                    Err(Some(token_instead)) => {
+                        if token_instead.kind == *end {
+                            break;
+                        } else {
+                            return Err((result, DelimError::Sep(token_instead.kind.clone())));
+                        }
                     }
                 }
             }
         }
-        self.eat(end).map_err(|_| DelimError::End)?;
+        self.eat(end)
+            .map_err(|e| (result.clone(), DelimError::End(e.unwrap().kind.clone())))?;
         Ok(result)
+    }
+    pub fn parse_ident_and_type(this: &mut Parser) -> PResult<(Identifier, Ty)> {
+        let name = this.parse_identifier().unwrap();
+        this.eat(&TK::Punctuator(PK::Colon)).unwrap();
+        let ty = this.parse_ty().unwrap();
+
+        Ok((name, ty))
     }
     fn parse_delim_seq_ident_and_type(
         &mut self,
         start: &TK,
         end: &TK,
         sep: &TK,
-    ) -> Result<Vec<(Identifier, Ty)>, DelimError> {
-        fn parse_ident_and_type(this: &mut Parser) -> PResult<(Identifier, Ty)> {
-            let name = this.parse_identifier().unwrap();
-            this.eat(&TK::Punctuator(PK::Colon)).unwrap();
-            let ty = this.parse_ty().unwrap();
-
-            return Ok((name, ty));
-        }
-        self.parse_delim_seq(start, end, Some(sep), parse_ident_and_type)
+    ) -> Result<Vec<(Identifier, Ty)>, (Vec<(Identifier, Ty)>, DelimError)> {
+        self.parse_delim_seq(start, end, Some(sep), Parser::parse_ident_and_type)
     }
 
     pub fn parse_delim_seq_expr(
@@ -189,10 +206,73 @@ impl Parser {
         start: &TK,
         end: &TK,
         sep: &TK,
-    ) -> Result<Vec<Expr>, DelimError> {
+    ) -> Result<Vec<Expr>, (Vec<Expr>, DelimError)> {
         fn parse_expr(this: &mut Parser) -> PResult<Expr> {
             this.parse_expr()
         }
         self.parse_delim_seq(start, end, Some(sep), parse_expr)
+    }
+}
+
+mod tests {
+    use super::super::super::lexer;
+    use super::*;
+    #[test]
+    fn parse_delim_seq() {
+        fn get_tokens(txt: &str) -> Vec<lexer::token::Token> {
+            lexer::lex_tokens_from_file(txt).unwrap().tokens
+        }
+        use TK::Punctuator as TKP;
+        const LEFT_PAREN: TK = TKP(PK::LeftParen);
+        const RIGHT_PAREN: TK = TKP(PK::RightParen);
+        const LEFT_BRACE: TK = TKP(PK::LeftBrace);
+        const RIGHT_BRACE: TK = TKP(PK::RightBrace);
+        const LEFT_BRACKET: TK = TKP(PK::LeftBracket);
+        const RIGHT_BRACKET: TK = TKP(PK::RightBracket);
+        const VERTICAL_BAR: TK = TKP(PK::VerticalBar);
+
+        const COMMA: TK = TKP(PK::Comma);
+        const SEMICOLON: TK = TKP(PK::Semicolon);
+        const COLON: TK = TKP(PK::Colon);
+
+        let txt = "(a)";
+        Parser::new(get_tokens(txt))
+            .parse_delim_seq(&LEFT_PAREN, &RIGHT_PAREN, Some(&COMMA), |p| {
+                p.parse_identifier()
+            })
+            .unwrap();
+
+        let txt = "(a,)";
+        Parser::new(get_tokens(txt))
+            .parse_delim_seq(&LEFT_PAREN, &RIGHT_PAREN, Some(&COMMA), |p| {
+                p.parse_identifier()
+            })
+            .unwrap();
+
+        let txt = "(a, b, c)";
+        Parser::new(get_tokens(txt))
+            .parse_delim_seq(&LEFT_PAREN, &RIGHT_PAREN, Some(&COMMA), |p| {
+                p.parse_identifier()
+            })
+            .unwrap();
+
+        let txt = "(a, b, c,)";
+        Parser::new(get_tokens(txt))
+            .parse_delim_seq(&LEFT_PAREN, &RIGHT_PAREN, Some(&COMMA), |p| {
+                p.parse_identifier()
+            })
+            .unwrap();
+
+        let txt = "(a b c)";
+        Parser::new(get_tokens(txt))
+            .parse_delim_seq(&LEFT_PAREN, &RIGHT_PAREN, None, |p| p.parse_identifier())
+            .unwrap();
+
+        // let txt = "(a; b; c,)";
+        // Parser::new(get_tokens(txt))
+        //     .parse_delim_seq(&LEFT_PAREN, &RIGHT_PAREN, Some(&SEMICOLON), |p| {
+        //         p.parse_identifier()
+        //     })
+        //     .unwrap();
     }
 }
