@@ -52,7 +52,7 @@ impl Parser {
     /// Eats the next token if it matches the given predicate.
     ///
     /// If the next token matches the predicate, it is consumed and returned.
-    /// Otherwise, the cursor is not moved and `Err` is ret
+    /// Otherwise, the cursor is not moved and `Err` is returned with the token that was peeked.
     fn eat_with<F>(&mut self, pred: F) -> Result<&Token, Option<&Token>>
     where
         Self: Sized,
@@ -64,14 +64,10 @@ impl Parser {
         // TODO: If polonius is ready, use the better version.
 
         if self.check_with(0, &pred).is_ok() {
-            self.advance()
+            self.advance();
+            return Ok(self.peek(-1).unwrap());
         }
-
-        match self.peek(-1) {
-            Some(token) if pred(&token.kind) => Ok(token),
-            peeked @ Some(..) => Err(peeked),
-            None => Err(None),
-        }
+        Err(self.peek(0))
 
         // // After polonius is ready, this SHOULD work
         // match self.check_with(0, &pred) {
