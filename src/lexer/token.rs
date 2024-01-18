@@ -782,7 +782,6 @@ impl From<(char, char)> for Whitespace {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenStream {
     pub tokens: Vec<Token>,

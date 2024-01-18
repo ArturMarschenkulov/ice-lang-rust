@@ -66,7 +66,7 @@ fn gen_newline_offsets(text: &str) -> Vec<usize> {
 /// Calculates the line and column based on given
 /// absolute offset and a vector of offsets which indicate the offset to a newline.
 fn get_line_and_column(newline_offsets: Vec<usize>, offset: usize) -> Option<(usize, usize)> {
-    if offset > newline_offsets.last().unwrap().clone() {
+    if offset > *newline_offsets.last().unwrap() {
         return None;
     }
     for (i, nl_offset) in newline_offsets.iter().enumerate() {

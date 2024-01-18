@@ -169,7 +169,7 @@ fn handle_punc_cache(punc_cache: &Vec<Token>) -> Vec<Token> {
         | &[PK::Colon, PK::Colon] => {
             let pk_0 = punc_cache[0].clone();
             let pk_1 = punc_cache[1].clone();
-            return vec![cook_tokens(&vec![pk_0, pk_1])];
+            return vec![cook_tokens(&[pk_0, pk_1])];
         }
         // handles if any of the tokens is .is_punctuator() == true.
         a if a.iter().any(|x| x.is_structural()) => {

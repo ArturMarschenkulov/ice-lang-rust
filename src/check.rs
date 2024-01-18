@@ -45,10 +45,11 @@ impl SymbolTable {
         }
 
         let symbol = gen_symbol(&symbol);
-        Ok(match symbol {
+        match symbol {
             SymbolKind::Fn { .. } => self.fns.push(symbol),
             SymbolKind::Struct { .. } => self.types.push(symbol),
-        })
+        }
+        Ok(())
     }
 }
 
@@ -78,12 +79,12 @@ pub fn check_project(project: &Project) -> Result<SymbolTable, String> {
     };
     for module in &project.modules {
         for item in &module.items {
-            let _ = match symbol_table.insert(item.kind.clone()) {
+            match symbol_table.insert(item.kind.clone()) {
                 Ok(symbol) => symbol,
                 Err(err) => {
                     panic!("Error: {}", err);
                 }
-            };
+            }
         }
     }
     Ok(symbol_table)

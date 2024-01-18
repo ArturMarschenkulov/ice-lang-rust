@@ -108,7 +108,7 @@ impl Ice {
             time_fn(|| parse_project_from_file(token_stream.clone().unwrap()));
         time_vec.push(("Parser", ast_tree_time));
 
-        let x = check::check_project(&ast_tree.clone().unwrap()).unwrap();
+        let _x = check::check_project(&ast_tree.clone().unwrap()).unwrap();
         tui::format_(
             "Parser",
             print_config.show_stages,
@@ -121,11 +121,8 @@ impl Ice {
     }
 }
 
-const foo: i32 = 1;
-
 /// Main entry point to the whole project/compiler
 fn main() {
-
     // std::env::set_var("RUST_BACKTRACE", "1");
     println!("------------------------------------------------------------");
     let mut ice = Ice {};
@@ -145,7 +142,7 @@ mod tests {
             age: i32
         }
         fn add(x: u32, y: u32): u32 {
-            return x + y;
+            x + y
         }
         fn main(): () {
             var p: u32 = 22;
@@ -159,7 +156,6 @@ mod tests {
         "#;
         Ice.main(Some(text));
     }
-
 
     #[test]
     #[should_panic]
